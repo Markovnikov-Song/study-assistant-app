@@ -1,13 +1,15 @@
 """
-FastAPI 配置：从环境变量读取，接口与 Streamlit 版 config.py 完全一致，
-services/ 里的 `from config import get_config` 会优先找到这个文件。
+FastAPI 配置：从环境变量读取，与 Streamlit 的 st.secrets 版本并存。
 """
 from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import Optional
 
-_REQUIRED = ["DATABASE_URL", "LLM_API_KEY", "LLM_BASE_URL", "LLM_CHAT_MODEL", "LLM_EMBEDDING_MODEL"]
+_REQUIRED = [
+    "DATABASE_URL", "LLM_API_KEY", "LLM_BASE_URL",
+    "LLM_CHAT_MODEL", "LLM_EMBEDDING_MODEL",
+]
 
 @dataclass
 class AppConfig:
@@ -22,7 +24,7 @@ class AppConfig:
     CHUNK_OVERLAP: int = 200
     TOP_K: int = 5
     JWT_SECRET: str = "change-me-in-production"
-    JWT_EXPIRE_HOURS: int = 24 * 7
+    JWT_EXPIRE_HOURS: int = 24 * 7  # 7 天
 
 _config: Optional[AppConfig] = None
 
@@ -47,7 +49,3 @@ def get_config() -> AppConfig:
             JWT_EXPIRE_HOURS=int(os.getenv("JWT_EXPIRE_HOURS", str(24 * 7))),
         )
     return _config
-
-def reset_config() -> None:
-    global _config
-    _config = None

@@ -7,7 +7,7 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from config import get_config
+from backend_config import get_config
 
 _bearer = HTTPBearer()
 
