@@ -39,8 +39,7 @@ class HistoryPage extends ConsumerWidget {
                     // 跳转到对应学科详情并加载该会话
                     if (s.subjectId != null) {
                       context.push(AppRoutes.subjectDetailPath(s.subjectId!));
-                    }
-                  },
+                    }                  },
                 ),
               );
             },

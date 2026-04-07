@@ -16,6 +16,12 @@ class SubjectActions {
   Future<void> create(String name, {String? category, String? description}) =>
       _service.createSubject(name, category: category, description: description);
 
+  Future<Subject?> createAndReturn(String name, {String? category, String? description}) async {
+    try {
+      return await _service.createSubject(name, category: category, description: description);
+    } catch (_) { return null; }
+  }
+
   Future<void> update(int id, {required String name, String? category, String? description}) =>
       _service.updateSubject(id, name: name, category: category, description: description);
 
