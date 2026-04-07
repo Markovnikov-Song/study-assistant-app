@@ -20,7 +20,7 @@ class _MindMapPageState extends ConsumerState<MindMapPage> {
   Widget build(BuildContext context) {
     final subject = ref.watch(currentSubjectProvider);
     return Scaffold(
-      appBar: const SubjectBar(),
+      appBar: AppBar(title: const SubjectBarTitle(), centerTitle: false),
       body: subject == null
           ? const NoSubjectHint()
           : _MindMapBody(

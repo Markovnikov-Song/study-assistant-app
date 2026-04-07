@@ -57,7 +57,7 @@ class _SolvePageState extends ConsumerState<SolvePage> {
   Widget build(BuildContext context) {
     final subject = ref.watch(currentSubjectProvider);
     return Scaffold(
-      appBar: const SubjectBar(),
+      appBar: AppBar(title: const SubjectBarTitle(), centerTitle: false),
       body: subject == null
           ? const NoSubjectHint()
           : _SolveBody(
@@ -93,7 +93,7 @@ class _SolveBody extends ConsumerWidget {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('$e', style: const TextStyle(color: Colors.red))),
             data: (msgs) => msgs.isEmpty
-                ? _EmptySolveHints(onTap: (h) => inputCtrl.text = h)
+                ? SingleChildScrollView(child: _EmptySolveHints(onTap: (h) => inputCtrl.text = h))
                 : ListView.builder(
                     controller: scrollCtrl,
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),

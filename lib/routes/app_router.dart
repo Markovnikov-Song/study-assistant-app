@@ -11,22 +11,23 @@ import '../features/mindmap/mindmap_page.dart';
 import '../features/quiz/quiz_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/subjects/subjects_page.dart';
+import '../features/resources/resources_page.dart';
 import '../features/subject_detail/subject_detail_page.dart';
 import '../features/history/history_page.dart';
 
 class AppRoutes {
-  static const login    = '/login';
-  static const register = '/register';
-  static const chat     = '/chat';
-  static const solve    = '/solve';
-  static const mindmap  = '/mindmap';
-  static const quiz     = '/quiz';
-  static const profile  = '/profile';
-  static const subjects = '/profile/subjects';
-  static const history  = '/profile/history';
-  static const subjectDetail = '/profile/subjects/:id';
+  static const login     = '/login';
+  static const register  = '/register';
+  static const chat      = '/chat';
+  static const solve     = '/solve';
+  static const mindmap   = '/mindmap';
+  static const quiz      = '/quiz';
+  static const profile   = '/profile';
+  static const subjects  = '/profile/subjects';
+  static const resources = '/profile/resources';
+  static const history   = '/profile/history';
 
-  static String subjectDetailPath(int id) => '/profile/subjects/$id';
+  static String subjectDetailPath(int id) => '/profile/resources/$id';
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -53,10 +54,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: AppRoutes.profile,
             builder: (_, __) => const ProfilePage(),
             routes: [
-              GoRoute(path: 'subjects', builder: (_, __) => const SubjectsPage()),
-              GoRoute(path: 'history',  builder: (_, __) => const HistoryPage()),
+              GoRoute(path: 'subjects',  builder: (_, __) => const SubjectsPage()),
+              GoRoute(path: 'resources', builder: (_, __) => const ResourcesPage()),
+              GoRoute(path: 'history',   builder: (_, __) => const HistoryPage()),
               GoRoute(
-                path: 'subjects/:id',
+                path: 'resources/:id',
                 builder: (_, state) => SubjectDetailPage(subjectId: int.parse(state.pathParameters['id']!)),
               ),
             ],

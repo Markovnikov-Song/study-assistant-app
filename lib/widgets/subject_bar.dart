@@ -4,115 +4,66 @@ import '../models/subject.dart';
 import '../providers/current_subject_provider.dart';
 import '../providers/subject_provider.dart';
 
-/// 顶部学科切换栏，所有功能页共用
-class SubjectBar extends ConsumerWidget implements PreferredSizeWidget {
-  const SubjectBar({super.key});
-
-  @override
-  Size get preferredSize => const Size.fromHeight(48);
+class SubjectBarTitle extends ConsumerWidget {
+  const SubjectBarTitle({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final current = ref.watch(currentSubjectProvider);
-    final cs = Theme.of(context).colorScheme;
-
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
+    return GestureDetector(
+      onTap: () => showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        builder: (_) => SubjectPickerSheet(ref: ref),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: () => _showSubjectSheet(context, ref),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('📚', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 6),
-                  Text(
-                    current?.name ?? '请选择学科',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: current == null ? cs.outline : cs.onSurface,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(Icons.expand_more, size: 18, color: cs.outline),
-                ],
-              ),
-            ),
-          ),
-          TextButton.icon(
-            onPressed: () => _showCreateSheet(context, ref),
-            icon: const Icon(Icons.add, size: 16),
-            label: const Text('新建', style: TextStyle(fontSize: 13)),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
+          const Text('📚', style: TextStyle(fontSize: 16)),
+          const SizedBox(width: 6),
+          Text(current?.name ?? '选择学科', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 2),
+          const Icon(Icons.expand_more, size: 20),
         ],
       ),
     );
   }
-
-  void _showSubjectSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _SubjectPickerSheet(ref: ref),
-    );
-  }
-
-  void _showCreateSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _CreateSubjectSheet(ref: ref),
-    );
-  }
 }
 
-// ── 学科选择抽屉 ──────────────────────────────────────────────────────────
-class _SubjectPickerSheet extends ConsumerWidget {
+class SubjectPickerSheet extends ConsumerStatefulWidget {
   final WidgetRef ref;
-  const _SubjectPickerSheet({required this.ref});
+  const SubjectPickerSheet({super.key, required this.ref});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SubjectPickerSheet> createState() => _SubjectPickerSheetState();
+}
+
+class _SubjectPickerSheetState extends ConsumerState<SubjectPickerSheet> {
+  bool _showArchived = false;
+
+  @override
+  Widget build(BuildContext context) {
     final subjectsAsync = ref.watch(subjectsProvider);
     final current = ref.watch(currentSubjectProvider);
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      maxChildSize: 0.9,
-      expand: false,
+      initialChildSize: 0.55, maxChildSize: 0.9, expand: false,
       builder: (_, ctrl) => Column(
         children: [
+          Center(child: Container(margin: const EdgeInsets.only(top: 12, bottom: 8), width: 36, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
             child: Row(
               children: [
-                Text('选择学科', style: Theme.of(context).textTheme.titleMedium),
+                Text('切换学科', style: Theme.of(context).textTheme.titleMedium),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () {
                     Navigator.pop(context);
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (_) => _CreateSubjectSheet(ref: ref),
-                    );
+                    showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => CreateSubjectSheet(ref: ref));
                   },
                   icon: const Icon(Icons.add, size: 16),
-                  label: const Text('新建学科'),
+                  label: const Text('新建'),
                 ),
               ],
             ),
@@ -125,33 +76,37 @@ class _SubjectPickerSheet extends ConsumerWidget {
               data: (subjects) {
                 final active = subjects.where((s) => !s.isArchived).toList();
                 final archived = subjects.where((s) => s.isArchived).toList();
-                return ListView(
-                  controller: ctrl,
+                return Stack(
                   children: [
-                    ...active.map((s) => _SubjectTile(
-                          subject: s,
-                          isSelected: current?.id == s.id,
-                          onTap: () {
-                            ref.read(currentSubjectProvider.notifier).state = s;
-                            Navigator.pop(context);
-                          },
-                          ref: ref,
+                    ListView(
+                      controller: ctrl,
+                      padding: const EdgeInsets.only(bottom: 64),
+                      children: [
+                        ...active.map((s) => _SubjectTile(
+                          subject: s, isSelected: current?.id == s.id,
+                          onSelect: () { ref.read(currentSubjectProvider.notifier).state = s; Navigator.pop(context); },
                         )),
+                        if (_showArchived && archived.isNotEmpty) ...[
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                            child: Text('已归档', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          ),
+                          ...archived.map((s) => _SubjectTile(
+                            subject: s, isSelected: current?.id == s.id,
+                            onSelect: () { ref.read(currentSubjectProvider.notifier).state = s; Navigator.pop(context); },
+                          )),
+                        ],
+                      ],
+                    ),
                     if (archived.isNotEmpty)
-                      ExpansionTile(
-                        title: Text('归档学科（${archived.length}）',
-                            style: const TextStyle(fontSize: 13, color: Colors.grey)),
-                        children: archived
-                            .map((s) => _SubjectTile(
-                                  subject: s,
-                                  isSelected: current?.id == s.id,
-                                  onTap: () {
-                                    ref.read(currentSubjectProvider.notifier).state = s;
-                                    Navigator.pop(context);
-                                  },
-                                  ref: ref,
-                                ))
-                            .toList(),
+                      Positioned(
+                        right: 16, bottom: 16,
+                        child: TextButton.icon(
+                          onPressed: () => setState(() => _showArchived = !_showArchived),
+                          icon: Icon(_showArchived ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 16),
+                          label: Text(_showArchived ? '隐藏已归档学科' : '显示已归档学科（${archived.length}）', style: const TextStyle(fontSize: 13)),
+                          style: TextButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh),
+                        ),
                       ),
                   ],
                 );
@@ -167,18 +122,16 @@ class _SubjectPickerSheet extends ConsumerWidget {
 class _SubjectTile extends ConsumerWidget {
   final Subject subject;
   final bool isSelected;
-  final VoidCallback onTap;
-  final WidgetRef ref;
-  const _SubjectTile({required this.subject, required this.isSelected, required this.onTap, required this.ref});
+  final VoidCallback onSelect;
+  const _SubjectTile({required this.subject, required this.isSelected, required this.onSelect});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     return ListTile(
-      leading: isSelected
-          ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
-          : const Icon(Icons.circle_outlined, color: Colors.grey),
+      leading: Icon(isSelected ? Icons.check_circle : Icons.circle_outlined, color: isSelected ? cs.primary : cs.outline, size: 22),
       title: Text(subject.name, style: TextStyle(fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal)),
-      subtitle: subject.category != null ? Text(subject.category!) : null,
+      subtitle: subject.category != null ? Text(subject.category!, style: const TextStyle(fontSize: 12)) : null,
       trailing: PopupMenuButton<String>(
         icon: const Icon(Icons.more_vert, size: 18),
         onSelected: (v) async {
@@ -188,32 +141,29 @@ class _SubjectTile extends ConsumerWidget {
           if (v == 'delete') {
             await actions.delete(subject.id);
             ref.invalidate(subjectsProvider);
-            if (ref.read(currentSubjectProvider)?.id == subject.id) {
-              ref.read(currentSubjectProvider.notifier).state = null;
-            }
+            if (ref.read(currentSubjectProvider)?.id == subject.id) ref.read(currentSubjectProvider.notifier).state = null;
           }
         },
         itemBuilder: (_) => [
           PopupMenuItem(value: 'pin', child: Text(subject.isPinned ? '取消置顶' : '📌 置顶')),
-          const PopupMenuItem(value: 'archive', child: Text('📦 归档')),
+          PopupMenuItem(value: 'archive', child: Text(subject.isArchived ? '📤 取消归档' : '📦 归档')),
           const PopupMenuItem(value: 'delete', child: Text('🗑 删除')),
         ],
       ),
-      onTap: onTap,
+      onTap: onSelect,
     );
   }
 }
 
-// ── 新建学科表单 ──────────────────────────────────────────────────────────
-class _CreateSubjectSheet extends StatefulWidget {
+class CreateSubjectSheet extends StatefulWidget {
   final WidgetRef ref;
-  const _CreateSubjectSheet({required this.ref});
+  const CreateSubjectSheet({super.key, required this.ref});
 
   @override
-  State<_CreateSubjectSheet> createState() => _CreateSubjectSheetState();
+  State<CreateSubjectSheet> createState() => _CreateSubjectSheetState();
 }
 
-class _CreateSubjectSheetState extends State<_CreateSubjectSheet> {
+class _CreateSubjectSheetState extends State<CreateSubjectSheet> {
   final _nameCtrl = TextEditingController();
   final _categoryCtrl = TextEditingController();
   bool _loading = false;

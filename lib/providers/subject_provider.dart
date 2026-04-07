@@ -5,7 +5,7 @@ import '../services/subject_service.dart';
 final subjectServiceProvider = Provider<SubjectService>((ref) => SubjectService());
 
 final subjectsProvider = FutureProvider<List<Subject>>((ref) async {
-  return ref.watch(subjectServiceProvider).getSubjects();
+  return ref.watch(subjectServiceProvider).getSubjects(includeArchived: true);
 });
 
 // 操作类（创建/编辑/删除/置顶/归档）

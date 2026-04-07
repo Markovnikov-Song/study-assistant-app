@@ -22,8 +22,8 @@ class Subject {
         name: json['name'] as String,
         category: json['category'] as String?,
         description: json['description'] as String?,
-        isPinned: (json['is_pinned'] ?? 0) == 1,
-        isArchived: (json['is_archived'] ?? 0) == 1,
+        isPinned: json['is_pinned'] == true || json['is_pinned'] == 1,
+        isArchived: json['is_archived'] == true || json['is_archived'] == 1,
         createdAt: DateTime.parse(json['created_at'] as String),
       );
 }

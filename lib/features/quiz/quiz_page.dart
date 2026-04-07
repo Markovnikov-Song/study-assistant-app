@@ -23,7 +23,7 @@ class _QuizPageState extends ConsumerState<QuizPage> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     final subject = ref.watch(currentSubjectProvider);
     return Scaffold(
-      appBar: const SubjectBar(),
+      appBar: AppBar(title: const SubjectBarTitle(), centerTitle: false),
       body: subject == null
           ? const NoSubjectHint()
           : Column(

@@ -58,7 +58,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Widget build(BuildContext context) {
     final subject = ref.watch(currentSubjectProvider);
     return Scaffold(
-      appBar: const SubjectBar(),
+      appBar: AppBar(title: const SubjectBarTitle(), centerTitle: false),
       body: subject == null
           ? const NoSubjectHint()
           : _ChatBody(
@@ -99,12 +99,15 @@ class _ChatBody extends ConsumerWidget {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('$e', style: const TextStyle(color: Colors.red))),
             data: (msgs) => msgs.isEmpty
-                ? _EmptyHints(onTap: (h) => inputCtrl.text = h)
+                ? SingleChildScrollView(child: _EmptyHints(onTap: (h) => inputCtrl.text = h))
                 : ListView.builder(
                     controller: scrollCtrl,
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                     itemCount: msgs.length,
-                    itemBuilder: (_, i) => _Bubble(message: msgs[i]),
+                    itemBuilder: (_, i) => _Bubble(
+                      message: msgs[i],
+                      onDelete: () => ref.read(chatProvider(subjectId).notifier).deleteMessage(i),
+                    ),
                   ),
           ),
         ),
@@ -201,7 +204,8 @@ class _HistorySheet extends ConsumerWidget {
 
 class _Bubble extends StatelessWidget {
   final ChatMessage message;
-  const _Bubble({required this.message});
+  final VoidCallback? onDelete;
+  const _Bubble({required this.message, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -209,18 +213,40 @@ class _Bubble extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
-        decoration: BoxDecoration(
-          color: isUser ? cs.primary : cs.surfaceContainerHigh,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16), topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isUser ? 16 : 4), bottomRight: Radius.circular(isUser ? 4 : 16),
+      child: GestureDetector(
+        onLongPress: () => _showOptions(context),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
+          decoration: BoxDecoration(
+            color: isUser ? cs.primary : cs.surfaceContainerHigh,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(16), topRight: const Radius.circular(16),
+              bottomLeft: Radius.circular(isUser ? 16 : 4), bottomRight: Radius.circular(isUser ? 4 : 16),
+            ),
           ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: SelectableText(message.content, style: TextStyle(color: isUser ? cs.onPrimary : cs.onSurface)),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: SelectableText(message.content, style: TextStyle(color: isUser ? cs.onPrimary : cs.onSurface)),
+      ),
+    );
+  }
+
+  void _showOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onDelete != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('删除此消息', style: TextStyle(color: Colors.red)),
+                onTap: () { Navigator.pop(context); onDelete!(); },
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -40,8 +40,17 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       );
       _currentSessionId = result.sessionId;
       if (result.needsConfirmation) {
-        // 移除用户消息，让 UI 显示确认提示
-        state = AsyncValue.data(current);
+        // 没有相关资料，自动用 broad 模式重试
+        final retryResult = await _service.sendMessage(
+          text,
+          subjectId: _subjectId,
+          sessionId: _currentSessionId,
+          mode: mode,
+          useBroad: true, // 强制 broad
+        );
+        if (!retryResult.needsConfirmation) {
+          state = AsyncValue.data([...state.value!, retryResult.message]);
+        }
         return;
       }
       state = AsyncValue.data([...state.value!, result.message]);
@@ -84,6 +93,14 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       state = AsyncValue.data(messages);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
+    }
+  }
+
+  void deleteMessage(int index) {
+    final msgs = List<ChatMessage>.from(state.value ?? []);
+    if (index >= 0 && index < msgs.length) {
+      msgs.removeAt(index);
+      state = AsyncValue.data(msgs);
     }
   }
 

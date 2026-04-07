@@ -44,7 +44,8 @@ class ProfilePage extends ConsumerWidget {
           const SizedBox(height: 8),
 
           // 功能列表
-          _Tile(icon: Icons.book_outlined, title: '学科管理', subtitle: '管理学科、资料库和历年题', onTap: () => context.push(AppRoutes.subjects)),
+          _Tile(icon: Icons.book_outlined, title: '学科管理', subtitle: '新建、编辑、归档学科', onTap: () => context.push(AppRoutes.subjects)),
+          _Tile(icon: Icons.folder_outlined, title: '资料管理', subtitle: '管理各学科的资料和历年题', onTap: () => context.push(AppRoutes.resources)),
           _Tile(icon: Icons.history, title: '对话历史', subtitle: '查看所有历史对话', onTap: () => context.push(AppRoutes.history)),
 
           const Divider(height: 32),
