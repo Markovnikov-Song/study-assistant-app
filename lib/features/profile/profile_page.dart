@@ -84,9 +84,9 @@ class ProfilePage extends ConsumerWidget {
                   ],
                 ),
               );
-              if (confirm == true && context.mounted) {
+              if (confirm == true) {
                 await ref.read(authProvider.notifier).logout();
-                context.go(AppRoutes.login);
+                if (context.mounted) context.go(AppRoutes.login);
               }
             },
           ),

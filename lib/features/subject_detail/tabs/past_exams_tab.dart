@@ -10,19 +10,41 @@ class PastExamsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final examsAsync = ref.watch(pastExamsProvider(subjectId));
+    final uploadState = ref.watch(examActionsProvider(subjectId));
+
+    ref.listen(examActionsProvider(subjectId), (_, next) {
+      if (next.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('上传失败：${next.error}'), backgroundColor: Colors.red),
+        );
+        ref.read(examActionsProvider(subjectId).notifier).clearError();
+      }
+    });
 
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(16),
           child: OutlinedButton.icon(
-            onPressed: () => ref.read(examActionsProvider(subjectId)).pickAndUpload(),
-            icon: const Icon(Icons.upload_file),
-            label: const Text('上传历年题（PDF / 图片 / Word）'),
+            onPressed: uploadState.isUploading
+                ? null
+                : () => ref.read(examActionsProvider(subjectId).notifier).pickAndUpload(),
+            icon: uploadState.isUploading
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.upload_file),
+            label: Text(uploadState.isUploading ? '上传中…' : '上传历年题（PDF / 图片 / Word）'),
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
           ),
         ),
         const Divider(height: 1),
+        // 处理中进度条
+        if (examsAsync.maybeWhen(
+          data: (exams) => exams.any((e) =>
+              e.status == DocumentStatus.pending ||
+              e.status == DocumentStatus.processing),
+          orElse: () => false,
+        ))
+          const LinearProgressIndicator(),
         Expanded(
           child: examsAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
@@ -34,7 +56,7 @@ class PastExamsTab extends ConsumerWidget {
               return ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: exams.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (_, i) => _ExamFileCard(exam: exams[i], subjectId: subjectId),
               );
             },
@@ -69,7 +91,7 @@ class _ExamFileCard extends ConsumerWidget {
             trailing: IconButton(
               icon: const Icon(Icons.delete_outline),
               onPressed: () async {
-                await ref.read(examActionsProvider(subjectId)).delete(exam.id);
+                await ref.read(examActionsProvider(subjectId).notifier).delete(exam.id);
                 ref.invalidate(pastExamsProvider(subjectId));
               },
             ),

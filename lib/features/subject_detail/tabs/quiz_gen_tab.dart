@@ -116,7 +116,6 @@ class _CustomQuizTab extends ConsumerStatefulWidget {
 
 class _CustomQuizTabState extends ConsumerState<_CustomQuizTab> {
   static const _allTypes = ['选择题', '填空题', '简答题', '计算题'];
-  static const _defaultScores = {'选择题': 2, '填空题': 3, '简答题': 10, '计算题': 15};
 
   final Set<String> _selectedTypes = {'选择题', '简答题'};
   final Map<String, int> _counts = {'选择题': 3, '填空题': 3, '简答题': 3, '计算题': 3};

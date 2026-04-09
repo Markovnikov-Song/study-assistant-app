@@ -45,6 +45,7 @@ Future<void> showAvatarPicker(BuildContext context, WidgetRef ref) async {
 
   const maxSize = 5 * 1024 * 1024;
   if (bytes.length > maxSize) {
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('图片过大，请选择小于 5MB 的图片')),
     );

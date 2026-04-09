@@ -41,7 +41,7 @@ class NoteCard extends StatelessWidget {
                       style: hasTitle
                           ? theme.textTheme.bodyMedium
                           : theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withOpacity(0.45),
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
                               fontStyle: FontStyle.italic,
                             ),
                       maxLines: 1,
@@ -51,7 +51,7 @@ class NoteCard extends StatelessWidget {
                     Text(
                       '$dateStr · $roleLabel',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.55),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
                       ),
                     ),
                   ],

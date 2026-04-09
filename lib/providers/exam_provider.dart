@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/document.dart';
+import '../providers/document_provider.dart' show UploadState;
 import '../services/exam_service.dart';
 
 final examServiceProvider = Provider<ExamService>((ref) => ExamService());
@@ -14,35 +16,71 @@ final examQuestionsProvider = FutureProviderFamily<List<Map<String, dynamic>>, i
 );
 
 // ── 历年题操作 ────────────────────────────────────────────────────────────
-class ExamActions {
+class ExamActionsNotifier extends StateNotifier<UploadState> {
   final ExamService _service;
   final int _subjectId;
   final Ref _ref;
+  Timer? _pollTimer;
 
-  ExamActions(this._service, this._subjectId, this._ref);
+  ExamActionsNotifier(this._service, this._subjectId, this._ref)
+      : super(const UploadState());
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
 
   Future<void> pickAndUpload() async {
-    final picker = ImagePicker();
-    // TODO: 替换为 file_picker 支持 PDF/Word
-    final file = await picker.pickImage(source: ImageSource.gallery);
-    if (file == null) return;
-    final bytes = await file.readAsBytes();
-    await _service.uploadExam(
-      fileBytes: bytes,
-      filename: file.name,
-      subjectId: _subjectId,
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'docx'],
+      withData: true,
     );
-    _ref.invalidate(pastExamsProvider(_subjectId));
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    if (file.bytes == null) return;
+
+    state = const UploadState(isUploading: true);
+    try {
+      await _service.uploadExam(
+        fileBytes: file.bytes!,
+        filename: file.name,
+        subjectId: _subjectId,
+      );
+      _ref.invalidate(pastExamsProvider(_subjectId));
+      _startPolling();
+    } catch (e) {
+      state = UploadState(error: e.toString());
+    }
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      _ref.invalidate(pastExamsProvider(_subjectId));
+      final exams = await _service.getPastExams(_subjectId);
+      final stillProcessing = exams.any(
+        (e) => e.status == DocumentStatus.pending || e.status == DocumentStatus.processing,
+      );
+      if (!stillProcessing) {
+        _pollTimer?.cancel();
+        state = const UploadState();
+      }
+    });
   }
 
   Future<void> delete(int examId) async {
     await _service.deleteExam(examId, _subjectId);
     _ref.invalidate(pastExamsProvider(_subjectId));
   }
+
+  void clearError() => state = const UploadState();
 }
 
-final examActionsProvider = ProviderFamily<ExamActions, int>(
-  (ref, subjectId) => ExamActions(ref.watch(examServiceProvider), subjectId, ref),
+final examActionsProvider =
+    StateNotifierProviderFamily<ExamActionsNotifier, UploadState, int>(
+  (ref, subjectId) => ExamActionsNotifier(ref.watch(examServiceProvider), subjectId, ref),
 );
 
 // ── 预测试卷 ──────────────────────────────────────────────────────────────

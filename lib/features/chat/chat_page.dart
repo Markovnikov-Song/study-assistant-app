@@ -129,13 +129,21 @@ class _ChatBody extends ConsumerWidget {
                 : ListView.builder(
                     controller: scrollCtrl,
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    itemCount: msgs.length,
-                    itemBuilder: (_, i) => _Bubble(
-                      message: msgs[i],
-                      onDelete: multiSelect.isActive
-                          ? null
-                          : () => ref.read(chatProvider(key).notifier).deleteMessage(i),
-                    ),
+                    itemCount: msgs.length + (sending ? 1 : 0),
+                    itemBuilder: (_, i) {
+                      if (sending && i == msgs.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: _TypingIndicator(),
+                        );
+                      }
+                      return _Bubble(
+                        message: msgs[i],
+                        onDelete: multiSelect.isActive
+                            ? null
+                            : () => ref.read(chatProvider(key).notifier).deleteMessage(i),
+                      );
+                    },
                   ),
           ),
         ),
@@ -238,6 +246,38 @@ class _HistorySheet extends ConsumerWidget {
                           title: Text(s.title ?? '未命名对话'),
                           subtitle: Text(_formatTime(s.createdAt)),
                           onTap: () { ref.read(chatProvider(key).notifier).loadSession(s.id); Navigator.pop(context); },
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
+                            onPressed: () async {
+                              final ok = await showDialog<bool>(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  title: const Text('删除对话'),
+                                  content: Text('确定删除「${s.title ?? '未命名对话'}」？'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, true),
+                                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                      child: const Text('删除'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (ok == true) {
+                                try {
+                                  await ref.read(chatServiceProvider).deleteSession(s.id);
+                                  ref.invalidate(sessionsProvider(subjectId));
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
+                                    );
+                                  }
+                                }
+                              }
+                            },
+                          ),
                         );
                       },
                     ),
@@ -318,20 +358,32 @@ class _Bubble extends ConsumerWidget {
     );
   }
 
-  void _showOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (onDelete != null)
-              ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text('删除此消息', style: TextStyle(color: Colors.red)),
-                onTap: () { Navigator.pop(context); onDelete!(); },
-              ),
-          ],
+}
+
+class _TypingIndicator extends StatelessWidget {
+  const _TypingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHigh,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16), topRight: Radius.circular(16),
+            bottomLeft: Radius.circular(4), bottomRight: Radius.circular(16),
+          ),
+        ),
+        child: SizedBox(
+          width: 48,
+          child: LinearProgressIndicator(
+            borderRadius: BorderRadius.circular(4),
+            color: cs.primary,
+            backgroundColor: cs.surfaceContainerHighest,
+          ),
         ),
       ),
     );
@@ -413,7 +465,7 @@ class _SourcesWidget extends StatelessWidget {
           children: sources.map((s) => Container(
             margin: const EdgeInsets.only(bottom: 6),
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.black.withOpacity(0.05), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(6)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

@@ -36,10 +36,10 @@ class NotebookService {
   }) async {
     try {
       final res = await _dio.patch('${ApiConstants.notebooks}/$id', data: {
-        if (name != null) 'name': name,
-        if (isPinned != null) 'is_pinned': isPinned,
-        if (isArchived != null) 'is_archived': isArchived,
-        if (sortOrder != null) 'sort_order': sortOrder,
+        'name': ?name,
+        'is_pinned': ?isPinned,
+        'is_archived': ?isArchived,
+        'sort_order': ?sortOrder,
       });
       return Notebook.fromJson(res.data);
     } on DioException catch (e) {
@@ -100,8 +100,8 @@ class NotebookService {
   }) async {
     try {
       final res = await _dio.patch('${ApiConstants.notes}/$noteId', data: {
-        if (title != null) 'title': title,
-        if (originalContent != null) 'original_content': originalContent,
+        'title': ?title,
+        'original_content': ?originalContent,
       });
       return Note.fromJson(res.data);
     } on DioException catch (e) {

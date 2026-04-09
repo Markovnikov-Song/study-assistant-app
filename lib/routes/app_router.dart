@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../core/storage/storage_service.dart';
 import '../features/auth/login_page.dart';
 import '../features/auth/register_page.dart';
 import '../features/home/shell_page.dart';
@@ -42,7 +41,7 @@ class AppRoutes {
 final routerProvider = Provider<GoRouter>((ref) {
   final notifier = _RouterNotifier(ref);
   return GoRouter(
-    initialLocation: StorageService.instance.isLoggedIn ? AppRoutes.chat : AppRoutes.login,
+    initialLocation: AppRoutes.chat,
     refreshListenable: notifier,
     redirect: (context, state) {
       final loggedIn = ref.read(authProvider).isAuthenticated;
@@ -52,30 +51,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: AppRoutes.login,    builder: (_, __) => const LoginPage()),
-      GoRoute(path: AppRoutes.register, builder: (_, __) => const RegisterPage()),
+      GoRoute(path: AppRoutes.login,    builder: (_, _) => const LoginPage()),
+      GoRoute(path: AppRoutes.register, builder: (_, _) => const RegisterPage()),
       ShellRoute(
-        builder: (_, __, child) => ShellPage(child: child),
+        builder: (_, _, child) => ShellPage(child: child),
         routes: [
-          GoRoute(path: AppRoutes.chat,    builder: (_, __) => const ChatPage()),
-          GoRoute(path: AppRoutes.solve,   builder: (_, __) => const SolvePage()),
-          GoRoute(path: AppRoutes.mindmap, builder: (_, __) => const MindMapPage()),
-          GoRoute(path: AppRoutes.quiz,    builder: (_, __) => const QuizPage()),
+          GoRoute(path: AppRoutes.chat,    builder: (_, _) => const ChatPage()),
+          GoRoute(path: AppRoutes.solve,   builder: (_, _) => const SolvePage()),
+          GoRoute(path: AppRoutes.mindmap, builder: (_, _) => const MindMapPage()),
+          GoRoute(path: AppRoutes.quiz,    builder: (_, _) => const QuizPage()),
           GoRoute(
             path: AppRoutes.profile,
-            builder: (_, __) => const ProfilePage(),
+            builder: (_, _) => const ProfilePage(),
             routes: [
-              GoRoute(path: 'subjects',  builder: (_, __) => const SubjectsPage()),
-              GoRoute(path: 'resources', builder: (_, __) => const ResourcesPage()),
-              GoRoute(path: 'history',   builder: (_, __) => const HistoryPage()),
-              GoRoute(path: 'edit',      builder: (_, __) => const EditProfilePage()),
+              GoRoute(path: 'subjects',  builder: (_, _) => const SubjectsPage()),
+              GoRoute(path: 'resources', builder: (_, _) => const ResourcesPage()),
+              GoRoute(path: 'history',   builder: (_, _) => const HistoryPage()),
+              GoRoute(path: 'edit',      builder: (_, _) => const EditProfilePage()),
               GoRoute(
                 path: 'resources/:id',
                 builder: (_, state) => SubjectDetailPage(subjectId: int.parse(state.pathParameters['id']!)),
               ),
               GoRoute(
                 path: 'notebooks',
-                builder: (_, __) => const NotebookListPage(),
+                builder: (_, _) => const NotebookListPage(),
                 routes: [
                   GoRoute(
                     path: ':nbId',
@@ -104,6 +103,6 @@ final routerProvider = Provider<GoRouter>((ref) {
 
 class _RouterNotifier extends ChangeNotifier {
   _RouterNotifier(Ref ref) {
-    ref.listen(authProvider, (_, __) => notifyListeners());
+    ref.listen(authProvider, (_, _) => notifyListeners());
   }
 }

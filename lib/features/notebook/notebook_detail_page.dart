@@ -26,7 +26,9 @@ class _NotebookDetailPageState extends ConsumerState<NotebookDetailPage>
 
   void _updateTabs(List<int?> newIds) {
     if (_currentTabIds.length == newIds.length &&
-        _currentTabIds.every((id) => newIds.contains(id))) return;
+        _currentTabIds.every((id) => newIds.contains(id))) {
+      return;
+    }
     _tabController?.dispose();
     _tabController = TabController(length: newIds.length, vsync: this);
     _currentTabIds = List.from(newIds);
@@ -96,7 +98,7 @@ class _NotebookDetailPageState extends ConsumerState<NotebookDetailPage>
                         child: Text(
                           '暂无笔记',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45),
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45),
                               ),
                         ),
                       );

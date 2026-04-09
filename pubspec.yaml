@@ -28,6 +28,7 @@ dependencies:
 
   # 图片/相机
   image_picker: ^1.1.2
+  file_picker: ^8.1.2
 
   # Markdown + LaTeX 渲染
   flutter_markdown: ^0.7.4
@@ -38,6 +39,7 @@ dependencies:
   json_annotation: ^4.9.0
   intl: ^0.19.0
 
+  markdown: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -16,7 +16,7 @@ class DocumentService {
     }
   }
 
-  Future<StudyDocument> uploadDocument({
+  Future<int> uploadDocument({
     required List<int> fileBytes,
     required String filename,
     required int subjectId,
@@ -27,7 +27,7 @@ class DocumentService {
         'subject_id': subjectId,
       });
       final res = await _dio.post(ApiConstants.documents, data: formData);
-      return StudyDocument.fromJson(res.data);
+      return (res.data as Map<String, dynamic>)['doc_id'] as int;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -35,7 +35,10 @@ class DocumentService {
 
   Future<void> deleteDocument(int docId, int subjectId) async {
     try {
-      await _dio.delete('${ApiConstants.documents}/$docId');
+      await _dio.delete(
+        '${ApiConstants.documents}/$docId',
+        queryParameters: {'subject_id': subjectId},
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

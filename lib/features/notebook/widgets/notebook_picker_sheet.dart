@@ -94,21 +94,19 @@ class _NotebookPickerSheetState extends ConsumerState<NotebookPickerSheet> {
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        RadioListTile<int>(
-                          value: notebook.id,
-                          groupValue: _selectedNotebook?.id,
+                        ListTile(
+                          leading: Icon(
+                            isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                            color: isSelected ? Theme.of(context).colorScheme.primary : null,
+                          ),
                           title: Text(notebook.name),
-                          onChanged: (_) {
-                            setState(() {
-                              _selectedNotebook = notebook;
-                            });
-                          },
+                          onTap: () => setState(() => _selectedNotebook = notebook),
                         ),
                         // 选中后展示学科选择下拉框
                         if (isSelected)
                           subjectsAsync.when(
                             loading: () => const SizedBox.shrink(),
-                            error: (_, __) => const SizedBox.shrink(),
+                            error: (_, _) => const SizedBox.shrink(),
                             data: (subjects) {
                               final activeSubjects = subjects
                                   .where((s) => !s.isArchived)

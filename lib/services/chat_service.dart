@@ -49,7 +49,7 @@ class ChatService {
       final res = await _dio.post(ApiConstants.chatQuery, data: {
         'message': message,
         'subject_id': subjectId,
-        if (sessionId != null) 'session_id': sessionId,
+        'session_id': ?sessionId,
         'mode': modeStr,
       });
       final data = res.data as Map<String, dynamic>;
@@ -74,10 +74,18 @@ class ChatService {
     try {
       final res = await _dio.post(ApiConstants.chatMindmap, data: {
         'subject_id': subjectId,
-        if (sessionId != null) 'session_id': sessionId,
-        if (docId != null) 'doc_id': docId,
+        'session_id': ?sessionId,
+        'doc_id': ?docId,
       });
       return res.data['content'] as String;
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<void> deleteSession(int sessionId) async {
+    try {
+      await _dio.delete('${ApiConstants.sessions}/$sessionId');
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

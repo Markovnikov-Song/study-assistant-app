@@ -28,7 +28,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final ok = await ref
         .read(authProvider.notifier)
         .login(_usernameCtrl.text.trim(), _passwordCtrl.text);
-    if (ok && mounted) context.go(AppRoutes.subjects);
+    if (ok && mounted) context.go(AppRoutes.chat);
   }
 
   @override

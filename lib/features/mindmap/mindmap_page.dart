@@ -68,11 +68,11 @@ class _MindMapBody extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: docsAsync.when(
             loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
             data: (docs) {
               final completed = docs.where((d) => d.status.name == 'completed').toList();
               return DropdownButtonFormField<int?>(
-                value: selectedDocId,
+                initialValue: selectedDocId,
                 decoration: const InputDecoration(labelText: '资料范围', border: OutlineInputBorder(), isDense: true),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('全部资料')),

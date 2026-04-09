@@ -113,6 +113,8 @@ class _NoteDetailPageState extends ConsumerState<NoteDetailPage> {
   }
 
   void _showDeleteDialog(BuildContext context) {
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -131,10 +133,10 @@ class _NoteDetailPageState extends ConsumerState<NoteDetailPage> {
                     .read(notebookServiceProvider)
                     .deleteNote(widget.noteId);
                 ref.invalidate(notebookNotesProvider(widget.notebookId));
-                if (mounted) context.pop();
+                if (mounted) router.pop();
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     SnackBar(content: Text('删除失败：$e')),
                   );
                 }
@@ -216,7 +218,7 @@ class _NoteDetailPageState extends ConsumerState<NoteDetailPage> {
       style: hasTitle
           ? theme.textTheme.titleLarge
           : theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.45),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
               fontStyle: FontStyle.italic,
             ),
     );

@@ -10,6 +10,17 @@ class DocsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final docsAsync = ref.watch(documentsProvider(subjectId));
+    final uploadState = ref.watch(documentActionsProvider(subjectId));
+
+    // 显示错误
+    ref.listen(documentActionsProvider(subjectId), (_, next) {
+      if (next.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('上传失败：${next.error}'), backgroundColor: Colors.red),
+        );
+        ref.read(documentActionsProvider(subjectId).notifier).clearError();
+      }
+    });
 
     return Column(
       children: [
@@ -17,15 +28,25 @@ class DocsTab extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.all(16),
           child: OutlinedButton.icon(
-            onPressed: () => ref.read(documentActionsProvider(subjectId)).pickAndUpload(),
-            icon: const Icon(Icons.upload_file),
-            label: const Text('上传资料（PDF / Word / PPT / TXT / MD）'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-            ),
+            onPressed: uploadState.isUploading
+                ? null
+                : () => ref.read(documentActionsProvider(subjectId).notifier).pickAndUpload(),
+            icon: uploadState.isUploading
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.upload_file),
+            label: Text(uploadState.isUploading ? '上传中…' : '上传资料（PDF / Word / PPT / TXT / MD）'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
           ),
         ),
         const Divider(height: 1),
+        // 处理中进度条
+        if (docsAsync.maybeWhen(
+          data: (docs) => docs.any((d) =>
+              d.status == DocumentStatus.pending ||
+              d.status == DocumentStatus.processing),
+          orElse: () => false,
+        ))
+          const LinearProgressIndicator(),
         // 文件列表
         Expanded(
           child: docsAsync.when(
@@ -38,7 +59,7 @@ class DocsTab extends ConsumerWidget {
               return ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: docs.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (_, i) => _DocCard(doc: docs[i], subjectId: subjectId),
               );
             },
@@ -100,8 +121,15 @@ class _DocCard extends ConsumerWidget {
           FilledButton(
             onPressed: () async {
               Navigator.pop(context);
-              await ref.read(documentActionsProvider(subjectId)).delete(doc.id);
-              ref.invalidate(documentsProvider(subjectId));
+              try {
+                await ref.read(documentActionsProvider(subjectId).notifier).delete(doc.id);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
             },
             child: const Text('删除'),
           ),

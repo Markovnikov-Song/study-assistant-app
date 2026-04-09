@@ -38,7 +38,7 @@ class SubjectSection extends StatelessWidget {
             child: Text(
               '暂无笔记',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.45),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
               ),
             ),
           )

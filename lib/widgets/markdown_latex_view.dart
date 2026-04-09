@@ -43,29 +43,39 @@ class MarkdownLatexView extends StatelessWidget {
   }
 }
 
-// ── LaTeX 行内语法：$...$ ─────────────────────────────────────────────────
+// ── LaTeX 行内语法：$...$ 和 \(...\) ─────────────────────────────────────
 class _InlineLatexSyntax extends md.InlineSyntax {
-  _InlineLatexSyntax() : super(r'\$([^\$\n]+?)\$');
+  // 匹配 $...$ (非空，不跨行) 或 \(...\)
+  _InlineLatexSyntax() : super(r'\$([^\$\n]+?)\$|\\\((.+?)\\\)');
 
   @override
   bool onMatch(md.InlineParser parser, Match match) {
-    final el = md.Element.text('latex', match[1]!);
+    final formula = match[1] ?? match[2] ?? '';
+    final el = md.Element.text('latex', formula);
     el.attributes['display'] = 'inline';
     parser.addNode(el);
     return true;
   }
 }
 
-// ── LaTeX 块级语法：\[...\] 或 $$...$$ ───────────────────────────────────
+// ── LaTeX 块级语法：\[...\]、$$...$$ 和 \begin{...}...\end{...} ──────────
 class _BlockLatexSyntax extends md.BlockSyntax {
   @override
-  RegExp get pattern => RegExp(r'^\s*(\\\[|\$\$)');
+  RegExp get pattern => RegExp(r'^\s*(\\\[|\$\$|\\begin\{)');
 
   @override
   md.Node? parse(md.BlockParser parser) {
     final startLine = parser.current.content.trimLeft();
-    final isDoubleDollar = startLine.startsWith(r'$$');
-    final endPattern = isDoubleDollar ? r'$$' : r'\]';
+    final String endPattern;
+    if (startLine.startsWith(r'$$')) {
+      endPattern = r'$$';
+    } else if (startLine.startsWith(r'\[')) {
+      endPattern = r'\]';
+    } else {
+      // \begin{...} 找对应 \end{...}
+      final envMatch = RegExp(r'\\begin\{(\w+)\}').firstMatch(startLine);
+      endPattern = envMatch != null ? '\\end{${envMatch.group(1)}}' : r'\end';
+    }
     parser.advance();
 
     final buffer = StringBuffer();

@@ -25,7 +25,7 @@ class ExamService {
     }
   }
 
-  Future<PastExamFile> uploadExam({
+  Future<int> uploadExam({
     required List<int> fileBytes,
     required String filename,
     required int subjectId,
@@ -36,7 +36,7 @@ class ExamService {
         'subject_id': subjectId,
       });
       final res = await _dio.post(ApiConstants.pastExams, data: formData);
-      return PastExamFile.fromJson(res.data);
+      return (res.data as Map<String, dynamic>)['file_id'] as int;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -44,7 +44,10 @@ class ExamService {
 
   Future<void> deleteExam(int examId, int subjectId) async {
     try {
-      await _dio.delete('${ApiConstants.pastExams}/$examId');
+      await _dio.delete(
+        '${ApiConstants.pastExams}/$examId',
+        queryParameters: {'subject_id': subjectId},
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -74,7 +77,7 @@ class ExamService {
         'type_counts': typeCounts,
         'type_scores': typeScores,
         'difficulty': difficulty,
-        if (topic != null) 'topic': topic,
+        'topic': ?topic,
       });
       return res.data['result'] as String;
     } on DioException catch (e) {

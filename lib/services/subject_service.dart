@@ -20,8 +20,8 @@ class SubjectService {
     try {
       final res = await _dio.post(ApiConstants.subjects, data: {
         'name': name,
-        if (category != null) 'category': category,
-        if (description != null) 'description': description,
+        'category': ?category,
+        'description': ?description,
       });
       return Subject.fromJson(res.data);
     } on DioException catch (e) {
