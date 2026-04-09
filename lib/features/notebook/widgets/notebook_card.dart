@@ -72,12 +72,10 @@ class NotebookCard extends StatelessWidget {
                     value: _MenuAction.archive,
                     child: Text(notebook.isArchived ? '取消归档' : '归档'),
                   ),
-                  // 仅用户自定义本显示删除选项（需求 1.3, 1.5）
-                  if (!notebook.isSystem)
-                    const PopupMenuItem(
-                      value: _MenuAction.delete,
-                      child: Text('删除', style: TextStyle(color: Colors.red)),
-                    ),
+                  const PopupMenuItem(
+                    value: _MenuAction.delete,
+                    child: Text('删除', style: TextStyle(color: Colors.red)),
+                  ),
                 ],
               ),
             ],

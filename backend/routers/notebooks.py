@@ -151,8 +151,6 @@ def delete_notebook(notebook_id: int, user=Depends(get_current_user)):
         )
         if not nb:
             raise HTTPException(404, "笔记本不存在")
-        if nb.is_system:
-            raise HTTPException(403, "系统预设本不可删除")
 
         db.delete(nb)
 
