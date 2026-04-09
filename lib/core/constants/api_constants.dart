@@ -19,6 +19,16 @@ class ApiConstants {
   static const String chatQuery  = '/api/chat/query';
   static const String chatMindmap = '/api/chat/mindmap';
 
+  // Notebooks
+  static const String notebooks = '/api/notebooks';
+  static const String notes     = '/api/notes';
+
+  // Users (profile edit)
+  static const String userMe         = '/api/users/me';
+  static const String userMeUsername = '/api/users/me/username';
+  static const String userMePassword = '/api/users/me/password';
+  static const String userMeAvatar   = '/api/users/me/avatar';
+
   // Documents
   static const String documents = '/api/documents';
 

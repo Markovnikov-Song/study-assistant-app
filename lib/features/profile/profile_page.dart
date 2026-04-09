@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,22 +21,37 @@ class ProfilePage extends ConsumerWidget {
             color: Theme.of(context).colorScheme.surfaceContainerLow,
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: Text(
-                    user?.username.isNotEmpty == true ? user!.username[0].toUpperCase() : '?',
-                    style: const TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
+                GestureDetector(
+                  onTap: () => context.push(AppRoutes.profileEdit),
+                  child: user?.avatarBase64 != null && user!.avatarBase64!.isNotEmpty
+                      ? CircleAvatar(
+                          radius: 32,
+                          backgroundImage: MemoryImage(base64Decode(user.avatarBase64!)),
+                        )
+                      : CircleAvatar(
+                          radius: 32,
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          child: Text(
+                            user?.username.isNotEmpty == true ? user!.username[0].toUpperCase() : '?',
+                            style: const TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ),
                 ),
                 const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(user?.username ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Text('ID: ${user?.id ?? ''}', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.outline)),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(user?.username ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Text('ID: ${user?.id ?? ''}', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.outline)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => context.push(AppRoutes.profileEdit),
+                  tooltip: '编辑资料',
                 ),
               ],
             ),
@@ -44,8 +60,10 @@ class ProfilePage extends ConsumerWidget {
           const SizedBox(height: 8),
 
           // 功能列表
+          _Tile(icon: Icons.person_outline, title: '编辑资料', subtitle: '修改用户名、密码和头像', onTap: () => context.push(AppRoutes.profileEdit)),
           _Tile(icon: Icons.book_outlined, title: '学科管理', subtitle: '新建、编辑、归档学科', onTap: () => context.push(AppRoutes.subjects)),
           _Tile(icon: Icons.folder_outlined, title: '资料管理', subtitle: '管理各学科的资料和历年题', onTap: () => context.push(AppRoutes.resources)),
+          _Tile(icon: Icons.menu_book_outlined, title: '📓 笔记本', subtitle: '管理学习笔记', onTap: () => context.push(AppRoutes.notebooks)),
           _Tile(icon: Icons.history, title: '对话历史', subtitle: '查看所有历史对话', onTap: () => context.push(AppRoutes.history)),
 
           const Divider(height: 32),

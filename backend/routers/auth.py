@@ -1,9 +1,34 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 from deps import create_token, hash_password, verify_password
-from database import User, get_session
+from database import User, Notebook, get_session
 
 router = APIRouter()
+
+SYSTEM_NOTEBOOKS = ["好题本", "错题本", "笔记", "通用"]
+
+
+def init_user_notebooks(user_id: int, db: Session):
+    for i, name in enumerate(SYSTEM_NOTEBOOKS):
+        db.add(Notebook(
+            user_id=user_id,
+            name=name,
+            is_system=1,
+            sort_order=i,
+        ))
+    db.commit()
+
+
+def _init_user_notebooks(user_id: int, db: Session):
+    """在已有 session 中插入系统预设本，不自行 commit（由调用方统一提交）。"""
+    for i, name in enumerate(SYSTEM_NOTEBOOKS):
+        db.add(Notebook(
+            user_id=user_id,
+            name=name,
+            is_system=1,
+            sort_order=i,
+        ))
 
 class RegisterIn(BaseModel):
     username: str = Field(min_length=1, max_length=64)
@@ -28,6 +53,7 @@ def register(body: RegisterIn):
         db.add(user)
         db.flush()
         uid, uname = user.id, user.username
+        _init_user_notebooks(uid, db)
     return AuthOut(access_token=create_token(uid, uname), user_id=uid, username=uname)
 
 @router.post("/login", response_model=AuthOut)
@@ -37,6 +63,10 @@ def login(body: LoginIn):
         if not user or not verify_password(body.password, user.password_hash):
             raise HTTPException(401, "用户名或密码错误")
         uid, uname = user.id, user.username
+        # 补插系统预设本（兼容旧账号）
+        existing = db.query(Notebook).filter_by(user_id=uid, is_system=1).count()
+        if existing == 0:
+            _init_user_notebooks(uid, db)
     return AuthOut(access_token=create_token(uid, uname), user_id=uid, username=uname)
 
 @router.post("/logout")

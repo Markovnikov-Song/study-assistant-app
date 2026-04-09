@@ -4,8 +4,9 @@ import '../services/chat_service.dart';
 
 final chatServiceProvider = Provider<ChatService>((ref) => ChatService());
 
-final chatProvider = StateNotifierProviderFamily<ChatNotifier, AsyncValue<List<ChatMessage>>, int>(
-  (ref, subjectId) => ChatNotifier(ref.watch(chatServiceProvider), subjectId),
+// key = (subjectId, sessionType.name)，问答/解题/导图各自独立
+final chatProvider = StateNotifierProviderFamily<ChatNotifier, AsyncValue<List<ChatMessage>>, (int, String)>(
+  (ref, key) => ChatNotifier(ref.watch(chatServiceProvider), key.$1),
 );
 
 final sessionsProvider = FutureProviderFamily<List<ConversationSession>, int>(
@@ -40,17 +41,14 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       );
       _currentSessionId = result.sessionId;
       if (result.needsConfirmation) {
-        // 没有相关资料，自动用 broad 模式重试
-        final retryResult = await _service.sendMessage(
-          text,
-          subjectId: _subjectId,
-          sessionId: _currentSessionId,
-          mode: mode,
-          useBroad: true, // 强制 broad
+        // 找不到相关资料，提示用户
+        final hint = ChatMessage.local(
+          role: MessageRole.assistant,
+          content: useBroad
+              ? '暂未找到相关资料，请先在「资料管理」上传学科资料后再试。'
+              : '在已上传资料中未找到相关内容。\n\n可以勾选「结合通用知识」后重新提问，AI 将基于通用知识回答并标注来源。',
         );
-        if (!retryResult.needsConfirmation) {
-          state = AsyncValue.data([...state.value!, retryResult.message]);
-        }
+        state = AsyncValue.data([...state.value!, hint]);
         return;
       }
       state = AsyncValue.data([...state.value!, result.message]);

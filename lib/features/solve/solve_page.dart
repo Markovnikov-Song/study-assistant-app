@@ -7,6 +7,7 @@ import '../../providers/chat_provider.dart';
 import '../../providers/current_subject_provider.dart';
 import '../../widgets/subject_bar.dart';
 import '../../widgets/no_subject_hint.dart';
+import '../../widgets/markdown_latex_view.dart';
 
 class SolvePage extends ConsumerStatefulWidget {
   const SolvePage({super.key});
@@ -23,6 +24,7 @@ class _SolvePageState extends ConsumerState<SolvePage> {
   void dispose() { _inputCtrl.dispose(); _scrollCtrl.dispose(); super.dispose(); }
 
   int? get _subjectId => ref.read(currentSubjectProvider)?.id;
+  (int, String) get _key => (_subjectId!, 'solve');
 
   Future<void> _submit() async {
     final sid = _subjectId;
@@ -31,8 +33,11 @@ class _SolvePageState extends ConsumerState<SolvePage> {
     if (text.isEmpty) return;
     setState(() => _sending = true);
     _inputCtrl.clear();
-    await ref.read(chatProvider(sid).notifier).sendMessage(text, mode: SessionType.solve);
-    setState(() => _sending = false);
+    try {
+      await ref.read(chatProvider(_key).notifier).sendMessage(text, mode: SessionType.solve);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
     _scrollToBottom();
   }
 
@@ -43,7 +48,7 @@ class _SolvePageState extends ConsumerState<SolvePage> {
     if (file == null) return;
     final b64 = base64Encode(await file.readAsBytes());
     if (!mounted) return;
-    final text = await ref.read(chatProvider(sid).notifier).recognizeOcr(b64);
+    final text = await ref.read(chatProvider(_key).notifier).recognizeOcr(b64);
     if (text != null && text.isNotEmpty && mounted) setState(() => _inputCtrl.text = text);
   }
 
@@ -84,7 +89,8 @@ class _SolveBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chatState = ref.watch(chatProvider(subjectId));
+    final key = (subjectId, 'solve');
+    final chatState = ref.watch(chatProvider(key));
     return Column(
       children: [
         _SessionBar(subjectId: subjectId),
@@ -120,7 +126,7 @@ class _SessionBar extends ConsumerWidget {
         children: [
           const Spacer(),
           TextButton.icon(
-            onPressed: () => ref.read(chatProvider(subjectId).notifier).newSession(),
+            onPressed: () => ref.read(chatProvider((subjectId, 'solve')).notifier).newSession(),
             icon: const Icon(Icons.add, size: 16),
             label: const Text('新建对话', style: TextStyle(fontSize: 13)),
           ),
@@ -152,7 +158,13 @@ class _SolveBubble extends StatelessWidget {
           ),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: SelectableText(message.content, style: TextStyle(color: isUser ? cs.onPrimary : cs.onSurface, height: 1.6)),
+        child: isUser
+            ? SelectableText(message.content, style: TextStyle(color: cs.onPrimary, height: 1.6))
+            : MarkdownLatexView(
+                data: message.content,
+                textStyle: TextStyle(color: cs.onSurface),
+                codeBackgroundColor: cs.surfaceContainerHighest,
+              ),
       ),
     );
   }

@@ -5,8 +5,11 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/chat_message.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/current_subject_provider.dart';
+import '../../providers/multi_select_provider.dart';
 import '../../widgets/subject_bar.dart';
 import '../../widgets/no_subject_hint.dart';
+import '../../widgets/markdown_latex_view.dart';
+import '../notebook/widgets/notebook_picker_sheet.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
@@ -24,6 +27,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void dispose() { _inputCtrl.dispose(); _scrollCtrl.dispose(); super.dispose(); }
 
   int? get _subjectId => ref.read(currentSubjectProvider)?.id;
+  (int, String) get _key => (_subjectId!, 'qa');
 
   Future<void> _submit() async {
     final sid = _subjectId;
@@ -32,8 +36,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (text.isEmpty) return;
     setState(() => _sending = true);
     _inputCtrl.clear();
-    await ref.read(chatProvider(sid).notifier).sendMessage(text, mode: SessionType.qa, useBroad: _useBroad);
-    setState(() => _sending = false);
+    try {
+      await ref.read(chatProvider(_key).notifier).sendMessage(text, mode: SessionType.qa, useBroad: _useBroad);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
     _scrollToBottom();
   }
 
@@ -44,7 +51,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (file == null) return;
     final b64 = base64Encode(await file.readAsBytes());
     if (!mounted) return;
-    final text = await ref.read(chatProvider(sid).notifier).recognizeOcr(b64);
+    final text = await ref.read(chatProvider(_key).notifier).recognizeOcr(b64);
     if (text != null && text.isNotEmpty && mounted) setState(() => _inputCtrl.text = text);
   }
 
@@ -57,8 +64,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final subject = ref.watch(currentSubjectProvider);
+    final multiSelect = ref.watch(multiSelectProvider);
+    final selectedCount = multiSelect.selectedMessageIds.length;
+
+    PreferredSizeWidget appBar;
+    if (multiSelect.isActive) {
+      appBar = AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => ref.read(multiSelectProvider.notifier).cancel(),
+        ),
+        title: Text('已选中 $selectedCount 条消息'),
+        centerTitle: false,
+      );
+    } else {
+      appBar = AppBar(title: const SubjectBarTitle(), centerTitle: false);
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const SubjectBarTitle(), centerTitle: false),
+      appBar: appBar,
       body: subject == null
           ? const NoSubjectHint()
           : _ChatBody(
@@ -90,7 +114,9 @@ class _ChatBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chatState = ref.watch(chatProvider(subjectId));
+    final key = (subjectId, 'qa');
+    final chatState = ref.watch(chatProvider(key));
+    final multiSelect = ref.watch(multiSelectProvider);
     return Column(
       children: [
         _SessionBar(subjectId: subjectId),
@@ -106,23 +132,30 @@ class _ChatBody extends ConsumerWidget {
                     itemCount: msgs.length,
                     itemBuilder: (_, i) => _Bubble(
                       message: msgs[i],
-                      onDelete: () => ref.read(chatProvider(subjectId).notifier).deleteMessage(i),
+                      onDelete: multiSelect.isActive
+                          ? null
+                          : () => ref.read(chatProvider(key).notifier).deleteMessage(i),
                     ),
                   ),
           ),
         ),
-        // 通用知识开关
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          child: Row(
-            children: [
-              Checkbox(value: useBroad, onChanged: (v) => onBroadChanged(v ?? false), visualDensity: VisualDensity.compact),
-              const Text('结合通用知识', style: TextStyle(fontSize: 13)),
-            ],
+        if (!multiSelect.isActive) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            child: Row(
+              children: [
+                Checkbox(value: useBroad, onChanged: (v) => onBroadChanged(v ?? false), visualDensity: VisualDensity.compact),
+                const Text('结合通用知识', style: TextStyle(fontSize: 13)),
+              ],
+            ),
           ),
-        ),
-        _InputBar(controller: inputCtrl, sending: sending, placeholder: '输入问题…', onSubmit: onSubmit, onCamera: onCamera, onGallery: onGallery),
+          _InputBar(controller: inputCtrl, sending: sending, placeholder: '输入问题…', onSubmit: onSubmit, onCamera: onCamera, onGallery: onGallery),
+        ] else
+          _MultiSelectBar(
+            subjectId: subjectId,
+            messages: chatState.maybeWhen(data: (msgs) => msgs, orElse: () => []),
+          ),
       ],
     );
   }
@@ -134,6 +167,7 @@ class _SessionBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final key = (subjectId, 'qa');
     return Container(
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor))),
       child: Row(
@@ -145,7 +179,7 @@ class _SessionBar extends ConsumerWidget {
           ),
           const Spacer(),
           TextButton.icon(
-            onPressed: () => ref.read(chatProvider(subjectId).notifier).newSession(),
+            onPressed: () => ref.read(chatProvider(key).notifier).newSession(),
             icon: const Icon(Icons.add, size: 16),
             label: const Text('新建对话', style: TextStyle(fontSize: 13)),
           ),
@@ -167,8 +201,21 @@ class _HistorySheet extends ConsumerWidget {
   final int subjectId;
   const _HistorySheet({required this.subjectId});
 
+  String _formatTime(DateTime t) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final d = DateTime(t.year, t.month, t.day);
+    final hm = '${t.hour}:${t.minute.toString().padLeft(2, '0')}';
+    if (d == today) return '今天 $hm';
+    if (d == yesterday) return '昨天 $hm';
+    if (t.year == now.year) return '${t.month}月${t.day}日 $hm';
+    return '${t.year}年${t.month}月${t.day}日';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final key = (subjectId, 'qa');
     final sessionsAsync = ref.watch(sessionsProvider(subjectId));
     return DraggableScrollableSheet(
       initialChildSize: 0.6, expand: false,
@@ -189,8 +236,8 @@ class _HistorySheet extends ConsumerWidget {
                         return ListTile(
                           leading: Text(s.typeLabel, style: const TextStyle(fontSize: 18)),
                           title: Text(s.title ?? '未命名对话'),
-                          subtitle: Text('${s.createdAt.month}-${s.createdAt.day} ${s.createdAt.hour}:${s.createdAt.minute.toString().padLeft(2, '0')}'),
-                          onTap: () { ref.read(chatProvider(subjectId).notifier).loadSession(s.id); Navigator.pop(context); },
+                          subtitle: Text(_formatTime(s.createdAt)),
+                          onTap: () { ref.read(chatProvider(key).notifier).loadSession(s.id); Navigator.pop(context); },
                         );
                       },
                     ),
@@ -202,31 +249,70 @@ class _HistorySheet extends ConsumerWidget {
   }
 }
 
-class _Bubble extends StatelessWidget {
+class _Bubble extends ConsumerWidget {
   final ChatMessage message;
   final VoidCallback? onDelete;
   const _Bubble({required this.message, this.onDelete});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isUser = message.isUser;
     final cs = Theme.of(context).colorScheme;
+    final multiSelect = ref.watch(multiSelectProvider);
+    final isSelected = multiSelect.selectedMessageIds.contains(message.id);
+
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
-        onLongPress: () => _showOptions(context),
+        onLongPress: () {
+          if (!multiSelect.isActive) {
+            ref.read(multiSelectProvider.notifier).activate(message.id);
+          } else {
+            // 多选模式下长按也切换选中
+            ref.read(multiSelectProvider.notifier).toggle(message.id);
+          }
+        },
+        onTap: () {
+          if (multiSelect.isActive) {
+            ref.read(multiSelectProvider.notifier).toggle(message.id);
+          }
+        },
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.88),
           decoration: BoxDecoration(
             color: isUser ? cs.primary : cs.surfaceContainerHigh,
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(16), topRight: const Radius.circular(16),
               bottomLeft: Radius.circular(isUser ? 16 : 4), bottomRight: Radius.circular(isUser ? 4 : 16),
             ),
+            border: isSelected
+                ? Border.all(color: Colors.blue, width: 2)
+                : null,
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: SelectableText(message.content, style: TextStyle(color: isUser ? cs.onPrimary : cs.onSurface)),
+          child: Stack(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  isUser
+                      ? (multiSelect.isActive
+                          ? Text(message.content, style: TextStyle(color: cs.onPrimary, height: 1.5))
+                          : SelectableText(message.content, style: TextStyle(color: cs.onPrimary, height: 1.5)))
+                      : MarkdownLatexView(data: message.content, textStyle: TextStyle(color: cs.onSurface), codeBackgroundColor: cs.surfaceContainerHighest),
+                  if (!isUser && message.sources != null && message.sources!.isNotEmpty)
+                    _SourcesWidget(sources: message.sources!),
+                ],
+              ),
+              if (isSelected)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Icon(Icons.check_circle, color: Colors.blue, size: 20),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -246,6 +332,101 @@ class _Bubble extends StatelessWidget {
                 onTap: () { Navigator.pop(context); onDelete!(); },
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MultiSelectBar extends ConsumerWidget {
+  final int subjectId;
+  final List<ChatMessage> messages;
+  const _MultiSelectBar({required this.subjectId, required this.messages});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final multiSelect = ref.watch(multiSelectProvider);
+    final selectedCount = multiSelect.selectedMessageIds.length;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => ref.read(multiSelectProvider.notifier).cancel(),
+              child: const Text('取消'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: FilledButton(
+              onPressed: () {
+                if (selectedCount == 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('请至少选择一条消息')),
+                  );
+                  return;
+                }
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => NotebookPickerSheet(
+                    selectedMessageIds: multiSelect.selectedMessageIds,
+                    messages: messages,
+                    subjectId: subjectId,
+                  ),
+                );
+              },
+              child: Text('收藏到笔记本 ($selectedCount)'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourcesWidget extends StatelessWidget {
+  final List<MessageSource> sources;
+  const _SourcesWidget({required this.sources});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          dense: true,
+          title: Row(children: [
+            const Icon(Icons.menu_book_outlined, size: 13, color: Colors.grey),
+            const SizedBox(width: 4),
+            Text('参考来源（${sources.length}处）', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          ]),
+          children: sources.map((s) => Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.black.withOpacity(0.05), borderRadius: BorderRadius.circular(6)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.insert_drive_file_outlined, size: 12, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text('${s.filename}  第${s.chunkIndex + 1}段', style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
+                ]),
+                const SizedBox(height: 4),
+                Text(s.content.length > 100 ? '${s.content.substring(0, 100)}…' : s.content, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            ),
+          )).toList(),
         ),
       ),
     );

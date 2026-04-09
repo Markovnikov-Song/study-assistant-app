@@ -20,13 +20,15 @@ class ChatMessage {
   bool get isUser => role == MessageRole.user;
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
-        id: json['id'] as int,
+        id: (json['id'] as num?)?.toInt() ?? 0,
         role: json['role'] == 'user' ? MessageRole.user : MessageRole.assistant,
-        content: json['content'] as String,
+        content: json['content'] as String? ?? '',
         sources: (json['sources'] as List?)
             ?.map((e) => MessageSource.fromJson(e))
             .toList(),
-        createdAt: DateTime.parse(json['created_at'] as String),
+        createdAt: json['created_at'] != null && (json['created_at'] as String).isNotEmpty
+            ? DateTime.parse(json['created_at'] as String)
+            : DateTime.now(),
       );
 
   // 本地乐观更新用
@@ -53,10 +55,10 @@ class MessageSource {
   });
 
   factory MessageSource.fromJson(Map<String, dynamic> json) => MessageSource(
-        filename: json['filename'] as String,
-        chunkIndex: json['chunk_index'] as int,
-        content: json['content'] as String,
-        score: (json['score'] as num).toDouble(),
+        filename: json['filename'] as String? ?? '',
+        chunkIndex: (json['chunk_index'] as num?)?.toInt() ?? 0,
+        content: json['content'] as String? ?? '',
+        score: (json['score'] as num?)?.toDouble() ?? 0.0,
       );
 }
 
@@ -89,10 +91,10 @@ class ConversationSession {
       orElse: () => SessionType.qa,
     );
     return ConversationSession(
-      id: json['id'] as int,
+      id: (json['id'] as num?)?.toInt() ?? 0,
       sessionType: type,
       title: json['title'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
     );
   }
 }

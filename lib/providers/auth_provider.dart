@@ -51,6 +51,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _service.logout();
     state = const AuthState();
   }
+
+  void updateUsername(String newUsername) {
+    if (state.user == null) return;
+    state = state.copyWith(user: state.user!.copyWith(username: newUsername));
+  }
+
+  void updateAvatar(String base64) {
+    if (state.user == null) return;
+    state = state.copyWith(user: state.user!.copyWith(avatarBase64: base64));
+  }
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(

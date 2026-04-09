@@ -37,7 +37,7 @@ class _MindMapPageState extends ConsumerState<MindMapPage> {
     final sid = ref.read(currentSubjectProvider)?.id;
     if (sid == null || _generating) return;
     setState(() => _generating = true);
-    await ref.read(chatProvider(sid).notifier).generateMindMap(docId: _selectedDocId);
+    await ref.read(chatProvider((sid, 'mindmap')).notifier).generateMindMap(docId: _selectedDocId);
     setState(() => _generating = false);
   }
 }
@@ -54,7 +54,7 @@ class _MindMapBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final docsAsync = ref.watch(documentsProvider(subjectId));
-    final chatState = ref.watch(chatProvider(subjectId));
+    final chatState = ref.watch(chatProvider((subjectId, 'mindmap')));
 
     final content = chatState.maybeWhen(
       data: (msgs) => msgs.isNotEmpty && !msgs.last.isUser ? msgs.last.content : null,
