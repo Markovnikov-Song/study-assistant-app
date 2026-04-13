@@ -9,17 +9,6 @@ router = APIRouter()
 SYSTEM_NOTEBOOKS = ["好题本", "错题本", "笔记", "通用"]
 
 
-def init_user_notebooks(user_id: int, db: Session):
-    for i, name in enumerate(SYSTEM_NOTEBOOKS):
-        db.add(Notebook(
-            user_id=user_id,
-            name=name,
-            is_system=1,
-            sort_order=i,
-        ))
-    db.commit()
-
-
 def _init_user_notebooks(user_id: int, db: Session):
     """在已有 session 中插入系统预设本，不自行 commit（由调用方统一提交）。"""
     for i, name in enumerate(SYSTEM_NOTEBOOKS):

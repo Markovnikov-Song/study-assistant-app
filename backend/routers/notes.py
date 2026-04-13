@@ -94,6 +94,10 @@ class ImportToRagOut(BaseModel):
     message: str
 
 
+class PolishNoteOut(BaseModel):
+    polished_content: str
+
+
 # ---------------------------------------------------------------------------
 # 辅助
 # ---------------------------------------------------------------------------
@@ -279,3 +283,37 @@ def import_to_rag(note_id: int, user=Depends(get_current_user)):
         note.imported_to_doc_id = new_doc_id
         db.flush()
         return ImportToRagOut(doc_id=new_doc_id, message="导入成功")
+
+
+# ---------------------------------------------------------------------------
+# POST /api/notes/{note_id}/polish  AI 润色
+# ---------------------------------------------------------------------------
+
+@router.post("/notes/{note_id}/polish", response_model=PolishNoteOut)
+def polish_note(note_id: int, user=Depends(get_current_user)):
+    with get_session() as db:
+        note = _get_note_for_user(note_id, user["id"], db)
+        content = (note.original_content or "").strip()
+        if not content:
+            raise HTTPException(400, "笔记内容为空，无法润色")
+
+    prompt = f"""请对以下学习笔记进行润色和优化，要求：
+1. 保持原意不变，不添加新内容
+2. 改善语言表达，使其更清晰流畅
+3. 修正语法错误和不通顺的句子
+4. 保持 Markdown 格式（如有）
+5. 直接输出润色后的内容，不要任何解释
+
+原始笔记：
+{content}"""
+
+    try:
+        from services.llm_service import LLMService
+        result = LLMService().chat(
+            [{"role": "user", "content": prompt}],
+            max_tokens=2000,
+            temperature=0.3,
+        )
+        return PolishNoteOut(polished_content=result.strip())
+    except Exception as e:
+        raise HTTPException(500, f"AI 润色失败，请稍后重试。（{e}）")
