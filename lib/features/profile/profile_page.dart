@@ -51,7 +51,7 @@ class ProfilePage extends ConsumerWidget {
                 IconButton(
                   icon: const Icon(Icons.edit_outlined),
                   onPressed: () => context.push(AppRoutes.profileEdit),
-                  tooltip: '编辑资料',
+                  tooltip: '学生证',
                 ),
               ],
             ),
@@ -60,7 +60,7 @@ class ProfilePage extends ConsumerWidget {
           const SizedBox(height: 8),
 
           // 功能列表
-          _Tile(icon: Icons.person_outline, title: '编辑资料', subtitle: '修改用户名、密码和头像', onTap: () => context.push(AppRoutes.profileEdit)),
+          _Tile(icon: Icons.badge_outlined, title: '🎓 学生证', subtitle: '修改用户名、密码和头像', onTap: () => context.push(AppRoutes.profileEdit)),
           _Tile(icon: Icons.book_outlined, title: '学科管理', subtitle: '新建、编辑、归档学科', onTap: () => context.push(AppRoutes.subjects)),
           _Tile(icon: Icons.folder_outlined, title: '资料管理', subtitle: '管理各学科的资料和历年题', onTap: () => context.push(AppRoutes.resources)),
           _Tile(icon: Icons.menu_book_outlined, title: '📓 笔记本', subtitle: '管理学习笔记', onTap: () => context.push(AppRoutes.notebooks)),
@@ -86,7 +86,7 @@ class ProfilePage extends ConsumerWidget {
               );
               if (confirm == true) {
                 await ref.read(authProvider.notifier).logout();
-                if (context.mounted) context.go(AppRoutes.login);
+                // router redirect 会自动跳转到登录页，无需手动 go
               }
             },
           ),

@@ -10,6 +10,7 @@ import '../../providers/history_provider.dart';
 import '../../providers/subject_provider.dart';
 import '../../routes/app_router.dart';
 import '../../services/history_service.dart';
+import '../../widgets/message_search_delegate.dart';
 
 class HistoryPage extends ConsumerStatefulWidget {
   const HistoryPage({super.key});
@@ -72,6 +73,12 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       appBar: AppBar(
         title: _selectMode ? Text('已选 ${_selected.length} 条') : const Text('对话历史'),
         actions: [
+          if (!_selectMode)
+            IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: '搜索聊天记录',
+              onPressed: () => showSearch(context: context, delegate: MessageSearchDelegate(ref)),
+            ),
           if (_selectMode) ...[
             TextButton(onPressed: () => setState(() { _selected.clear(); _selectMode = false; }), child: const Text('取消')),
             IconButton(
@@ -79,9 +86,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               onPressed: _selected.isEmpty ? null : () async {
                 final ids = List<int>.from(_selected);
                 setState(() { _selected.clear(); _selectMode = false; });
-                for (final id in ids) {
-                  await _delete(id);
-                }
+                for (final id in ids) { await _delete(id); }
               },
             ),
           ] else
@@ -103,9 +108,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                       ),
                     );
                     if (ok == true) {
-                      for (final s in filtered) {
-                        await _delete(s.id);
-                      }
+                      for (final s in filtered) { await _delete(s.id); }
                     }
                   }
                 },
@@ -120,7 +123,6 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       ),
       body: Column(
         children: [
-          // 筛选栏
           Container(
             color: Theme.of(context).colorScheme.surfaceContainerLow,
             padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
@@ -166,7 +168,6 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
             ),
           ),
           const Divider(height: 1),
-          // 列表
           Expanded(
             child: historyAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -188,11 +189,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                             ? Checkbox(
                                 value: isSelected,
                                 onChanged: (_) => setState(() {
-                                  if (isSelected) {
-                                    _selected.remove(s.id);
-                                  } else {
-                                    _selected.add(s.id);
-                                  }
+                                  if (isSelected) { _selected.remove(s.id); } else { _selected.add(s.id); }
                                 }),
                               )
                             : Text(s.typeLabel, style: const TextStyle(fontSize: 22)),
@@ -223,17 +220,10 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                         ),
                         onTap: _selectMode
                             ? () => setState(() {
-                                if (isSelected) {
-                                  _selected.remove(s.id);
-                                } else {
-                                  _selected.add(s.id);
-                                }
+                                if (isSelected) { _selected.remove(s.id); } else { _selected.add(s.id); }
                               })
                             : () => _openSession(s),
-                        onLongPress: () => setState(() {
-                          _selectMode = true;
-                          _selected.add(s.id);
-                        }),
+                        onLongPress: () => setState(() { _selectMode = true; _selected.add(s.id); }),
                       ),
                     );
                   },

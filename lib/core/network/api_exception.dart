@@ -18,7 +18,8 @@ class ApiException implements Exception {
       case DioExceptionType.cancel:
         return const ApiException(message: '请求已取消');
       default:
-        return const ApiException(message: '网络异常，请稍后重试');
+        final detail = e.message != null ? '（${e.message}）' : '';
+        return ApiException(message: '网络异常，请检查服务器是否启动$detail');
     }
   }
 

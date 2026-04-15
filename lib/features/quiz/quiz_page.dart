@@ -44,23 +44,35 @@ class _QuizPageState extends ConsumerState<QuizPage> with SingleTickerProviderSt
   }
 }
 
-// ── 预测试卷 ──────────────────────────────────────────────────────────────
-class _PredictedTab extends ConsumerWidget {
+class _PredictedTab extends ConsumerStatefulWidget {
   final int subjectId;
   const _PredictedTab({required this.subjectId});
+  @override
+  ConsumerState<_PredictedTab> createState() => _PredictedTabState();
+}
+
+class _PredictedTabState extends ConsumerState<_PredictedTab> {
+  bool _useBroad = false;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(predictedPaperProvider(subjectId));
+  Widget build(BuildContext context) {
+    final state = ref.watch(predictedPaperProvider(widget.subjectId));
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text('AI 分析历年题考点分布和学科资料，自动生成模拟试卷。', style: TextStyle(color: Colors.grey)),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          Row(children: [
+            Checkbox(value: _useBroad, onChanged: (v) => setState(() => _useBroad = v ?? false), visualDensity: VisualDensity.compact),
+            const Text('结合通用知识', style: TextStyle(fontSize: 13)),
+          ]),
+          const SizedBox(height: 8),
           FilledButton.icon(
-            onPressed: state.isLoading ? null : () => ref.read(predictedPaperProvider(subjectId).notifier).generate(),
+            onPressed: state.isLoading ? null : () {
+              ref.read(predictedPaperProvider(widget.subjectId).notifier).generate(useBroad: _useBroad);
+            },
             icon: state.isLoading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.auto_awesome),
             label: Text(state.isLoading ? '生成中…' : '生成预测试卷'),
           ),
@@ -91,6 +103,7 @@ class _CustomTabState extends ConsumerState<_CustomTab> {
   final Map<String, int> _counts = {'选择题': 3, '填空题': 3, '简答题': 3, '计算题': 3};
   final Map<String, int> _scores = {'选择题': 2, '填空题': 3, '简答题': 10, '计算题': 15};
   String _difficulty = '中等';
+  bool _useBroad = false;
   final _topicCtrl = TextEditingController();
 
   @override
@@ -141,13 +154,19 @@ class _CustomTabState extends ConsumerState<_CustomTab> {
 
           const SizedBox(height: 16),
           TextField(controller: _topicCtrl, decoration: const InputDecoration(labelText: '考点/主题（可选）', border: OutlineInputBorder())),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          Row(children: [
+            Checkbox(value: _useBroad, onChanged: (v) => setState(() => _useBroad = v ?? false), visualDensity: VisualDensity.compact),
+            const Text('结合通用知识', style: TextStyle(fontSize: 13)),
+          ]),
+          const SizedBox(height: 8),
 
           FilledButton.icon(
             onPressed: (state.isLoading || _selected.isEmpty) ? null : () => ref.read(customQuizProvider(widget.subjectId).notifier).generate(
               questionTypes: _selected.toList(), typeCounts: Map.from(_counts),
               typeScores: Map.from(_scores), difficulty: _difficulty,
               topic: _topicCtrl.text.trim().isEmpty ? null : _topicCtrl.text.trim(),
+              useBroad: _useBroad,
             ),
             icon: state.isLoading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.auto_awesome),
             label: Text(state.isLoading ? '生成中…' : '生成题目'),

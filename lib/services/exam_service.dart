@@ -32,11 +32,11 @@ class ExamService {
   }) async {
     try {
       final formData = FormData.fromMap({
-        'file': MultipartFile.fromBytes(fileBytes, filename: filename),
+        'file': MultipartFile.fromBytes(List<int>.from(fileBytes), filename: filename),
         'subject_id': subjectId,
       });
       final res = await _dio.post(ApiConstants.pastExams, data: formData);
-      return (res.data as Map<String, dynamic>)['file_id'] as int;
+      return ((res.data as Map<String, dynamic>)['file_id'] as num).toInt();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -53,9 +53,9 @@ class ExamService {
     }
   }
 
-  Future<String> generatePredictedPaper(int subjectId) async {
+  Future<String> generatePredictedPaper(int subjectId, {bool useBroad = false}) async {
     try {
-      final res = await _dio.post(ApiConstants.examPredicted, data: {'subject_id': subjectId});
+      final res = await _dio.post(ApiConstants.examPredicted, data: {'subject_id': subjectId, 'use_broad': useBroad});
       return res.data['result'] as String;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -69,6 +69,7 @@ class ExamService {
     required Map<String, int> typeScores,
     required String difficulty,
     String? topic,
+    bool useBroad = false,
   }) async {
     try {
       final res = await _dio.post(ApiConstants.examCustom, data: {
@@ -78,6 +79,7 @@ class ExamService {
         'type_scores': typeScores,
         'difficulty': difficulty,
         'topic': ?topic,
+        'use_broad': useBroad,
       });
       return res.data['result'] as String;
     } on DioException catch (e) {

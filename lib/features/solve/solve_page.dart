@@ -5,6 +5,9 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/chat_message.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/current_subject_provider.dart';
+import '../../providers/hint_provider.dart';
+import '../../widgets/message_search_delegate.dart';
+import '../../widgets/session_history_sheet.dart';
 import '../../widgets/subject_bar.dart';
 import '../../widgets/no_subject_hint.dart';
 import '../../widgets/markdown_latex_view.dart';
@@ -18,7 +21,7 @@ class SolvePage extends ConsumerStatefulWidget {
 class _SolvePageState extends ConsumerState<SolvePage> {
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
-  bool _sending = false;
+  bool _useBroad = false;
 
   @override
   void dispose() { _inputCtrl.dispose(); _scrollCtrl.dispose(); super.dispose(); }
@@ -28,16 +31,11 @@ class _SolvePageState extends ConsumerState<SolvePage> {
 
   Future<void> _submit() async {
     final sid = _subjectId;
-    if (sid == null || _sending) return;
+    if (sid == null) return;
     final text = _inputCtrl.text.trim();
     if (text.isEmpty) return;
-    setState(() => _sending = true);
     _inputCtrl.clear();
-    try {
-      await ref.read(chatProvider(_key).notifier).sendMessage(text, mode: SessionType.solve);
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
+    await ref.read(chatProvider(_key).notifier).sendMessage(text, mode: SessionType.solve, useBroad: _useBroad);
     _scrollToBottom();
   }
 
@@ -67,9 +65,11 @@ class _SolvePageState extends ConsumerState<SolvePage> {
           ? const NoSubjectHint()
           : _SolveBody(
               subjectId: subject.id,
-              sending: _sending,
+              sending: ref.watch(chatProvider((subject.id, 'solve'))).isLoading,
+              useBroad: _useBroad,
               inputCtrl: _inputCtrl,
               scrollCtrl: _scrollCtrl,
+              onBroadChanged: (v) => setState(() => _useBroad = v),
               onSubmit: _submit,
               onCamera: () => _pickAndOcr(ImageSource.camera),
               onGallery: () => _pickAndOcr(ImageSource.gallery),
@@ -81,11 +81,13 @@ class _SolvePageState extends ConsumerState<SolvePage> {
 class _SolveBody extends ConsumerWidget {
   final int subjectId;
   final bool sending;
+  final bool useBroad;
   final TextEditingController inputCtrl;
   final ScrollController scrollCtrl;
+  final ValueChanged<bool> onBroadChanged;
   final VoidCallback onSubmit, onCamera, onGallery;
 
-  const _SolveBody({required this.subjectId, required this.sending, required this.inputCtrl, required this.scrollCtrl, required this.onSubmit, required this.onCamera, required this.onGallery});
+  const _SolveBody({required this.subjectId, required this.sending, required this.useBroad, required this.inputCtrl, required this.scrollCtrl, required this.onBroadChanged, required this.onSubmit, required this.onCamera, required this.onGallery});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -99,13 +101,26 @@ class _SolveBody extends ConsumerWidget {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('$e', style: const TextStyle(color: Colors.red))),
             data: (msgs) => msgs.isEmpty
-                ? SingleChildScrollView(child: _EmptySolveHints(onTap: (h) => inputCtrl.text = h))
+                ? SingleChildScrollView(child: _EmptySolveHints(
+                    subjectId: subjectId,
+                    onTap: (h) => inputCtrl.text = h,
+                  ))
                 : ListView.builder(
                     controller: scrollCtrl,
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                     itemCount: msgs.length,
                     itemBuilder: (_, i) => _SolveBubble(message: msgs[i]),
                   ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          child: Row(
+            children: [
+              Checkbox(value: useBroad, onChanged: (v) => onBroadChanged(v ?? false), visualDensity: VisualDensity.compact),
+              const Text('结合通用知识', style: TextStyle(fontSize: 13)),
+            ],
           ),
         ),
         _InputBar(controller: inputCtrl, sending: sending, onSubmit: onSubmit, onCamera: onCamera, onGallery: onGallery),
@@ -124,6 +139,16 @@ class _SessionBar extends ConsumerWidget {
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor))),
       child: Row(
         children: [
+          TextButton.icon(
+            onPressed: () => showSessionHistorySheet(context, ref, subjectId: subjectId, initialType: 'solve'),
+            icon: const Icon(Icons.history, size: 16),
+            label: const Text('历史记录', style: TextStyle(fontSize: 13)),
+          ),
+          IconButton(
+            icon: const Icon(Icons.search, size: 20),
+            tooltip: '搜索聊天记录',
+            onPressed: () => showSearch(context: context, delegate: MessageSearchDelegate(ref)),
+          ),
           const Spacer(),
           TextButton.icon(
             onPressed: () => ref.read(chatProvider((subjectId, 'solve')).notifier).newSession(),
@@ -170,13 +195,16 @@ class _SolveBubble extends StatelessWidget {
   }
 }
 
-class _EmptySolveHints extends StatelessWidget {
+class _EmptySolveHints extends ConsumerWidget {
+  final int subjectId;
   final ValueChanged<String> onTap;
-  const _EmptySolveHints({required this.onTap});
+  const _EmptySolveHints({required this.subjectId, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    const hints = ['求解：f(x) = x² + 2x + 1，求极值', '证明：勾股定理', '计算：∫x²dx'];
+  Widget build(BuildContext context, WidgetRef ref) {
+    const fallback = ['求解：f(x) = x² + 2x + 1，求极值', '证明：勾股定理', '计算：∫x²dx'];
+    final hintsAsync = ref.watch(hintProvider((subjectId, false)));
+    final hints = hintsAsync.valueOrNull ?? fallback;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),

@@ -23,11 +23,11 @@ class DocumentService {
   }) async {
     try {
       final formData = FormData.fromMap({
-        'file': MultipartFile.fromBytes(fileBytes, filename: filename),
+        'file': MultipartFile.fromBytes(List<int>.from(fileBytes), filename: filename),
         'subject_id': subjectId,
       });
       final res = await _dio.post(ApiConstants.documents, data: formData);
-      return (res.data as Map<String, dynamic>)['doc_id'] as int;
+      return ((res.data as Map<String, dynamic>)['doc_id'] as num).toInt();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -37,6 +37,28 @@ class DocumentService {
     try {
       await _dio.delete(
         '${ApiConstants.documents}/$docId',
+        queryParameters: {'subject_id': subjectId},
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<void> reindexDocument(int docId, int subjectId) async {
+    try {
+      await _dio.post(
+        '${ApiConstants.documents}/$docId/reindex',
+        queryParameters: {'subject_id': subjectId},
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<void> reindexAll(int subjectId) async {
+    try {
+      await _dio.post(
+        '${ApiConstants.documents}/reindex-all',
         queryParameters: {'subject_id': subjectId},
       );
     } on DioException catch (e) {

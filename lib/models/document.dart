@@ -25,17 +25,19 @@ class StudyDocument {
   }
 
   factory StudyDocument.fromJson(Map<String, dynamic> json) {
-    final statusStr = json['status'] as String;
+    final statusStr = json['status'] as String? ?? 'pending';
     final status = DocumentStatus.values.firstWhere(
       (e) => e.name == statusStr,
       orElse: () => DocumentStatus.pending,
     );
     return StudyDocument(
-      id: json['id'] as int,
-      filename: json['filename'] as String,
+      id: (json['id'] as num).toInt(),
+      filename: json['filename'] as String? ?? '',
       status: status,
       error: json['error'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'].toString())
+          : DateTime.now(),
     );
   }
 }
@@ -62,10 +64,10 @@ class PastExamFile {
       orElse: () => DocumentStatus.pending,
     );
     return PastExamFile(
-      id: json['id'] as int,
+      id: (json['id'] as num).toInt(),
       filename: json['filename'] as String,
       status: status,
-      questionCount: json['question_count'] as int? ?? 0,
+      questionCount: (json['question_count'] as num?)?.toInt() ?? 0,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }

@@ -92,7 +92,6 @@ class _ExamFileCard extends ConsumerWidget {
               icon: const Icon(Icons.delete_outline),
               onPressed: () async {
                 await ref.read(examActionsProvider(subjectId).notifier).delete(exam.id);
-                ref.invalidate(pastExamsProvider(subjectId));
               },
             ),
           ),

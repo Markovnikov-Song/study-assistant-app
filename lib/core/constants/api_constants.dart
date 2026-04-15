@@ -2,7 +2,10 @@ class ApiConstants {
   ApiConstants._();
 
   // 开发时指向本地，生产时改为部署地址
-  static const String baseUrl = 'http://192.168.137.1:8000';
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8000',
+  );
 
   // Auth
   static const String login    = '/api/auth/login';
@@ -14,10 +17,12 @@ class ApiConstants {
 
   // Sessions
   static const String sessions = '/api/sessions';
+  static const String sessionsSearch = '/api/sessions/search';
 
   // Chat
   static const String chatQuery  = '/api/chat/query';
   static const String chatMindmap = '/api/chat/mindmap';
+  static const String chatMindmapCustom = '/api/chat/mindmap/custom';
 
   // Notebooks
   static const String notebooks = '/api/notebooks';
@@ -41,4 +46,7 @@ class ApiConstants {
 
   // OCR
   static const String ocrImage = '/api/ocr/image';
+
+  // Hints
+  static const String hints = '/api/hints';
 }

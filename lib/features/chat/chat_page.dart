@@ -5,7 +5,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/chat_message.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/current_subject_provider.dart';
+import '../../providers/hint_provider.dart';
 import '../../providers/multi_select_provider.dart';
+import '../../widgets/message_search_delegate.dart';
+import '../../widgets/session_history_sheet.dart';
 import '../../widgets/subject_bar.dart';
 import '../../widgets/no_subject_hint.dart';
 import '../../widgets/markdown_latex_view.dart';
@@ -20,7 +23,7 @@ class ChatPage extends ConsumerStatefulWidget {
 class _ChatPageState extends ConsumerState<ChatPage> {
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
-  bool _useBroad = false;
+  bool _useHybrid = false;
   bool _sending = false;
 
   @override
@@ -29,19 +32,31 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   int? get _subjectId => ref.read(currentSubjectProvider)?.id;
   (int, String) get _key => (_subjectId!, 'qa');
 
+  void _bindSendingCallback() {
+    final sid = _subjectId;
+    if (sid == null) return;
+    ref.read(chatProvider(_key).notifier).onSendingChanged = (v) {
+      if (mounted) setState(() => _sending = v);
+    };
+  }
+
   Future<void> _submit() async {
     final sid = _subjectId;
-    if (sid == null || _sending) return;
+    if (sid == null) return;
     final text = _inputCtrl.text.trim();
     if (text.isEmpty) return;
-    setState(() => _sending = true);
     _inputCtrl.clear();
-    try {
-      await ref.read(chatProvider(_key).notifier).sendMessage(text, mode: SessionType.qa, useBroad: _useBroad);
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
+    _bindSendingCallback();
+    await ref.read(chatProvider(_key).notifier).sendMessage(
+      text,
+      mode: SessionType.qa,
+      useHybrid: _useHybrid,
+    );
     _scrollToBottom();
+  }
+
+  void _cancelSending() {
+    ref.read(chatProvider(_key).notifier).cancelSending();
   }
 
   Future<void> _pickAndOcr(ImageSource source) async {
@@ -66,6 +81,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final subject = ref.watch(currentSubjectProvider);
     final multiSelect = ref.watch(multiSelectProvider);
     final selectedCount = multiSelect.selectedMessageIds.length;
+    final sending = _sending;
 
     PreferredSizeWidget appBar;
     if (multiSelect.isActive) {
@@ -87,12 +103,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           ? const NoSubjectHint()
           : _ChatBody(
               subjectId: subject.id,
-              useBroad: _useBroad,
-              sending: _sending,
+              useHybrid: _useHybrid,
+              sending: sending,
               inputCtrl: _inputCtrl,
               scrollCtrl: _scrollCtrl,
-              onBroadChanged: (v) => setState(() => _useBroad = v),
+              onHybridChanged: (v) => setState(() => _useHybrid = v),
               onSubmit: _submit,
+              onCancel: _cancelSending,
               onCamera: () => _pickAndOcr(ImageSource.camera),
               onGallery: () => _pickAndOcr(ImageSource.gallery),
             ),
@@ -102,15 +119,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
 class _ChatBody extends ConsumerWidget {
   final int subjectId;
-  final bool useBroad, sending;
+  final bool useHybrid, sending;
   final TextEditingController inputCtrl;
   final ScrollController scrollCtrl;
-  final ValueChanged<bool> onBroadChanged;
-  final VoidCallback onSubmit, onCamera, onGallery;
+  final ValueChanged<bool> onHybridChanged;
+  final VoidCallback onSubmit, onCancel, onCamera, onGallery;
 
-  const _ChatBody({required this.subjectId, required this.useBroad, required this.sending,
-    required this.inputCtrl, required this.scrollCtrl, required this.onBroadChanged,
-    required this.onSubmit, required this.onCamera, required this.onGallery});
+  const _ChatBody({required this.subjectId, required this.useHybrid, required this.sending,
+    required this.inputCtrl, required this.scrollCtrl, required this.onHybridChanged,
+    required this.onSubmit, required this.onCancel, required this.onCamera, required this.onGallery});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -125,7 +142,10 @@ class _ChatBody extends ConsumerWidget {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('$e', style: const TextStyle(color: Colors.red))),
             data: (msgs) => msgs.isEmpty
-                ? SingleChildScrollView(child: _EmptyHints(onTap: (h) => inputCtrl.text = h))
+                  ? SingleChildScrollView(child: _EmptyHints(
+                    subjectId: subjectId,
+                    onTap: (h) => inputCtrl.text = h,
+                  ))
                 : ListView.builder(
                     controller: scrollCtrl,
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -153,12 +173,17 @@ class _ChatBody extends ConsumerWidget {
             color: Theme.of(context).colorScheme.surfaceContainerLow,
             child: Row(
               children: [
-                Checkbox(value: useBroad, onChanged: (v) => onBroadChanged(v ?? false), visualDensity: VisualDensity.compact),
+                Checkbox(value: useHybrid, onChanged: (v) => onHybridChanged(v ?? false), visualDensity: VisualDensity.compact),
                 const Text('结合通用知识', style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: '优先检索知识库，检索不到时自动用通用知识回答',
+                  child: Icon(Icons.info_outline, size: 14, color: Colors.grey),
+                ),
               ],
             ),
           ),
-          _InputBar(controller: inputCtrl, sending: sending, placeholder: '输入问题…', onSubmit: onSubmit, onCamera: onCamera, onGallery: onGallery),
+          _InputBar(controller: inputCtrl, sending: sending, placeholder: '输入问题…', onSubmit: onSubmit, onCancel: onCancel, onCamera: onCamera, onGallery: onGallery),
         ] else
           _MultiSelectBar(
             subjectId: subjectId,
@@ -185,6 +210,11 @@ class _SessionBar extends ConsumerWidget {
             icon: const Icon(Icons.history, size: 16),
             label: const Text('历史记录', style: TextStyle(fontSize: 13)),
           ),
+          IconButton(
+            icon: const Icon(Icons.search, size: 20),
+            tooltip: '搜索聊天记录',
+            onPressed: () => showSearch(context: context, delegate: MessageSearchDelegate(ref)),
+          ),
           const Spacer(),
           TextButton.icon(
             onPressed: () => ref.read(chatProvider(key).notifier).newSession(),
@@ -197,95 +227,7 @@ class _SessionBar extends ConsumerWidget {
   }
 
   void _showHistory(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _HistorySheet(subjectId: subjectId),
-    );
-  }
-}
-
-class _HistorySheet extends ConsumerWidget {
-  final int subjectId;
-  const _HistorySheet({required this.subjectId});
-
-  String _formatTime(DateTime t) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final d = DateTime(t.year, t.month, t.day);
-    final hm = '${t.hour}:${t.minute.toString().padLeft(2, '0')}';
-    if (d == today) return '今天 $hm';
-    if (d == yesterday) return '昨天 $hm';
-    if (t.year == now.year) return '${t.month}月${t.day}日 $hm';
-    return '${t.year}年${t.month}月${t.day}日';
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final key = (subjectId, 'qa');
-    final sessionsAsync = ref.watch(sessionsProvider(subjectId));
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6, expand: false,
-      builder: (_, ctrl) => Column(
-        children: [
-          Padding(padding: const EdgeInsets.all(16), child: Text('对话历史', style: Theme.of(context).textTheme.titleMedium)),
-          Expanded(
-            child: sessionsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('$e')),
-              data: (sessions) => sessions.isEmpty
-                  ? const Center(child: Text('暂无历史记录'))
-                  : ListView.builder(
-                      controller: ctrl,
-                      itemCount: sessions.length,
-                      itemBuilder: (_, i) {
-                        final s = sessions[i];
-                        return ListTile(
-                          leading: Text(s.typeLabel, style: const TextStyle(fontSize: 18)),
-                          title: Text(s.title ?? '未命名对话'),
-                          subtitle: Text(_formatTime(s.createdAt)),
-                          onTap: () { ref.read(chatProvider(key).notifier).loadSession(s.id); Navigator.pop(context); },
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
-                            onPressed: () async {
-                              final ok = await showDialog<bool>(
-                                context: context,
-                                builder: (_) => AlertDialog(
-                                  title: const Text('删除对话'),
-                                  content: Text('确定删除「${s.title ?? '未命名对话'}」？'),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, true),
-                                      style: TextButton.styleFrom(foregroundColor: Colors.red),
-                                      child: const Text('删除'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (ok == true) {
-                                try {
-                                  await ref.read(chatServiceProvider).deleteSession(s.id);
-                                  ref.invalidate(sessionsProvider(subjectId));
-                                } catch (e) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
-                                    );
-                                  }
-                                }
-                              }
-                            },
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
+    showSessionHistorySheet(context, ref, subjectId: subjectId, initialType: 'qa');
   }
 }
 
@@ -485,13 +427,15 @@ class _SourcesWidget extends StatelessWidget {
   }
 }
 
-class _EmptyHints extends StatelessWidget {
+class _EmptyHints extends ConsumerWidget {
+  final int subjectId;
   final ValueChanged<String> onTap;
-  const _EmptyHints({required this.onTap});
+  const _EmptyHints({required this.subjectId, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    const hints = ['这道题的解题思路是什么？', '帮我总结第三章的重点', '这个概念怎么理解？'];
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hintsAsync = ref.watch(hintProvider((subjectId, true)));
+    final hints = hintsAsync.valueOrNull ?? const ['这道题的解题思路是什么？', '帮我总结这章的重点', '这个概念怎么理解？'];
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -517,8 +461,8 @@ class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;
   final String placeholder;
-  final VoidCallback onSubmit, onCamera, onGallery;
-  const _InputBar({required this.controller, required this.sending, required this.placeholder, required this.onSubmit, required this.onCamera, required this.onGallery});
+  final VoidCallback onSubmit, onCancel, onCamera, onGallery;
+  const _InputBar({required this.controller, required this.sending, required this.placeholder, required this.onSubmit, required this.onCancel, required this.onCamera, required this.onGallery});
 
   @override
   Widget build(BuildContext context) {
@@ -528,18 +472,24 @@ class _InputBar extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          IconButton(icon: const Icon(Icons.camera_alt_outlined), onPressed: onCamera, tooltip: '拍照识题'),
-          IconButton(icon: const Icon(Icons.image_outlined), onPressed: onGallery, tooltip: '图库识题'),
+          IconButton(icon: const Icon(Icons.camera_alt_outlined), onPressed: sending ? null : onCamera, tooltip: '拍照识题'),
+          IconButton(icon: const Icon(Icons.image_outlined), onPressed: sending ? null : onGallery, tooltip: '图库识题'),
           Expanded(
             child: TextField(
               controller: controller, maxLines: 5, minLines: 1,
+              enabled: !sending,
               decoration: InputDecoration(hintText: placeholder, border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)), contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), isDense: true),
             ),
           ),
           const SizedBox(width: 8),
           IconButton.filled(
-            icon: sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send),
-            onPressed: sending ? null : onSubmit,
+            icon: sending
+                ? const Icon(Icons.stop_rounded)
+                : const Icon(Icons.send),
+            style: sending
+                ? IconButton.styleFrom(backgroundColor: Colors.red.shade400)
+                : null,
+            onPressed: sending ? onCancel : onSubmit,
           ),
         ],
       ),

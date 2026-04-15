@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../models/subject.dart';
 import '../../providers/subject_provider.dart';
-import '../subject_detail/subject_detail_page.dart';
+import '../../routes/app_router.dart';
 
 class ResourcesPage extends ConsumerWidget {
   const ResourcesPage({super.key});
@@ -50,10 +51,7 @@ class _SubjectResourceCard extends StatelessWidget {
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => SubjectDetailPage(subjectId: subject.id)),
-        ),
+        onTap: () => context.push(AppRoutes.subjectDetailPath(subject.id)),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(

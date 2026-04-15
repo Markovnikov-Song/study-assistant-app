@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/notebook.dart';
+import '../providers/document_provider.dart';
 import '../services/notebook_service.dart';
 
 // ── Service Provider ──────────────────────────────────────────────────────────
@@ -84,8 +85,13 @@ class NoteDetailNotifier extends FamilyAsyncNotifier<Note, int> {
   }
 
   Future<int> importToRag() async {
+    final note = await future; // 获取当前笔记以拿到 subject_id
     final docId = await _service.importToRag(arg);
     ref.invalidateSelf();
+    // 刷新对应学科的资料库列表
+    if (note.subjectId != null) {
+      ref.invalidate(documentsProvider(note.subjectId!));
+    }
     return docId;
   }
 }

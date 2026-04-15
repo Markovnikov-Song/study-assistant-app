@@ -15,7 +15,7 @@
 - **Password_Hash**: 使用 bcrypt 存储在 PostgreSQL users 表中的密码哈希值
 - **Avatar**: 用户头像，默认为用户名首字母的 CircleAvatar；用户上传后替换为自定义图片
 - **Avatar_Picker**: Flutter 端调用系统相册的图片选择组件（基于 image_picker）
-- **Avatar_API**: FastAPI 后端提供的头像上传与获取接口（`POST /users/me/avatar`、`GET /users/me/avatar`）
+- **Avatar_API**: FastAPI 后端提供的头像上传与获取接口（`POST /users/me/avatar`、`GET /users/me/avatar`）li'shi'ji'lu
 - **Avatar_Data**: 存储在 PostgreSQL users 表中的头像数据，以 base64 字符串或文件路径形式保存
 
 ---

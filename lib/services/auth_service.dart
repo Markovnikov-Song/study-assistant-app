@@ -15,7 +15,6 @@ class AuthService {
         'password': password,
       });
       await StorageService.instance.saveToken(res.data['access_token']);
-      await StorageService.instance.setLoggedIn(true);
       return User(
         id: res.data['user_id'].toString(),
         username: res.data['username'],
@@ -32,7 +31,6 @@ class AuthService {
         'password': password,
       });
       await StorageService.instance.saveToken(res.data['access_token']);
-      await StorageService.instance.setLoggedIn(true);
       return User(
         id: res.data['user_id'].toString(),
         username: res.data['username'],
@@ -47,6 +45,5 @@ class AuthService {
       await _dio.post(ApiConstants.logout);
     } catch (_) {}
     await StorageService.instance.clearTokens();
-    await StorageService.instance.setLoggedIn(false);
   }
 }

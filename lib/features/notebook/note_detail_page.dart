@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
+import 'package:flutter_quill/quill_delta.dart';
+import 'package:markdown/markdown.dart' as md;
+import 'package:markdown_quill/markdown_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/chat_message.dart';
@@ -25,9 +29,11 @@ class _NoteDetailPageState extends ConsumerState<NoteDetailPage> {
   bool _isEditing = false;
   bool _isGenerating = false;
   bool _isImporting = false;
+  bool _isPolishing = false;
 
   late final TextEditingController _titleCtrl;
   late final TextEditingController _contentCtrl;
+  QuillController? _quillCtrl;
 
   @override
   void initState() {
@@ -40,21 +46,49 @@ class _NoteDetailPageState extends ConsumerState<NoteDetailPage> {
   void dispose() {
     _titleCtrl.dispose();
     _contentCtrl.dispose();
+    _quillCtrl?.dispose();
     super.dispose();
+  }
+
+  // markdown ↔ Quill Delta 转换工具
+  static final _mdToDelta = MarkdownToDelta(
+    markdownDocument: md.Document(
+      extensionSet: md.ExtensionSet.gitHubFlavored,
+    ),
+  );
+  static final _deltaToMd = DeltaToMarkdown();
+
+  QuillController _controllerFromMarkdown(String markdownText) {
+    final delta = markdownText.trim().isEmpty
+        ? (Delta()..insert('\n'))
+        : _mdToDelta.convert(markdownText);
+    return QuillController(
+      document: Document.fromDelta(delta),
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+  }
+
+  String _markdownFromController(QuillController ctrl) {
+    return _deltaToMd.convert(ctrl.document.toDelta()).trim();
   }
 
   void _enterEditMode(Note note) {
     _titleCtrl.text = note.title ?? '';
     _contentCtrl.text = note.originalContent;
+    _quillCtrl?.dispose();
+    _quillCtrl = _controllerFromMarkdown(note.originalContent);
     setState(() => _isEditing = true);
   }
 
   Future<void> _saveEdit() async {
+    final content = _quillCtrl != null
+        ? _markdownFromController(_quillCtrl!)
+        : _contentCtrl.text;
     final notifier = ref.read(noteDetailProvider(widget.noteId).notifier);
     try {
       await notifier.updateNote(
         title: _titleCtrl.text.trim().isEmpty ? null : _titleCtrl.text.trim(),
-        originalContent: _contentCtrl.text,
+        originalContent: content,
       );
       if (mounted) setState(() => _isEditing = false);
     } catch (e) {
@@ -63,6 +97,52 @@ class _NoteDetailPageState extends ConsumerState<NoteDetailPage> {
           SnackBar(content: Text('保存失败：$e')),
         );
       }
+    }
+  }
+
+  Future<void> _polishContent() async {
+    final currentText = _quillCtrl != null
+        ? _markdownFromController(_quillCtrl!)
+        : _contentCtrl.text;
+    if (currentText.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先输入笔记内容')),
+      );
+      return;
+    }
+    setState(() => _isPolishing = true);
+    try {
+      await ref.read(noteDetailProvider(widget.noteId).notifier).updateNote(
+        originalContent: currentText,
+      );
+      final polished = await ref.read(notebookServiceProvider).polishNote(widget.noteId);
+      if (mounted) {
+        final adopt = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('AI 润色结果'),
+            content: SingleChildScrollView(child: Text(polished)),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('放弃')),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('采用')),
+            ],
+          ),
+        );
+        if (adopt == true && mounted) {
+          _quillCtrl?.dispose();
+          _quillCtrl = _controllerFromMarkdown(polished);
+          _contentCtrl.text = polished;
+          setState(() {});
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('润色失败：$e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPolishing = false);
     }
   }
 
@@ -337,6 +417,7 @@ class _NoteDetailPageState extends ConsumerState<NoteDetailPage> {
   }
 
   Widget _buildEditScaffold(Note note) {
+    final quill = _quillCtrl;
     return Scaffold(
       appBar: AppBar(
         title: const Text('编辑笔记'),
@@ -345,39 +426,63 @@ class _NoteDetailPageState extends ConsumerState<NoteDetailPage> {
           onPressed: () => setState(() => _isEditing = false),
         ),
         actions: [
+          if (_isPolishing)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else
+            TextButton.icon(
+              onPressed: _polishContent,
+              icon: const Icon(Icons.auto_fix_high, size: 16),
+              label: const Text('AI 润色'),
+            ),
           TextButton(
             onPressed: _saveEdit,
             child: const Text('保存'),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
-          TextField(
-            controller: _titleCtrl,
-            maxLength: 64,
-            decoration: const InputDecoration(
-              labelText: '标题（可选）',
-              border: OutlineInputBorder(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: TextField(
+              controller: _titleCtrl,
+              maxLength: 64,
+              decoration: const InputDecoration(
+                labelText: '标题（可选）',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _contentCtrl,
-            maxLines: null,
-            minLines: 8,
-            decoration: const InputDecoration(
-              labelText: '正文',
-              border: OutlineInputBorder(),
-              alignLabelWithHint: true,
+          if (quill != null) ...[
+            QuillSimpleToolbar(
+              controller: quill,
+              config: const QuillSimpleToolbarConfig(
+                showFontFamily: false,
+                showFontSize: false,
+                showSubscript: false,
+                showSuperscript: false,
+                showInlineCode: true,
+                showCodeBlock: true,
+                showQuote: true,
+                showLink: false,
+                showSearchButton: false,
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _saveEdit,
-            child: const Text('保存'),
-          ),
+            const Divider(height: 1),
+            Expanded(
+              child: QuillEditor.basic(
+                controller: quill,
+                config: const QuillEditorConfig(
+                  padding: EdgeInsets.all(16),
+                  placeholder: '在这里写笔记…',
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

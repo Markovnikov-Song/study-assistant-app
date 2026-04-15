@@ -44,7 +44,7 @@ class ExamActionsNotifier extends StateNotifier<UploadState> {
     state = const UploadState(isUploading: true);
     try {
       await _service.uploadExam(
-        fileBytes: file.bytes!,
+        fileBytes: file.bytes!.toList(),
         filename: file.name,
         subjectId: _subjectId,
       );
@@ -105,10 +105,10 @@ class PredictedPaperNotifier extends StateNotifier<GenerationState> {
 
   PredictedPaperNotifier(this._service, this._subjectId) : super(const GenerationState());
 
-  Future<void> generate() async {
+  Future<void> generate({bool useBroad = false}) async {
     state = const GenerationState(isLoading: true);
     try {
-      final result = await _service.generatePredictedPaper(_subjectId);
+      final result = await _service.generatePredictedPaper(_subjectId, useBroad: useBroad);
       state = GenerationState(result: result);
     } catch (e) {
       state = GenerationState(error: e.toString());
@@ -134,6 +134,7 @@ class CustomQuizNotifier extends StateNotifier<GenerationState> {
     required Map<String, int> typeScores,
     required String difficulty,
     String? topic,
+    bool useBroad = false,
   }) async {
     state = const GenerationState(isLoading: true);
     try {
@@ -144,6 +145,7 @@ class CustomQuizNotifier extends StateNotifier<GenerationState> {
         typeScores: typeScores,
         difficulty: difficulty,
         topic: topic,
+        useBroad: useBroad,
       );
       state = GenerationState(result: result);
     } catch (e) {

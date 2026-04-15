@@ -14,7 +14,7 @@ class DioClient {
       BaseOptions(
         baseUrl: ApiConstants.baseUrl,
         connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 120),
+        receiveTimeout: const Duration(seconds: 30),
         headers: {'Content-Type': 'application/json'},
       ),
     );
@@ -43,11 +43,5 @@ class _AuthInterceptor extends Interceptor {
       options.headers['Authorization'] = 'Bearer $token';
     }
     handler.next(options);
-  }
-
-  @override
-  void onError(DioException err, ErrorInterceptorHandler handler) {
-    // TODO: handle 401 token refresh
-    handler.next(err);
   }
 }

@@ -16,13 +16,18 @@ import config as _st_config
 import backend_config as _api_config
 _st_config.get_config = _api_config.get_config
 
-from routers import auth, subjects, sessions, chat, documents, past_exams, exam_gen, ocr, notebooks, notes, users, hints
+from routers import auth, subjects, sessions, chat, documents, past_exams, exam_gen, ocr, notebooks, notes, users, hints, library
 
 app = FastAPI(title="学科学习助手 API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -45,6 +50,7 @@ app.include_router(notebooks.router,  prefix="/api/notebooks",  tags=["notebooks
 app.include_router(notes.router,      prefix="/api",            tags=["notes"])
 app.include_router(users.router,      prefix="/api/users",      tags=["users"])
 app.include_router(hints.router,      prefix="/api/hints",      tags=["hints"])
+app.include_router(library.router,    prefix="/api/library",    tags=["library"])
 
 @app.get("/api/health")
 def health():

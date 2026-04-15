@@ -45,7 +45,7 @@ class DocumentActionsNotifier extends StateNotifier<UploadState> {
     state = const UploadState(isUploading: true);
     try {
       await _service.uploadDocument(
-        fileBytes: file.bytes!,
+        fileBytes: file.bytes!.toList(),
         filename: file.name,
         subjectId: _subjectId,
       );
@@ -76,6 +76,18 @@ class DocumentActionsNotifier extends StateNotifier<UploadState> {
   Future<void> delete(int docId) async {
     await _service.deleteDocument(docId, _subjectId);
     _ref.invalidate(documentsProvider(_subjectId));
+  }
+
+  Future<void> reindex(int docId) async {
+    await _service.reindexDocument(docId, _subjectId);
+    _ref.invalidate(documentsProvider(_subjectId));
+    _startPolling();
+  }
+
+  Future<void> reindexAll() async {
+    await _service.reindexAll(_subjectId);
+    _ref.invalidate(documentsProvider(_subjectId));
+    _startPolling();
   }
 
   void clearError() => state = const UploadState();

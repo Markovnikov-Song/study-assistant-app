@@ -26,7 +26,7 @@ class DocsTab extends ConsumerWidget {
       children: [
         // 上传区
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: OutlinedButton.icon(
             onPressed: uploadState.isUploading
                 ? null
@@ -36,6 +36,32 @@ class DocsTab extends ConsumerWidget {
                 : const Icon(Icons.upload_file),
             label: Text(uploadState.isUploading ? '上传中…' : '上传资料（PDF / Word / PPT / TXT / MD）'),
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: OutlinedButton.icon(
+            onPressed: uploadState.isUploading
+                ? null
+                : () async {
+                    try {
+                      await ref.read(documentActionsProvider(subjectId).notifier).reindexAll();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('已触发重新索引，请稍候…')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('重新索引失败：$e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  },
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('重新索引全部（修复检索不到的问题）'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(40)),
           ),
         ),
         const Divider(height: 1),
@@ -89,9 +115,35 @@ class _DocCard extends ConsumerWidget {
               Text(doc.error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
           ],
         ),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete_outline),
-          onPressed: () => _confirmDelete(context, ref),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (doc.status == DocumentStatus.completed)
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 20),
+                tooltip: '重新索引',
+                onPressed: () async {
+                  try {
+                    await ref.read(documentActionsProvider(subjectId).notifier).reindex(doc.id);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('重新索引中…')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('失败：$e'), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                },
+              ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => _confirmDelete(context, ref),
+            ),
+          ],
         ),
       ),
     );

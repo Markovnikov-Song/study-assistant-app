@@ -142,4 +142,13 @@ class NotebookService {
       throw ApiException.fromDioException(e);
     }
   }
+
+  Future<String> polishNote(int noteId) async {
+    try {
+      final res = await _dio.post('${ApiConstants.notes}/$noteId/polish');
+      return res.data['polished_content'] as String;
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }
