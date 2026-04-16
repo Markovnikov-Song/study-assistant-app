@@ -55,10 +55,12 @@ class MindMapSession {
 
   factory MindMapSession.fromJson(Map<String, dynamic> json) {
     return MindMapSession(
-      id: json['id'] as int,
+      id: (json['id'] as num).toInt(),
       title: json['title'] as String?,
       resourceScopeLabel: json['resource_scope_label'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
       totalNodes: (json['total_nodes'] as num?)?.toInt() ?? 0,
       litNodes: (json['lit_nodes'] as num?)?.toInt() ?? 0,
       isPinned: json['is_pinned'] == true || json['is_pinned'] == 1,

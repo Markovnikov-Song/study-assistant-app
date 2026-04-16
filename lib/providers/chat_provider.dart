@@ -82,94 +82,110 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   void Function(bool)? onSendingChanged;
 
   // 构造函数
-  // : super(const AsyncValue.data([]))：初始状态是"有数据，数据是空列表"
   ChatNotifier(this._service, this._subjectId) : super(const AsyncValue.data([]));
 
-  // getter：暴露当前会话 ID（只读）
   int? get currentSessionId => _currentSessionId;
 
-  // ─── 发送消息 ──────────────────────────────────────────────
+  // ─── 发送消息（流式打字机效果）──────────────────────────
   Future<void> sendMessage(
     String text, {
     required SessionType mode,
     bool useBroad = false,
     bool useHybrid = false,
   }) async {
-    // 如果已有进行中的请求（_cancelToken 不为 null），直接返回，防止重复发送
     if (_cancelToken != null) return;
 
-    // 保存当前消息列表的快照，出错时用于回滚
-    // List<ChatMessage>.from(...)：复制一个新列表，避免引用同一个对象
-    // state.value：取出 AsyncValue 里的实际数据（List<ChatMessage>）
-    // ?? []：如果 state.value 是 null，用空列表代替
     final current = List<ChatMessage>.from(state.value ?? []);
-
-    // 创建用户消息（本地临时对象，还没有服务器 ID）
     final userMsg = ChatMessage.local(role: MessageRole.user, content: text);
-
-    // 创建取消令牌（用于后续取消这个 HTTP 请求）
     _cancelToken = CancelToken();
-
-    // 通知 UI 进入"发送中"状态（按钮变红色停止图标）
-    // ?.call(true)：如果 onSendingChanged 不为 null，就调用它
-    // 类比 Python：if self.on_sending_changed: self.on_sending_changed(True)
     onSendingChanged?.call(true);
 
-    // 乐观更新：立刻把用户消息加入列表显示，不等服务器响应
-    // ...current：展开运算符，类似 Python 的 *current
-    // 相当于 [...current, userMsg] == current + [userMsg]
-    state = AsyncValue.data([...current, userMsg]);
+    // 乐观更新：用户消息 + AI 占位消息
+    final placeholder = ChatMessage.local(role: MessageRole.assistant, content: '');
+    state = AsyncValue.data([...current, userMsg, placeholder]);
+
+    final buffer = StringBuffer();
+    StreamSubscription<String>? sub;
+    bool cancelled = false;
 
     try {
-      // 发送 HTTP 请求，等待 AI 回复
-      final result = await _service.sendMessage(
+      final stream = _service.sendMessageStream(
         text,
         subjectId: _subjectId,
         sessionId: _currentSessionId,
         mode: mode,
-        useBroad: useBroad,
-        useHybrid: useHybrid,
-        cancelToken: _cancelToken,
+        useHybrid: useHybrid || useBroad,
       );
 
-      // 保存服务器分配的会话 ID（下次发消息时带上，保持对话连续性）
-      _currentSessionId = result.sessionId;
+      final completer = Completer<void>();
 
-      // strict 模式找不到相关资料时，后端返回 needsConfirmation=true
-      if (result.needsConfirmation) {
-        // 显示提示消息，引导用户勾选"结合通用知识"
-        final hint = ChatMessage.local(
-          role: MessageRole.assistant,
-          content: '在已上传资料中未找到相关内容。\n\n可以勾选「结合通用知识」后重新提问，AI 将优先检索知识库，检索不到时自动用通用知识回答。',
-        );
-        // state.value! 的 ! 表示"我确定这不是 null"（强制非空断言）
-        state = AsyncValue.data([...state.value!, hint]);
-        return; // 提前退出，不执行后面的正常流程
-      }
+      sub = stream.listen(
+        (event) {
+          if (event == '[DONE]') {
+            if (!completer.isCompleted) completer.complete();
+            return;
+          }
+          if (event == '[NEEDS_CONFIRMATION]') {
+            final hint = ChatMessage.local(
+              role: MessageRole.assistant,
+              content: '在已上传资料中未找到相关内容。\n\n可以勾选「结合通用知识」后重新提问，AI 将优先检索知识库，检索不到时自动用通用知识回答。',
+            );
+            state = AsyncValue.data([...current, hint]);
+            if (!completer.isCompleted) completer.complete();
+            return;
+          }
+          if (event.startsWith('[SOURCES]')) return; // 后端已保存，忽略
+          if (event.startsWith('[ERROR]')) {
+            if (!completer.isCompleted) {
+              completer.completeError(Exception(event.substring(7)));
+            }
+            return;
+          }
 
-      // 正常情况：把 AI 回复加入消息列表
-      state = AsyncValue.data([...state.value!, result.message]);
+          // 普通 token：追加并更新最后一条 AI 消息
+          buffer.write(event);
+          final msgs = List<ChatMessage>.from(state.value ?? []);
+          if (msgs.isNotEmpty && msgs.last.role == MessageRole.assistant) {
+            msgs[msgs.length - 1] = ChatMessage.local(
+              role: MessageRole.assistant,
+              content: buffer.toString(),
+            );
+            state = AsyncValue.data(msgs);
+          }
+        },
+        onError: (e) {
+          if (!completer.isCompleted) completer.completeError(e);
+        },
+        onDone: () {
+          if (!completer.isCompleted) completer.complete();
+        },
+        cancelOnError: true,
+      );
 
-    } on DioException catch (e) {
-      // 捕获 Dio 的 HTTP 异常
-      if (e.type == DioExceptionType.cancel) {
-        // 用户主动点了停止按钮，回滚到发送前的状态（移除乐观更新的用户消息）
-        state = AsyncValue.data(current);
-      } else {
-        // 其他网络错误：先回滚消息列表，再设置错误状态（UI 会显示错误提示）
-        state = AsyncValue.data(current);
-        state = AsyncValue.error(e, StackTrace.current);
-        // StackTrace.current：当前调用栈，用于调试
-      }
+      // 支持取消
+      _cancelToken!.whenCancel.then((_) {
+        cancelled = true;
+        sub?.cancel();
+        if (!completer.isCompleted) completer.complete();
+      });
+
+      await completer.future;
+
     } catch (e, st) {
-      // 捕获所有其他异常（catch 不指定类型时捕获所有）
-      // st 是 StackTrace（调用栈信息）
-      state = AsyncValue.data(current);
-      state = AsyncValue.error(e, st);
+      if (buffer.isEmpty) {
+        state = AsyncValue.data(current);
+        state = AsyncValue.error(e, st);
+      }
+      // 有部分内容时保留已输出内容，不报错
     } finally {
-      // finally 块无论成功/失败/取消都会执行，类似 Python 的 finally
-      _cancelToken = null;          // 清除取消令牌
-      onSendingChanged?.call(false); // 通知 UI 退出"发送中"状态
+      sub?.cancel();
+      _cancelToken = null;
+      onSendingChanged?.call(false);
+
+      // 取消时回滚到发送前状态
+      if (cancelled && buffer.isEmpty) {
+        state = AsyncValue.data(current);
+      }
     }
   }
 

@@ -21,6 +21,9 @@ class AppConfig:
     LLM_CHAT_MODEL: str
     LLM_EMBEDDING_MODEL: str
     LLM_VISION_MODEL: str = "Qwen/Qwen2.5-VL-7B-Instruct"
+    # 场景化模型配置（不配置则回退到 LLM_CHAT_MODEL）
+    LLM_FAST_MODEL: str = ""    # 轻量模型，用于简单问答、标题生成
+    LLM_HEAVY_MODEL: str = ""   # 大模型，用于解题、讲义生成
     # PGVector cosine 距离阈值：距离 < 阈值才视为相关（0=完全相同，2=完全相反）
     # BGE-M3 实测：相关内容距离通常在 0.2~0.5，0.7 是合理上限
     SIMILARITY_THRESHOLD: float = 0.7
@@ -45,6 +48,8 @@ def get_config() -> AppConfig:
             LLM_CHAT_MODEL=os.environ["LLM_CHAT_MODEL"],
             LLM_EMBEDDING_MODEL=os.environ["LLM_EMBEDDING_MODEL"],
             LLM_VISION_MODEL=os.getenv("LLM_VISION_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct"),
+            LLM_FAST_MODEL=os.getenv("LLM_FAST_MODEL", ""),
+            LLM_HEAVY_MODEL=os.getenv("LLM_HEAVY_MODEL", ""),
             SIMILARITY_THRESHOLD=float(os.getenv("SIMILARITY_THRESHOLD", "0.7")),
             CHUNK_SIZE=int(os.getenv("CHUNK_SIZE", "800")),
             CHUNK_OVERLAP=int(os.getenv("CHUNK_OVERLAP", "150")),

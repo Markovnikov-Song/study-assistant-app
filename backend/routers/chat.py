@@ -1,8 +1,10 @@
+import json
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from deps import get_current_user
-from services.rag_pipeline import RAGPipeline
+from services.rag_pipeline import RAGPipeline, RAGStreamContext, RAGNeedsConfirmation
 from services.mindmap_service import MindMapService
 from database import get_session as db_session, ConversationHistory
 
@@ -94,6 +96,70 @@ def query(body: QueryIn, user=Depends(get_current_user)):
     return QueryOut(session_id=session_id, message=out_msg)
 
 
+@router.post("/query/stream")
+def query_stream(body: QueryIn, user=Depends(get_current_user)):
+    """
+    流式问答，返回 SSE 格式。
+    每个 token 以 `data: <token>\\n\\n` 格式发送。
+    最后依次发送 sources 信息和 [DONE] 标记。
+    """
+    session_id = body.session_id
+    if not session_id:
+        session_type = "solve" if body.mode == "solve" else "qa"
+        session_id = _rag.create_session(
+            user_id=user["id"], subject_id=body.subject_id, session_type=session_type
+        )
+
+    def event_generator():
+        ctx = RAGStreamContext()
+        ctx.session_id = session_id
+        try:
+            gen = _rag.query_stream(
+                question=body.message,
+                subject_id=body.subject_id,
+                session_id=session_id,
+                mode=body.mode,
+                user_id=user["id"],
+                _ctx=ctx,
+            )
+            for token in gen:
+                # SSE: escape newlines inside token so each frame stays on one logical line
+                yield f"data: {token}\n\n"
+        except RAGNeedsConfirmation:
+            yield "data: [NEEDS_CONFIRMATION]\n\n"
+            yield "data: [DONE]\n\n"
+            return
+        except Exception as e:
+            yield f"data: [ERROR]{e}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
+        # Send sources frame
+        sources_payload = {
+            "sources": [
+                {
+                    "filename": s.filename,
+                    "chunk_index": s.chunk_index,
+                    "content": s.content,
+                    "score": s.score,
+                }
+                for s in ctx.sources
+            ],
+            "session_id": ctx.session_id,
+        }
+        yield f"data: [SOURCES]{json.dumps(sources_payload, ensure_ascii=False)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.get("/memory", summary="获取当前用户的学习记忆画像")
 def get_memory(subject_id: Optional[int] = None, user=Depends(get_current_user)):
     """返回用户在指定学科（或全局）的学习画像。"""
@@ -111,6 +177,7 @@ def clear_memory(subject_id: Optional[int] = None, user=Depends(get_current_user
         q.delete()
     return {"ok": True}
 
+@router.post("/mindmap", response_model=MindMapOut)
 def mindmap(body: MindMapIn, user=Depends(get_current_user)):
     session_id = body.session_id
     if not session_id:

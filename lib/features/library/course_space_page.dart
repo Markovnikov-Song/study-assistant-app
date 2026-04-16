@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../models/mindmap_library.dart';
 import '../../providers/library_provider.dart';
 import '../../routes/app_router.dart';
-
 /// CourseSpacePage — 课程空间，展示某学科下所有思维导图大纲列表
 class CourseSpacePage extends ConsumerWidget {
   final int subjectId;
@@ -62,14 +61,9 @@ class CourseSpacePage extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: 跳转到思维导图生成页
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('新建大纲功能即将上线')),
-          );
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('新建大纲'),
+        onPressed: () => context.go(AppRoutes.classroom),
+        icon: const Icon(Icons.auto_awesome),
+        label: const Text('去生成大纲'),
       ),
     );
   }
@@ -474,9 +468,15 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '点击右下角「新建大纲」生成思维导图',
+              '去「答疑室 → 导图」选择学科后生成思维导图，\n大纲就会出现在这里',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+            ),
+            const SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: () => context.go(AppRoutes.classroom),
+              icon: const Icon(Icons.auto_awesome, size: 16),
+              label: const Text('去生成思维导图'),
             ),
           ],
         ),

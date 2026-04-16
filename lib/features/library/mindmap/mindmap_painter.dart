@@ -220,7 +220,6 @@ List<NodeLayout> computeLayout({
 
   final leftGroupH = groupHeight(leftChildren);
   final rightGroupH = groupHeight(rightChildren);
-  math.max(leftGroupH, rightGroupH); // total height (unused directly)
 
   // Root is placed at a logical origin; we'll shift everything later via
   // computeCanvasSize + InteractiveViewer. Use (0,0) as root center.
@@ -327,11 +326,15 @@ class MindMapPainter extends CustomPainter {
   final List<NodeLayout> layouts;
   final Map<String, bool> nodeStates;
   final ColorScheme colorScheme;
+  final Set<String> generatingNodeIds;
+  final double pulseValue; // 0.0~1.0，用于生成中节点的脉冲动画
 
   MindMapPainter({
     required this.layouts,
     required this.nodeStates,
     required this.colorScheme,
+    this.generatingNodeIds = const {},
+    this.pulseValue = 0.0,
   });
 
   @override
@@ -390,6 +393,7 @@ class MindMapPainter extends CustomPainter {
     final rect = layout.rect;
     final state = resolveNodeState(node: node, states: nodeStates);
     final isRoot = node.parentId == null;
+    final isGenerating = generatingNodeIds.contains(node.nodeId);
 
     // Colors
     Color bgColor;
@@ -397,7 +401,19 @@ class MindMapPainter extends CustomPainter {
     Color? borderColor;
     bool dashedBorder = false;
 
-    if (isRoot) {
+    if (isGenerating) {
+      // 生成中：橙色脉冲边框
+      final pulse = (math.sin(pulseValue * math.pi * 2) + 1) / 2;
+      bgColor = Color.lerp(colorScheme.surfaceContainerHigh,
+          const Color(0xFFFF9800).withValues(alpha: 0.15), pulse)!;
+      textColor = colorScheme.onSurface;
+      borderColor = Color.lerp(const Color(0xFFFF9800), const Color(0xFFFFCC02), pulse)!;
+    } else if (layout.hasLecture && !isRoot) {
+      // 有讲义：浅绿色
+      bgColor = const Color(0xFFE8F5E9);
+      textColor = const Color(0xFF2E7D32);
+      borderColor = const Color(0xFF81C784);
+    } else if (isRoot) {
       bgColor = colorScheme.primary;
       textColor = colorScheme.onPrimary;
       borderColor = null;
@@ -533,7 +549,9 @@ class MindMapPainter extends CustomPainter {
   bool shouldRepaint(MindMapPainter oldDelegate) =>
       oldDelegate.layouts != layouts ||
       oldDelegate.nodeStates != nodeStates ||
-      oldDelegate.colorScheme != colorScheme;
+      oldDelegate.colorScheme != colorScheme ||
+      oldDelegate.generatingNodeIds != generatingNodeIds ||
+      oldDelegate.pulseValue != pulseValue;
 
   /// Hit-test: returns the NodeLayout at [position], or null.
   static NodeLayout? nodeAt(List<NodeLayout> layouts, Offset position) {

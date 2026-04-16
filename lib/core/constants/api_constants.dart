@@ -21,6 +21,7 @@ class ApiConstants {
 
   // Chat
   static const String chatQuery  = '/api/chat/query';
+  static const String chatQueryStream = '/api/chat/query/stream';
   static const String chatMindmap = '/api/chat/mindmap';
   static const String chatMindmapCustom = '/api/chat/mindmap/custom';
 

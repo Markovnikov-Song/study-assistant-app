@@ -43,21 +43,19 @@ class App extends ConsumerWidget {
       ],
       locale: const Locale('zh', 'CN'),
 
-      // 亮色主题配置
       theme: ThemeData(
-        // fromSeed：从一个种子颜色自动生成整套配色方案
-        // 0xFF4A90D9 是十六进制颜色值，FF=不透明，4A90D9=蓝色
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4A90D9)),
-        useMaterial3: true, // 使用 Material Design 3 风格（更现代）
+        useMaterial3: true,
+        fontFamily: 'Noto Sans SC',
       ),
 
-      // 深色主题配置（系统切换深色模式时自动使用）
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF4A90D9),
-          brightness: Brightness.dark, // 告诉框架这是深色方案
+          brightness: Brightness.dark,
         ),
         useMaterial3: true,
+        fontFamily: 'Noto Sans SC',
       ),
     );
   }

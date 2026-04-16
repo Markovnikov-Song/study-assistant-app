@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gal/gal.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import '../../models/document.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/current_subject_provider.dart';
@@ -10,6 +8,10 @@ import '../../providers/document_provider.dart';
 import '../../widgets/session_history_sheet.dart';
 import '../../widgets/subject_bar.dart';
 import '../../widgets/no_subject_hint.dart';
+
+import 'mindmap_view_stub.dart'
+    if (dart.library.html) 'mindmap_view_web.dart'
+    if (dart.library.io) 'mindmap_view_native.dart';
 
 class MindMapPage extends ConsumerStatefulWidget {
   const MindMapPage({super.key});
@@ -35,7 +37,8 @@ class _MindMapPageState extends ConsumerState<MindMapPage> {
             IconButton(
               icon: const Icon(Icons.history),
               tooltip: '历史记录',
-              onPressed: () => showSessionHistorySheet(context, ref, subjectId: subject.id, initialType: 'mindmap'),
+              onPressed: () => showSessionHistorySheet(context, ref,
+                  subjectId: subject.id, initialType: 'mindmap'),
             ),
         ],
       ),
@@ -46,7 +49,11 @@ class _MindMapPageState extends ConsumerState<MindMapPage> {
               selectedDocIds: _selectedDocIds,
               generating: generating,
               onDocSelectionChanged: (id, selected) => setState(() {
-                if (selected) { _selectedDocIds.add(id); } else { _selectedDocIds.remove(id); }
+                if (selected) {
+                  _selectedDocIds.add(id);
+                } else {
+                  _selectedDocIds.remove(id);
+                }
               }),
               onGenerate: _generate,
             ),
@@ -56,10 +63,15 @@ class _MindMapPageState extends ConsumerState<MindMapPage> {
   Future<void> _generate() async {
     final sid = ref.read(currentSubjectProvider)?.id;
     if (sid == null) return;
-    final docId = _selectedDocIds.length == 1 ? _selectedDocIds.first : null;
-    await ref.read(chatProvider((sid, 'mindmap')).notifier).generateMindMap(docId: docId);
+    final docId =
+        _selectedDocIds.length == 1 ? _selectedDocIds.first : null;
+    await ref
+        .read(chatProvider((sid, 'mindmap')).notifier)
+        .generateMindMap(docId: docId);
   }
 }
+
+// ── Body ──────────────────────────────────────────────────────────────────────
 
 class _MindMapBody extends ConsumerStatefulWidget {
   final int subjectId;
@@ -81,9 +93,8 @@ class _MindMapBody extends ConsumerStatefulWidget {
 }
 
 class _MindMapBodyState extends ConsumerState<_MindMapBody> {
-  WebViewController? _webCtrl;
-  bool _webReady = false;
   String? _lastContent;
+  String? _currentHtml;
   bool _customGenerating = false;
 
   String _buildHtml(String markdown) {
@@ -97,9 +108,6 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #fff; overflow: hidden; }
   #mindmap { width: 100vw; height: 100vh; }
-  .markmap-node circle { fill: #4f8ef7; }
-  .markmap-node text { fill: #222; font-size: 14px; }
-  .markmap-link { stroke: #aac4f7; }
 </style>
 </head>
 <body>
@@ -129,67 +137,6 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
 </html>''';
   }
 
-  void _initWebView(String content) {
-    final ctrl = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.white)
-      ..setNavigationDelegate(NavigationDelegate(
-        onPageFinished: (_) => setState(() => _webReady = true),
-      ))
-      ..loadHtmlString(_buildHtml(content));
-    setState(() { _webCtrl = ctrl; _webReady = false; });
-  }
-
-  Future<void> _saveImage() async {
-    if (_webCtrl == null) return;
-    try {
-      // 通过 JS 将 SVG 用 Canvas 转为 PNG base64
-      final result = await _webCtrl!.runJavaScriptReturningResult('''
-(function() {
-  return new Promise((resolve) => {
-    const svg = document.querySelector('#mindmap');
-    if (!svg) { resolve(''); return; }
-    const bbox = svg.getBBox();
-    const padding = 24;
-    const w = Math.ceil(bbox.width + padding * 2);
-    const h = Math.ceil(bbox.height + padding * 2);
-    const clone = svg.cloneNode(true);
-    clone.setAttribute('width', w);
-    clone.setAttribute('height', h);
-    clone.setAttribute('viewBox', (bbox.x - padding) + ' ' + (bbox.y - padding) + ' ' + w + ' ' + h);
-    const xml = new XMLSerializer().serializeToString(clone);
-    const img = new Image();
-    img.onload = function() {
-      const canvas = document.createElement('canvas');
-      canvas.width = w * 2;
-      canvas.height = h * 2;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.scale(2, 2);
-      ctx.drawImage(img, 0, 0);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.onerror = () => resolve('');
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
-  });
-})()
-''');
-      final dataUrl = result.toString().replaceAll('"', '');
-      if (dataUrl.isEmpty || !dataUrl.startsWith('data:image/png')) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('截图失败，请稍后重试')));
-        return;
-      }
-      final base64Str = dataUrl.split(',').last;
-      final bytes = base64Decode(base64Str);
-      await Gal.putImageBytes(bytes, name: 'mindmap_${DateTime.now().millisecondsSinceEpoch}');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已保存到相册')));
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败：$e')));
-    }
-  }
-
   void _showCustomMindMapSheet(BuildContext context) {
     final topicCtrl = TextEditingController();
     showModalBottomSheet(
@@ -198,7 +145,9 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSheet) => Padding(
           padding: EdgeInsets.only(
-            left: 16, right: 16, top: 16,
+            left: 16,
+            right: 16,
+            top: 16,
             bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
           ),
           child: Column(
@@ -207,7 +156,8 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
             children: [
               Text('自建思维导图', style: Theme.of(ctx).textTheme.titleLarge),
               const SizedBox(height: 4),
-              const Text('输入主题或一段文字，AI 自动生成结构化导图', style: TextStyle(fontSize: 13, color: Colors.grey)),
+              const Text('输入主题或一段文字，AI 自动生成结构化导图',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
               const SizedBox(height: 12),
               TextField(
                 controller: topicCtrl,
@@ -222,31 +172,49 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
               ),
               const SizedBox(height: 12),
               FilledButton.icon(
-                onPressed: _customGenerating ? null : () async {
-                  final topic = topicCtrl.text.trim();
-                  if (topic.isEmpty) return;
-                  Navigator.pop(ctx);
-                  setSheet(() {});
-                  setState(() { _customGenerating = true; _webCtrl = null; _webReady = false; _lastContent = null; });
-                  final messenger = ScaffoldMessenger.of(context);
-                  try {
-                    final service = ref.read(chatServiceProvider);
-                    final subjectId = ref.read(currentSubjectProvider)?.id;
-                    final content = await service.generateCustomMindMap(topic, subjectId: subjectId);
-                    if (mounted) {
-                      setState(() { _lastContent = null; });
-                      _initWebView(content);
-                    }
-                  } catch (e) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('生成失败：$e'), backgroundColor: Colors.red),
-                    );
-                  } finally {
-                    if (mounted) setState(() => _customGenerating = false);
-                  }
-                },
+                onPressed: _customGenerating
+                    ? null
+                    : () async {
+                        final topic = topicCtrl.text.trim();
+                        if (topic.isEmpty) return;
+                        Navigator.pop(ctx);
+                        setState(() {
+                          _customGenerating = true;
+                          _currentHtml = null;
+                          _lastContent = null;
+                        });
+                        final messenger = ScaffoldMessenger.of(context);
+                        try {
+                          final service = ref.read(chatServiceProvider);
+                          final subjectId =
+                              ref.read(currentSubjectProvider)?.id;
+                          final content =
+                              await service.generateCustomMindMap(topic,
+                                  subjectId: subjectId);
+                          if (mounted) {
+                            setState(() {
+                              _currentHtml = _buildHtml(content);
+                              _lastContent = content;
+                            });
+                          }
+                        } catch (e) {
+                          messenger.showSnackBar(
+                            SnackBar(
+                                content: Text('生成失败：$e'),
+                                backgroundColor: Colors.red),
+                          );
+                        } finally {
+                          if (mounted) {
+                            setState(() => _customGenerating = false);
+                          }
+                        }
+                      },
                 icon: _customGenerating
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.auto_awesome),
                 label: Text(_customGenerating ? '生成中…' : '生成'),
               ),
@@ -270,11 +238,15 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Row(
                   children: [
-                    Expanded(child: Text('选择资料范围', style: Theme.of(ctx).textTheme.titleMedium)),
+                    Expanded(
+                        child: Text('选择资料范围',
+                            style: Theme.of(ctx).textTheme.titleMedium)),
                     TextButton(
                       onPressed: () {
                         for (final d in docs) {
-                          if (!widget.selectedDocIds.contains(d.id)) widget.onDocSelectionChanged(d.id, true);
+                          if (!widget.selectedDocIds.contains(d.id)) {
+                            widget.onDocSelectionChanged(d.id, true);
+                          }
                         }
                         setModalState(() {});
                       },
@@ -282,7 +254,9 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
                     ),
                     TextButton(
                       onPressed: () {
-                        for (final d in docs) { widget.onDocSelectionChanged(d.id, false); }
+                        for (final d in docs) {
+                          widget.onDocSelectionChanged(d.id, false);
+                        }
                         setModalState(() {});
                       },
                       child: const Text('清空'),
@@ -292,16 +266,20 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
               ),
               const Divider(height: 1),
               ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.5),
+                constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(ctx).size.height * 0.5),
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: docs.length,
                   itemBuilder: (_, i) {
                     final doc = docs[i];
-                    final isSelected = widget.selectedDocIds.contains(doc.id);
+                    final isSelected =
+                        widget.selectedDocIds.contains(doc.id);
                     return CheckboxListTile(
                       value: isSelected,
-                      title: Text(doc.filename, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      title: Text(doc.filename,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis),
                       controlAffinity: ListTileControlAffinity.trailing,
                       onChanged: (v) {
                         widget.onDocSelectionChanged(doc.id, v ?? false);
@@ -315,7 +293,8 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
                 padding: const EdgeInsets.all(16),
                 child: FilledButton(
                   onPressed: () => Navigator.pop(ctx),
-                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+                  style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(44)),
                   child: Text(widget.selectedDocIds.isEmpty
                       ? '确定（全部资料）'
                       : '确定（已选 ${widget.selectedDocIds.length} 个）'),
@@ -331,41 +310,55 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
   @override
   Widget build(BuildContext context) {
     final docsAsync = ref.watch(documentsProvider(widget.subjectId));
-    final chatState = ref.watch(chatProvider((widget.subjectId, 'mindmap')));
+    final chatState =
+        ref.watch(chatProvider((widget.subjectId, 'mindmap')));
 
     final content = chatState.maybeWhen(
-      data: (msgs) => msgs.isNotEmpty && !msgs.last.isUser ? msgs.last.content : null,
+      data: (msgs) =>
+          msgs.isNotEmpty && !msgs.last.isUser ? msgs.last.content : null,
       orElse: () => null,
     );
 
-    // 当内容变化时重新初始化 WebView
+    // 当 provider 内容变化时更新 HTML
     if (content != null && content != _lastContent) {
       _lastContent = content;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _initWebView(content));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _currentHtml = _buildHtml(content));
+      });
     }
+
+    final isLoading = widget.generating || _customGenerating;
 
     return Column(
       children: [
         // 资料选择栏
         docsAsync.when(
-          loading: () => const SizedBox(height: 4, child: LinearProgressIndicator()),
+          loading: () =>
+              const SizedBox(height: 4, child: LinearProgressIndicator()),
           error: (_, _) => const SizedBox.shrink(),
           data: (docs) {
-            final completed = docs.where((d) => d.status == DocumentStatus.completed).toList();
+            final completed = docs
+                .where((d) => d.status == DocumentStatus.completed)
+                .toList();
             return Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: InkWell(
                 borderRadius: BorderRadius.circular(8),
-                onTap: completed.isEmpty ? null : () => _showDocPicker(completed),
+                onTap: completed.isEmpty
+                    ? null
+                    : () => _showDocPicker(completed),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    border: Border.all(color: Theme.of(context).dividerColor),
+                    border:
+                        Border.all(color: Theme.of(context).dividerColor),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.folder_outlined, size: 18, color: Colors.grey),
+                      const Icon(Icons.folder_outlined,
+                          size: 18, color: Colors.grey),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -382,7 +375,8 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
                           ),
                         ),
                       ),
-                      Icon(Icons.arrow_drop_down, color: Theme.of(context).colorScheme.outline),
+                      Icon(Icons.arrow_drop_down,
+                          color: Theme.of(context).colorScheme.outline),
                     ],
                   ),
                 ),
@@ -393,26 +387,38 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
 
         // 导图内容区
         Expanded(
-          child: content == null
+          child: isLoading && _currentHtml == null
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.account_tree_outlined, size: 64, color: Theme.of(context).colorScheme.outlineVariant),
+                      const CircularProgressIndicator(),
                       const SizedBox(height: 12),
-                      const Text('点击下方按钮生成思维导图', style: TextStyle(color: Colors.grey)),
+                      Text(
+                        '正在生成思维导图…',
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.outline),
+                      ),
                     ],
                   ),
                 )
-              : _webCtrl == null
-                      ? const Center(child: CircularProgressIndicator())
-                      : Stack(
-                          children: [
-                            WebViewWidget(controller: _webCtrl!),
-                            if (!_webReady)
-                              const Center(child: CircularProgressIndicator()),
-                          ],
-                        ),
+              : _currentHtml == null
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.account_tree_outlined,
+                              size: 64,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outlineVariant),
+                          const SizedBox(height: 12),
+                          const Text('点击下方按钮生成思维导图',
+                              style: TextStyle(color: Colors.grey)),
+                        ],
+                      ),
+                    )
+                  : buildMindMapView(_currentHtml!),
         ),
 
         // 底部操作栏
@@ -420,10 +426,11 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           child: Row(
             children: [
-              if (content != null) ...[
+              if (_currentHtml != null) ...[
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _saveImage,
+                    onPressed: () =>
+                        saveMindMapImage(context, null),
                     icon: const Icon(Icons.save_alt, size: 16),
                     label: const Text('保存图片'),
                   ),
@@ -431,7 +438,9 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
                 const SizedBox(width: 8),
               ],
               OutlinedButton.icon(
-                onPressed: (widget.generating || _customGenerating) ? null : () => _showCustomMindMapSheet(context),
+                onPressed: isLoading
+                    ? null
+                    : () => _showCustomMindMapSheet(context),
                 icon: const Icon(Icons.edit_note, size: 16),
                 label: const Text('自建'),
               ),
@@ -439,14 +448,25 @@ class _MindMapBodyState extends ConsumerState<_MindMapBody> {
               Expanded(
                 flex: 2,
                 child: FilledButton.icon(
-                  onPressed: widget.generating ? null : () {
-                    setState(() { _webCtrl = null; _webReady = false; });
-                    widget.onGenerate();
-                  },
-                  icon: widget.generating
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  onPressed: isLoading
+                      ? null
+                      : () {
+                          setState(() {
+                            _currentHtml = null;
+                            _lastContent = null;
+                          });
+                          widget.onGenerate();
+                        },
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.auto_awesome),
-                  label: Text(widget.generating ? '生成中…' : (content != null ? '重新生成' : '生成思维导图')),
+                  label: Text(isLoading
+                      ? '生成中…'
+                      : (_currentHtml != null ? '重新生成' : '生成思维导图')),
                 ),
               ),
             ],

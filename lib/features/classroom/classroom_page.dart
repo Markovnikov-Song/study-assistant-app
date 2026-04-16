@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../chat/chat_page.dart';
 import '../solve/solve_page.dart';
+import '../mindmap/mindmap_page.dart';
 import '../quiz/quiz_page.dart';
 
-/// 答疑室：整合问答、解题、出题三个功能
+/// 答疑室：整合问答、解题、导图、出题四个功能
 class ClassroomPage extends StatefulWidget {
   const ClassroomPage({super.key});
 
@@ -18,13 +19,14 @@ class _ClassroomPageState extends State<ClassroomPage>
   static const _tabs = [
     Tab(text: '问答'),
     Tab(text: '解题'),
+    Tab(text: '导图'),
     Tab(text: '出题'),
   ];
 
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -52,6 +54,7 @@ class _ClassroomPageState extends State<ClassroomPage>
         children: const [
           ChatPage(),
           SolvePage(),
+          MindMapPage(),
           QuizPage(),
         ],
       ),

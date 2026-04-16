@@ -1,7 +1,13 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import '../core/network/api_exception.dart';
 import '../core/network/dio_client.dart';
+import '../core/storage/storage_service.dart';
 import '../models/mindmap_library.dart';
+
+import 'sse_client_stub.dart'
+    if (dart.library.html) 'sse_client_web.dart'
+    if (dart.library.io) 'sse_client_native.dart';
 
 class LibraryService {
   final Dio _dio = DioClient.instance.dio;
@@ -9,7 +15,6 @@ class LibraryService {
   static const _base = '/api/library';
 
   // ── Subjects ──────────────────────────────────────────────────────────────
-
   Future<List<SubjectWithProgress>> getSubjects() async {
     try {
       final res = await _dio.get('$_base/subjects');
@@ -131,15 +136,49 @@ class LibraryService {
         'node_id': nodeId,
         'content': content,
       };
-      
       if (resourceScope != null) {
         data['resource_scope'] = resourceScope;
       }
-      
       final res = await _dio.post('$_base/lectures', data: data);
       return res.data['id'] as int;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// 流式生成讲义，返回 Stream<String>（SSE token 流）
+  Stream<String> generateLectureStream({
+    required int sessionId,
+    required String nodeId,
+  }) {
+    final url = '${_dio.options.baseUrl}$_base/lectures/stream';
+    final body = <String, dynamic>{
+      'session_id': sessionId,
+      'node_id': nodeId,
+      'content': <String, dynamic>{},
+    };
+    // 复用 SSE 客户端
+    return _streamPost(url, body);
+  }
+
+  Stream<String> _streamPost(String url, Map<String, dynamic> body) {
+    // 通过 StorageService 获取 token 后发起 SSE 请求
+    final ctrl = StreamController<String>();
+    _doStream(url, body, ctrl);
+    return ctrl.stream;
+  }
+
+  Future<void> _doStream(String url, Map<String, dynamic> body, StreamController<String> ctrl) async {
+    try {
+      final token = await StorageService.instance.getToken();
+      final stream = ssePost(url, body, token);
+      await for (final event in stream) {
+        ctrl.add(event);
+      }
+    } catch (e, st) {
+      ctrl.addError(e, st);
+    } finally {
+      ctrl.close();
     }
   }
 

@@ -421,7 +421,7 @@ class LectureCreateIn(BaseModel):
 
 @router.post("/lectures")
 def create_lecture(body: LectureCreateIn, user=Depends(get_current_user)):
-    """生成节点讲义（调用 LectureGeneratorService）。超时返回 504，LLM 失败返回 502。"""
+    """生成节点讲义（一次性，兼容旧接口）。超时返回 504。"""
     import concurrent.futures
     from services.lecture_generator_service import LectureGeneratorService
 
@@ -442,7 +442,7 @@ def create_lecture(body: LectureCreateIn, user=Depends(get_current_user)):
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(_generate)
-            result = future.result(timeout=30)
+            result = future.result(timeout=120)
         return {"id": result["id"], "ok": True}
     except concurrent.futures.TimeoutError:
         raise HTTPException(504, "讲义生成超时，请重试")
@@ -450,6 +450,40 @@ def create_lecture(body: LectureCreateIn, user=Depends(get_current_user)):
         raise HTTPException(502, f"AI 服务暂时不可用：{e}")
     except Exception as e:
         raise HTTPException(500, f"讲义生成失败：{e}")
+
+
+@router.post("/lectures/stream")
+def create_lecture_stream(body: LectureCreateIn, user=Depends(get_current_user)):
+    """流式生成讲义，返回 SSE。每个 token 以 data: <token>\\n\\n 发送，结束发 data: [DONE]\\n\\n。"""
+    import json as _json
+    from fastapi.responses import StreamingResponse
+    from services.lecture_generator_service import LectureGeneratorService
+
+    with db_session() as db:
+        session = _assert_session_owner(db, body.session_id, user["id"])
+        subject_id: int = session.subject_id or 0
+
+    svc = LectureGeneratorService()
+
+    def event_generator():
+        try:
+            for token in svc.generate_stream(
+                session_id=body.session_id,
+                node_id=body.node_id,
+                user_id=user["id"],
+                subject_id=subject_id,
+            ):
+                yield f"data: {token}\n\n"
+        except Exception as e:
+            yield f"data: [ERROR]{e}\n\n"
+        finally:
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.patch("/lectures/{lecture_id}")

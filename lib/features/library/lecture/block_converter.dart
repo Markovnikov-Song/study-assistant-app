@@ -50,40 +50,13 @@ class BlockConverter {
   }
 
   static void _addParagraph(List<Map<String, dynamic>> ops, LectureBlock block) {
-    // 如果 spans 为空但 text 含 inline markdown，自动解析
     final spans = block.spans.isNotEmpty
         ? block.spans
         : _parseInlineMarkdown(block.text);
     final text = block.spans.isNotEmpty
         ? block.text
         : _stripInlineMarkdown(block.text);
-
-    if (spans.isEmpty) {
-      ops.add({'insert': text});
-    } else {
-      int cursor = 0;
-      final sortedSpans = List<LectureSpan>.from(spans)
-        ..sort((a, b) => a.start.compareTo(b.start));
-
-      for (final span in sortedSpans) {
-        if (span.start > cursor) {
-          ops.add({'insert': text.substring(cursor, span.start)});
-        }
-        final spanText = text.substring(
-          span.start.clamp(0, text.length),
-          span.end.clamp(0, text.length),
-        );
-        final attrs = <String, dynamic>{};
-        if (span.bold) attrs['bold'] = true;
-        if (span.italic) attrs['italic'] = true;
-        if (span.code) attrs['code'] = true;
-        ops.add({'insert': spanText, if (attrs.isNotEmpty) 'attributes': attrs});
-        cursor = span.end;
-      }
-      if (cursor < text.length) {
-        ops.add({'insert': text.substring(cursor)});
-      }
-    }
+    _addInlineOps(ops, text, spans);
     ops.add({'insert': '\n'});
   }
 
@@ -135,9 +108,13 @@ class BlockConverter {
   }
 
   static void _addList(List<Map<String, dynamic>> ops, LectureBlock block) {
-    // Detect ordered vs unordered from text prefix (best-effort)
-    // Backend doesn't distinguish; default to bullet
-    ops.add({'insert': block.text});
+    final spans = block.spans.isNotEmpty
+        ? block.spans
+        : _parseInlineMarkdown(block.text);
+    final text = block.spans.isNotEmpty
+        ? block.text
+        : _stripInlineMarkdown(block.text);
+    _addInlineOps(ops, text, spans);
     ops.add({
       'insert': '\n',
       'attributes': {'list': 'bullet'},
@@ -145,11 +122,46 @@ class BlockConverter {
   }
 
   static void _addQuote(List<Map<String, dynamic>> ops, LectureBlock block) {
-    ops.add({'insert': block.text});
+    final spans = block.spans.isNotEmpty
+        ? block.spans
+        : _parseInlineMarkdown(block.text);
+    final text = block.spans.isNotEmpty
+        ? block.text
+        : _stripInlineMarkdown(block.text);
+    _addInlineOps(ops, text, spans);
     ops.add({
       'insert': '\n',
       'attributes': {'blockquote': true},
     });
+  }
+
+  static void _addInlineOps(
+      List<Map<String, dynamic>> ops, String text, List<LectureSpan> spans) {
+    if (spans.isEmpty) {
+      ops.add({'insert': text});
+      return;
+    }
+    int cursor = 0;
+    final sortedSpans = List<LectureSpan>.from(spans)
+      ..sort((a, b) => a.start.compareTo(b.start));
+    for (final span in sortedSpans) {
+      if (span.start > cursor) {
+        ops.add({'insert': text.substring(cursor, span.start)});
+      }
+      final spanText = text.substring(
+        span.start.clamp(0, text.length),
+        span.end.clamp(0, text.length),
+      );
+      final attrs = <String, dynamic>{};
+      if (span.bold) attrs['bold'] = true;
+      if (span.italic) attrs['italic'] = true;
+      if (span.code) attrs['code'] = true;
+      ops.add({'insert': spanText, if (attrs.isNotEmpty) 'attributes': attrs});
+      cursor = span.end;
+    }
+    if (cursor < text.length) {
+      ops.add({'insert': text.substring(cursor)});
+    }
   }
 
   // ── Quill Delta → blocks ──────────────────────────────────────────────────

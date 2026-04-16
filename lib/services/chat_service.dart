@@ -3,12 +3,16 @@
 // 相当于 Python 里用 requests 库调用后端 API 的那层代码
 // ─────────────────────────────────────────────────────────────
 
-// Dio：Flutter 最常用的 HTTP 库，类似 Python 的 requests/httpx
 import 'package:dio/dio.dart';
-import '../core/constants/api_constants.dart'; // API URL 常量
-import '../core/network/api_exception.dart';   // 统一错误处理
-import '../core/network/dio_client.dart';       // HTTP 客户端单例
-import '../models/chat_message.dart';           // 数据模型
+import '../core/constants/api_constants.dart';
+import '../core/network/api_exception.dart';
+import '../core/network/dio_client.dart';
+import '../core/storage/storage_service.dart';
+import '../models/chat_message.dart';
+
+import 'sse_client_stub.dart'
+    if (dart.library.html) 'sse_client_web.dart'
+    if (dart.library.io) 'sse_client_native.dart';
 
 // ─── 发送消息的返回结果 ──────────────────────────────────────
 // 把多个返回值打包成一个类，类似 Python 的 NamedTuple 或 dataclass
@@ -126,8 +130,36 @@ class ChatService {
     }
   }
 
-  // ─── 生成思维导图（基于学科资料）────────────────────────
-  // {int? sessionId, int? docId}：可选命名参数，不传时为 null
+  // ─── 流式发送消息（SSE）─────────────────────────────────
+  Stream<String> sendMessageStream(
+    String message, {
+    required int subjectId,
+    int? sessionId,
+    required SessionType mode,
+    bool useHybrid = false,
+  }) async* {
+    final modeStr = useHybrid ? 'hybrid' : mode.name;
+    final token = await _getAuthToken();
+    final url = '${_dio.options.baseUrl}${ApiConstants.chatQueryStream}';
+
+    final body = <String, dynamic>{
+      'message': message,
+      'subject_id': subjectId,
+      'mode': modeStr,
+      // ignore: use_null_aware_elements
+      if (sessionId != null) 'session_id': sessionId,
+    };
+
+    yield* ssePost(url, body, token);
+  }
+
+  Future<String?> _getAuthToken() async {
+    try {
+      return await StorageService.instance.getToken();
+    } catch (_) {
+      return null;
+    }
+  }
   Future<String> generateMindMap(int subjectId, {int? sessionId, int? docId}) async {
     try {
       final res = await _dio.post(ApiConstants.chatMindmap, data: {

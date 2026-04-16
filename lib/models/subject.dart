@@ -18,8 +18,8 @@ class Subject {
   });
 
   factory Subject.fromJson(Map<String, dynamic> json) => Subject(
-        id: json['id'] as int,
-        name: json['name'] as String,
+        id: (json['id'] as num).toInt(),
+        name: (json['name'] as String?) ?? '',
         category: json['category'] as String?,
         description: json['description'] as String?,
         isPinned: json['is_pinned'] == true || json['is_pinned'] == 1,

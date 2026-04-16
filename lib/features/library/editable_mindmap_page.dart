@@ -48,6 +48,8 @@ class EditableMindMapPage extends ConsumerStatefulWidget {
 class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage> {
   final _undoStack = _UndoStack();
   void Function(double)? _zoomFn;
+  void Function(String)? _addGeneratingFn;
+  void Function(String)? _removeGeneratingFn;
   List<TreeNode> _roots = [];
   bool _initialized = false;
   bool _wasComplete = false;
@@ -129,6 +131,10 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage> {
                   error: (e, _) => Center(child: Text('加载失败：$e')),
                   data: (_) => _MindMapCanvas(
                     onZoomReady: (fn) => _zoomFn = fn,
+                    onGeneratingReady: (add, remove) {
+                      _addGeneratingFn = add;
+                      _removeGeneratingFn = remove;
+                    },
                     roots: _roots.isEmpty ? nodesAsync.value ?? [] : _roots,
                     nodeStates: nodeStates,
                     sessionId: widget.sessionId,
@@ -168,6 +174,8 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage> {
         onEditText: () => _showEditTextDialog(node),
         onAddChild: () => _showAddChildDialog(node),
         onDelete: () => _showDeleteDialog(node),
+        onGeneratingStart: _addGeneratingFn,
+        onGeneratingEnd: _removeGeneratingFn,
       ),
     );
   }
@@ -512,6 +520,7 @@ class _MindMapCanvas extends ConsumerStatefulWidget {
   final void Function(TreeNode) onNodeTap;
   final void Function(TreeNode) onNodeLongPress;
   final void Function(void Function(double))? onZoomReady;
+  final void Function(void Function(String), void Function(String))? onGeneratingReady;
 
   const _MindMapCanvas({
     super.key,
@@ -522,6 +531,7 @@ class _MindMapCanvas extends ConsumerStatefulWidget {
     required this.onNodeTap,
     required this.onNodeLongPress,
     this.onZoomReady,
+    this.onGeneratingReady,
   });
 
   @override
@@ -532,17 +542,51 @@ class _MindMapCanvasState extends ConsumerState<_MindMapCanvas> {
   TransformationController? _transformCtrl;
   Size? _lastCanvasSize;
   Size? _lastViewSize;
+  final Set<String> _generatingNodeIds = {};
+  final Set<String> _completedNodeIds = {}; // 本次会话生成完成的节点
+  Timer? _pulseTimer;
+  double _pulseValue = 0.0;
 
   @override
   void initState() {
     super.initState();
     widget.onZoomReady?.call(zoom);
+    widget.onGeneratingReady?.call(addGenerating, removeGenerating);
   }
 
   @override
   void dispose() {
     _transformCtrl?.dispose();
+    _pulseTimer?.cancel();
     super.dispose();
+  }
+
+  void _startPulse() {
+    _pulseTimer?.cancel();
+    _pulseTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+      if (!mounted) return;
+      setState(() => _pulseValue = (_pulseValue + 0.05) % 1.0);
+    });
+  }
+
+  void _stopPulseIfIdle() {
+    if (_generatingNodeIds.isEmpty) {
+      _pulseTimer?.cancel();
+      _pulseTimer = null;
+    }
+  }
+
+  void addGenerating(String nodeId) {
+    setState(() => _generatingNodeIds.add(nodeId));
+    _startPulse();
+  }
+
+  void removeGenerating(String nodeId) {
+    setState(() {
+      _generatingNodeIds.remove(nodeId);
+      _completedNodeIds.add(nodeId); // 标记为已完成
+    });
+    _stopPulseIfIdle();
   }
 
   void _initTransform(Size canvasSize, Size viewSize) {
@@ -595,7 +639,7 @@ class _MindMapCanvasState extends ConsumerState<_MindMapCanvas> {
     const textStyle = TextStyle(fontSize: 13, fontWeight: FontWeight.w500);
     final cs = Theme.of(context).colorScheme;
 
-    final lectureNodeIds = <String>{};
+    final lectureNodeIds = _completedNodeIds;
 
     final layouts = computeLayout(
       roots: widget.roots,
@@ -646,6 +690,8 @@ class _MindMapCanvasState extends ConsumerState<_MindMapCanvas> {
                     layouts: layouts,
                     nodeStates: widget.nodeStates,
                     colorScheme: cs,
+                    generatingNodeIds: _generatingNodeIds,
+                    pulseValue: _pulseValue,
                   ),
                 ),
               ),
@@ -666,6 +712,8 @@ class _NodeActionSheet extends ConsumerWidget {
   final VoidCallback onEditText;
   final VoidCallback onAddChild;
   final VoidCallback onDelete;
+  final void Function(String)? onGeneratingStart;
+  final void Function(String)? onGeneratingEnd;
 
   const _NodeActionSheet({
     required this.node,
@@ -674,6 +722,8 @@ class _NodeActionSheet extends ConsumerWidget {
     required this.onEditText,
     required this.onAddChild,
     required this.onDelete,
+    this.onGeneratingStart,
+    this.onGeneratingEnd,
   });
 
   @override
@@ -744,53 +794,71 @@ class _NodeActionSheet extends ConsumerWidget {
   }
 
   Future<void> _generateLecture(BuildContext context, WidgetRef ref) async {
-    // 显示全屏生成进度对话框
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const _GeneratingDialog(),
-    );
+    onGeneratingStart?.call(node.nodeId);
+    Navigator.of(context).pop();
 
     try {
-      await ref.read(libraryServiceProvider).generateLecture(
-            sessionId: sessionId,
-            nodeId: node.nodeId,
-            content: {'version': 1, 'blocks': []},
+      final stream = ref.read(libraryServiceProvider).generateLectureStream(
+        sessionId: sessionId,
+        nodeId: node.nodeId,
+      );
+
+      bool hasError = false;
+      String? errorMsg;
+
+      await for (final event in stream) {
+        if (event == '[DONE]') break;
+        if (event.startsWith('[ERROR]')) {
+          hasError = true;
+          errorMsg = event.substring(7);
+          break;
+        }
+        // token 流入，节点保持橙色脉冲（已由 onGeneratingStart 触发）
+      }
+
+      onGeneratingEnd?.call(node.nodeId);
+      ref.invalidate(nodeLectureExistsProvider(
+          (sessionId: sessionId, nodeId: node.nodeId)));
+
+      if (hasError) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('生成失败：$errorMsg'), backgroundColor: Colors.red,
+              action: SnackBarAction(label: '重试', textColor: Colors.white,
+                onPressed: () => _generateLecture(context, ref))),
           );
+        }
+        return;
+      }
+
       if (context.mounted) {
-        Navigator.of(context).pop(); // 关闭进度对话框
-        ref.invalidate(nodeLectureExistsProvider(
-            (sessionId: sessionId, nodeId: node.nodeId)));
-        // 成功提示
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Row(children: [
-              Icon(Icons.check_circle, color: Colors.white, size: 18),
-              SizedBox(width: 8),
-              Text('讲义生成成功！'),
+              const Icon(Icons.check_circle, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Text('「${node.text}」讲义生成成功！'),
             ]),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: '查看',
+              textColor: Colors.white,
+              onPressed: () => context.push(
+                AppRoutes.lecturePage(subjectId, sessionId, node.nodeId),
+                extra: node.nodeId,
+              ),
+            ),
           ),
-        );
-        context.push(
-          AppRoutes.lecturePage(subjectId, sessionId, node.nodeId),
-          extra: node.nodeId,
         );
       }
     } catch (e) {
+      onGeneratingEnd?.call(node.nodeId);
       if (context.mounted) {
-        Navigator.of(context).pop(); // 关闭进度对话框
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('生成失败：$e'),
-            backgroundColor: Colors.red,
-            action: SnackBarAction(
-              label: '重试',
-              textColor: Colors.white,
-              onPressed: () => _generateLecture(context, ref),
-            ),
-          ),
+          SnackBar(content: Text('生成失败：$e'), backgroundColor: Colors.red,
+            action: SnackBarAction(label: '重试', textColor: Colors.white,
+              onPressed: () => _generateLecture(context, ref))),
         );
       }
     }
@@ -817,23 +885,24 @@ class _GeneratingDialogState extends State<_GeneratingDialog> {
 
   int _stageIndex = 0;
   double _progress = 0.0;
-  late final _timer = _startTimer();
+  Timer? _timer;
 
   @override
-  void dispose() {
-    _timer.cancel();
-    super.dispose();
-  }
-
-  dynamic _startTimer() {
-    // 每2秒推进一个阶段，进度条匀速增长到90%
-    return Stream.periodic(const Duration(milliseconds: 400)).listen((_) {
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(milliseconds: 400), (_) {
       if (!mounted) return;
       setState(() {
         _progress = (_progress + 0.018).clamp(0.0, 0.9);
         _stageIndex = (_progress * _stages.length).floor().clamp(0, _stages.length - 1);
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   @override
