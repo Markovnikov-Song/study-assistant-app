@@ -62,7 +62,7 @@ void main() {
 
       // Test 3: Filter by category
       final filtered3 = _filterSubjects(subjects, 'science');
-      expect(filtered3.length, equals(2)); // Mathematics and Physics
+      expect(filtered3.length, equals(3)); // Mathematics, Physics (category), and Computer Science (name)
 
       // Test 4: Filter by partial name
       final filtered4 = _filterSubjects(subjects, 'comp');

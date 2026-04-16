@@ -5,7 +5,7 @@ library.py — 学校/图书馆路由模块
 from __future__ import annotations
 
 import re
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
@@ -92,6 +92,26 @@ class ContentIn(BaseModel):
     content: str
 
 
+class ExportBookIn(BaseModel):
+    node_ids: list[str]
+    format: Literal["pdf", "docx"]
+    include_toc: bool = True
+
+    @field_validator("node_ids")
+    @classmethod
+    def validate_node_ids(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("node_ids 不能为空")
+        return v
+
+    @field_validator("format")
+    @classmethod
+    def validate_format(cls, v: str) -> str:
+        if v not in ("pdf", "docx"):
+            raise ValueError("不支持的导出格式")
+        return v
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -139,24 +159,30 @@ def get_subjects(user=Depends(get_current_user)):
             sessions = (
                 db.query(ConversationSession)
                 .filter_by(user_id=user["id"], subject_id=subj.id, session_type="mindmap")
+                .order_by(
+                    ConversationSession.is_pinned.desc(),
+                    ConversationSession.created_at.desc(),
+                )
                 .all()
             )
+
+            # 进度只基于"当前大纲"：优先取置顶的，否则取最新的
+            # 多份大纲是同一学科的不同版本，累加没有意义
+            active_session = sessions[0] if sessions else None
             total_nodes = 0
             lit_nodes = 0
             last_visited_at = None
-            for sess in sessions:
-                content = _get_mindmap_content(db, sess.id)
+
+            if active_session:
+                content = _get_mindmap_content(db, active_session.id)
                 if content:
-                    total_nodes += _parse_node_count(content)
-                # count lit nodes
-                lit = (
+                    total_nodes = _parse_node_count(content)
+                lit_nodes = (
                     db.query(MindmapNodeState)
-                    .filter_by(user_id=user["id"], session_id=sess.id, is_lit=1)
+                    .filter_by(user_id=user["id"], session_id=active_session.id, is_lit=1)
                     .count()
                 )
-                lit_nodes += lit
-                if last_visited_at is None or sess.created_at > last_visited_at:
-                    last_visited_at = sess.created_at
+                last_visited_at = active_session.created_at
 
             result.append(
                 SubjectProgressOut(
@@ -392,7 +418,7 @@ def upsert_node_states(session_id: int, body: NodeStatesIn, user=Depends(get_cur
 # ---------------------------------------------------------------------------
 
 
-@router.get("/lectures/{session_id}/{node_id:path}")
+@router.get("/lectures/{session_id}")
 def get_lecture(session_id: int, node_id: str, user=Depends(get_current_user)):
     with db_session() as db:
         lecture = (
@@ -496,7 +522,7 @@ def patch_lecture(lecture_id: int, body: LectureContentIn, user=Depends(get_curr
     return {"ok": True}
 
 
-@router.delete("/lectures/{session_id}/{node_id:path}")
+@router.delete("/lectures/{session_id}")
 def delete_lecture(session_id: int, node_id: str, user=Depends(get_current_user)):
     with db_session() as db:
         lecture = (
@@ -552,4 +578,104 @@ def export_lecture(lecture_id: int, format: str = "docx", user=Depends(get_curre
         buf,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f"attachment; filename=lecture_{lecture_id}.docx"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# 导出为书
+# ---------------------------------------------------------------------------
+
+
+def _parse_depth_from_node_id(node_id: str) -> int:
+    """Extract depth from node_id if it follows the L{depth}_... pattern."""
+    import re as _re
+    m = _re.match(r"^L(\d+)_", node_id)
+    if m:
+        return int(m.group(1))
+    return 1
+
+
+@router.post("/sessions/{session_id}/export-book")
+def export_book(session_id: int, body: ExportBookIn, user=Depends(get_current_user)):
+    """将多个节点的讲义合并导出为 PDF 或 Word 书籍。
+
+    Requirements: 4.1, 4.6, 5.1, 5.6, 7.1, 7.5, 7.6
+    """
+    import io as _io
+    from fastapi.responses import StreamingResponse
+    from backend.services.book_exporter import NodeInfo
+    from backend.services.pdf_book_exporter import PdfBookExporter
+    from backend.services.docx_book_exporter import DocxBookExporter
+
+    with db_session() as db:
+        # 1. Verify session ownership
+        sess = _assert_session_owner(db, session_id, user["id"])
+        session_title: str = sess.title or f"session_{session_id}"
+
+        # 2. Batch-query node_lectures for the requested node_ids
+        lectures = (
+            db.query(NodeLecture)
+            .filter(
+                NodeLecture.user_id == user["id"],
+                NodeLecture.session_id == session_id,
+                NodeLecture.node_id.in_(body.node_ids),
+            )
+            .all()
+        )
+
+        # Build a lookup map for O(1) access
+        lecture_map: dict[str, NodeLecture] = {lec.node_id: lec for lec in lectures}
+
+        # 3. Preserve input order; build NodeInfo objects; filter nodes without content
+        nodes: list[NodeInfo] = []
+        for nid in body.node_ids:
+            lec = lecture_map.get(nid)
+            if lec is None:
+                continue
+            blocks = (lec.content or {}).get("blocks", []) if lec.content else []
+            if not blocks:
+                continue
+            nodes.append(
+                NodeInfo(
+                    node_id=nid,
+                    text=nid,  # use node_id as display text
+                    depth=_parse_depth_from_node_id(nid),
+                    blocks=blocks,
+                )
+            )
+
+    # 4. All nodes filtered out → 422
+    if not nodes:
+        raise HTTPException(422, "所选节点均无讲义内容")
+
+    # 5. Instantiate exporter and build document
+    ext = body.format  # "pdf" or "docx"
+    try:
+        if body.format == "pdf":
+            exporter = PdfBookExporter()
+            media_type = "application/pdf"
+        else:
+            exporter = DocxBookExporter()
+            media_type = (
+                "application/vnd.openxmlformats-officedocument"
+                ".wordprocessingml.document"
+            )
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
+
+    try:
+        file_bytes = exporter.build(
+            session_title=session_title,
+            nodes=nodes,
+            include_toc=body.include_toc,
+        )
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
+
+    # 6. Return streaming response with Content-Disposition
+    filename = f"book_{session_id}.{ext}"
+    return StreamingResponse(
+        _io.BytesIO(file_bytes),
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename=\"{filename}\""},
     )

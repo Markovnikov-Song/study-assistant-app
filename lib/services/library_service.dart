@@ -116,8 +116,10 @@ class LibraryService {
 
   Future<Map<String, dynamic>> getLecture(int sessionId, String nodeId) async {
     try {
-      final encoded = Uri.encodeComponent(nodeId);
-      final res = await _dio.get('$_base/lectures/$sessionId/$encoded');
+      final res = await _dio.get(
+        '$_base/lectures/$sessionId',
+        queryParameters: {'node_id': nodeId},
+      );
       return res.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -192,8 +194,10 @@ class LibraryService {
 
   Future<void> deleteLecture(int sessionId, String nodeId) async {
     try {
-      final encoded = Uri.encodeComponent(nodeId);
-      await _dio.delete('$_base/lectures/$sessionId/$encoded');
+      await _dio.delete(
+        '$_base/lectures/$sessionId',
+        queryParameters: {'node_id': nodeId},
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

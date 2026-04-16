@@ -50,6 +50,15 @@ class BlockConverter {
   }
 
   static void _addParagraph(List<Map<String, dynamic>> ops, LectureBlock block) {
+    // 兜底：如果 paragraph 的 text 以 # 开头，当作 heading 处理
+    final headingMatch = RegExp(r'^(#{1,4})\s+(.+)$').firstMatch(block.text);
+    if (headingMatch != null) {
+      final level = headingMatch.group(1)!.length.clamp(1, 3);
+      ops.add({'insert': headingMatch.group(2)!});
+      ops.add({'insert': '\n', 'attributes': {'header': level}});
+      return;
+    }
+
     final spans = block.spans.isNotEmpty
         ? block.spans
         : _parseInlineMarkdown(block.text);
@@ -100,11 +109,18 @@ class BlockConverter {
   }
 
   static void _addCode(List<Map<String, dynamic>> ops, LectureBlock block) {
-    ops.add({'insert': block.text});
-    ops.add({
-      'insert': '\n',
-      'attributes': {'code-block': block.language ?? true},
-    });
+    // Split multi-line code text: each line needs its own code-block newline
+    // so that quillDeltaToBlocks can correctly identify all lines as code.
+    final lines = block.text.split('\n');
+    for (final line in lines) {
+      if (line.isNotEmpty) {
+        ops.add({'insert': line});
+      }
+      ops.add({
+        'insert': '\n',
+        'attributes': {'code-block': block.language ?? true},
+      });
+    }
   }
 
   static void _addList(List<Map<String, dynamic>> ops, LectureBlock block) {
@@ -232,7 +248,46 @@ class BlockConverter {
     }
     flushLine();
 
-    return blocks;
+    // Merge consecutive code blocks (same language) that were split by embedded newlines
+    return _mergeConsecutiveCodeBlocks(blocks, sourceMap);
+  }
+
+  /// Merge adjacent code blocks with the same language into a single block.
+  /// This handles multi-line code blocks where the text contained '\n'.
+  static List<LectureBlock> _mergeConsecutiveCodeBlocks(
+    List<LectureBlock> blocks,
+    Map<String, String> sourceMap,
+  ) {
+    if (blocks.isEmpty) return blocks;
+    final merged = <LectureBlock>[];
+    LectureBlock? pending;
+
+    for (final block in blocks) {
+      if (block.type == 'code') {
+        if (pending != null && pending.type == 'code' && pending.language == block.language) {
+          // Merge: join with newline
+          final mergedText = '${pending.text}\n${block.text}';
+          pending = LectureBlock(
+            id: pending.id,
+            type: 'code',
+            language: pending.language,
+            text: mergedText,
+            source: sourceMap[mergedText] ?? pending.source,
+          );
+        } else {
+          if (pending != null) merged.add(pending);
+          pending = block;
+        }
+      } else {
+        if (pending != null) {
+          merged.add(pending);
+          pending = null;
+        }
+        merged.add(block);
+      }
+    }
+    if (pending != null) merged.add(pending);
+    return merged;
   }
 
   static void _appendToBuffer(

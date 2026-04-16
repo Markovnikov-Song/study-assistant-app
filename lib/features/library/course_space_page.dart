@@ -30,8 +30,10 @@ class CourseSpacePage extends ConsumerWidget {
           // 整体进度条（从 sessions 聚合）
           sessionsAsync.when(
             data: (sessions) {
-              final total = sessions.fold(0, (s, e) => s + e.totalNodes);
-              final lit = sessions.fold(0, (s, e) => s + e.litNodes);
+              // 进度只基于当前大纲（置顶优先，否则最新）
+              final active = sessions.isNotEmpty ? sessions.first : null;
+              final total = active?.totalNodes ?? 0;
+              final lit = active?.litNodes ?? 0;
               return _ProgressHeader(
                 progress: MindMapProgress(total: total, lit: lit),
               );

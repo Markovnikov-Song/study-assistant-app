@@ -8,7 +8,9 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../../models/mindmap_library.dart';
 import '../../../services/library_service.dart';
 import '../../../providers/library_provider.dart';
+import '../../../widgets/markdown_latex_view.dart';
 import 'block_converter.dart';
+import 'export_book_dialog.dart';
 import 'lecture_exporter.dart';
 
 // ── LectureEditorState ────────────────────────────────────────────────────────
@@ -161,24 +163,60 @@ class _LecturePageState extends ConsumerState<LecturePage> {
   late String _currentNodeId;
   final Set<String> _generatingNodeIds = {};
   final Set<String> _hasLectureNodeIds = {};
-  final Set<String> _checkedNodeIds = {}; // nodes we've already queried
+  final Set<String> _checkedNodeIds = {};
   final _controllers = _LruCache<String, QuillController>(5);
-
-  // Per-node loading/error state
   final Map<String, bool> _nodeLoading = {};
   final Map<String, String?> _nodeError = {};
-
-  // Expanded state for tree nodes
   final Map<String, bool> _expandedNodes = {};
-
-  // Scaffold key for drawer (mobile)
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  // 流式生成时的实时文本（nodeId → 累积 markdown）
+  final Map<String, String> _streamingText = {};
 
   @override
   void initState() {
     super.initState();
     _currentNodeId = widget.nodeId;
     _loadLectureForNode(_currentNodeId);
+    // 页面加载后异步预检查所有节点的讲义存在性（后台静默，不阻塞 UI）
+    WidgetsBinding.instance.addPostFrameCallback((_) => _prefetchAllNodes());
+  }
+
+  /// 批量预检查所有节点的讲义存在性，更新绿点状态
+  Future<void> _prefetchAllNodes() async {
+    final nodesAsync = ref.read(mindMapNodesProvider(widget.sessionId));
+    final roots = nodesAsync.valueOrNull;
+    if (roots == null) return;
+
+    // 收集所有节点 ID
+    final allNodeIds = <String>[];
+    void collect(List<TreeNode> nodes) {
+      for (final n in nodes) {
+        allNodeIds.add(n.nodeId);
+        collect(n.children);
+      }
+    }
+    collect(roots);
+
+    // 并发检查（最多同时 5 个，避免请求风暴）
+    final service = ref.read(libraryServiceProvider);
+    const batchSize = 5;
+    for (var i = 0; i < allNodeIds.length; i += batchSize) {
+      if (!mounted) return;
+      final batch = allNodeIds.skip(i).take(batchSize);
+      await Future.wait(batch.map((nodeId) async {
+        if (_checkedNodeIds.contains(nodeId)) return;
+        try {
+          await service.getLecture(widget.sessionId, nodeId);
+          if (mounted) setState(() {
+            _hasLectureNodeIds.add(nodeId);
+            _checkedNodeIds.add(nodeId);
+          });
+        } catch (_) {
+          if (mounted) setState(() => _checkedNodeIds.add(nodeId));
+        }
+      }));
+    }
   }
 
   @override
@@ -278,23 +316,10 @@ class _LecturePageState extends ConsumerState<LecturePage> {
   }
 
   Future<void> _generateLecture(String nodeId, String nodeText) async {
-    setState(() => _generatingNodeIds.add(nodeId));
-
-    // 在右侧显示流式打字机内容
-    final streamBuffer = StringBuffer();
-    final streamCtrl = StreamController<String>.broadcast();
-
-    // 用一个临时的 QuillController 显示流式内容
-    final streamQuillCtrl = QuillController(
-      document: Document()..insert(0, ''),
-      selection: const TextSelection.collapsed(offset: 0),
-    );
-    _controllers.put('__stream__$nodeId', streamQuillCtrl);
-
-    // 切换到流式节点显示
     setState(() {
-      _currentNodeId = nodeId;
-      _hasLectureNodeIds.remove(nodeId); // 先标记为无讲义，显示流式区域
+      _generatingNodeIds.add(nodeId);
+      _streamingText[nodeId] = '';
+      _currentNodeId = nodeId; // 切换到正在生成的节点
     });
 
     try {
@@ -313,19 +338,20 @@ class _LecturePageState extends ConsumerState<LecturePage> {
           errorMsg = event.substring(7);
           break;
         }
-        // 追加 token 到 buffer 并更新 Quill
-        streamBuffer.write(event);
+        // 实时追加 token，触发 UI 更新
         if (mounted) {
-          final doc = streamQuillCtrl.document;
-          final len = doc.length;
-          // 追加新 token（在末尾插入，保留光标）
-          doc.insert(len > 0 ? len - 1 : 0, event);
+          setState(() {
+            _streamingText[nodeId] = (_streamingText[nodeId] ?? '') + event;
+          });
         }
       }
 
       if (hasError) {
         if (mounted) {
-          setState(() => _generatingNodeIds.remove(nodeId));
+          setState(() {
+            _generatingNodeIds.remove(nodeId);
+            _streamingText.remove(nodeId);
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('生成失败：$errorMsg'), backgroundColor: Colors.red),
           );
@@ -338,7 +364,10 @@ class _LecturePageState extends ConsumerState<LecturePage> {
       await _loadLectureForNode(nodeId);
 
       if (mounted) {
-        setState(() => _generatingNodeIds.remove(nodeId));
+        setState(() {
+          _generatingNodeIds.remove(nodeId);
+          _streamingText.remove(nodeId); // 清除流式文本，显示正式讲义
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(children: [
@@ -353,13 +382,14 @@ class _LecturePageState extends ConsumerState<LecturePage> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _generatingNodeIds.remove(nodeId));
+        setState(() {
+          _generatingNodeIds.remove(nodeId);
+          _streamingText.remove(nodeId);
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('生成失败：$e'), backgroundColor: Colors.red),
         );
       }
-    } finally {
-      streamCtrl.close();
     }
   }
 
@@ -492,12 +522,10 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                       editorState: editorState,
                       isLoading: _nodeLoading[_currentNodeId] == true,
                       isChecked: _checkedNodeIds.contains(_currentNodeId),
-                      hasLecture:
-                          _hasLectureNodeIds.contains(_currentNodeId),
-                      isGenerating:
-                          _generatingNodeIds.contains(_currentNodeId),
-                      onGenerate: () =>
-                          _generateLecture(_currentNodeId, currentNodeText),
+                      hasLecture: _hasLectureNodeIds.contains(_currentNodeId),
+                      isGenerating: _generatingNodeIds.contains(_currentNodeId),
+                      streamingText: _streamingText[_currentNodeId],
+                      onGenerate: () => _generateLecture(_currentNodeId, currentNodeText),
                     ),
                   ),
                 ],
@@ -512,8 +540,8 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                 isChecked: _checkedNodeIds.contains(_currentNodeId),
                 hasLecture: _hasLectureNodeIds.contains(_currentNodeId),
                 isGenerating: _generatingNodeIds.contains(_currentNodeId),
-                onGenerate: () =>
-                    _generateLecture(_currentNodeId, currentNodeText),
+                streamingText: _streamingText[_currentNodeId],
+                onGenerate: () => _generateLecture(_currentNodeId, currentNodeText),
               ),
       ),
     );
@@ -524,6 +552,19 @@ class _LecturePageState extends ConsumerState<LecturePage> {
         ref.read(lectureEditorProvider(_keyFor(_currentNodeId))).blocks;
     final lectureId =
         ref.read(lectureEditorProvider(_keyFor(_currentNodeId))).lectureId;
+    final isLoading = _nodeLoading[_currentNodeId] == true;
+
+    // Resolve session title from cached sessions list
+    final sessionsAsync = ref.read(courseSessionsProvider(widget.subjectId));
+    final sessions = sessionsAsync.valueOrNull ?? [];
+    final session = sessions.cast<MindMapSession?>().firstWhere(
+          (s) => s?.id == widget.sessionId,
+          orElse: () => null,
+        );
+    final sessionTitle =
+        (session?.title?.isNotEmpty == true) ? session!.title! : '未命名大纲';
+
+    final roots = ref.read(mindMapNodesProvider(widget.sessionId)).valueOrNull ?? [];
 
     showModalBottomSheet(
       context: context,
@@ -566,6 +607,29 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                   );
                 },
               ),
+            // ── 导出为书 (Requirements 9.1, 9.2, 9.3) ──────────────────────
+            ListTile(
+              leading: Icon(
+                Icons.menu_book_outlined,
+                color: isLoading ? null : null,
+              ),
+              title: const Text('导出为书 (.pdf/.docx)'),
+              enabled: !isLoading,
+              onTap: isLoading
+                  ? null
+                  : () {
+                      Navigator.pop(context);
+                      showDialog(
+                        context: context,
+                        builder: (_) => ExportBookDialog(
+                          sessionId: widget.sessionId,
+                          sessionTitle: sessionTitle,
+                          nodes: roots,
+                          hasLectureNodeIds: Set.unmodifiable(_hasLectureNodeIds),
+                        ),
+                      );
+                    },
+            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -722,7 +786,7 @@ class _OutlinePanel extends StatelessWidget {
 
 // ── Right panel (editor or empty state) ──────────────────────────────────────
 
-class _RightPanel extends StatelessWidget {
+class _RightPanel extends StatefulWidget {
   final String nodeId;
   final String nodeText;
   final int sessionId;
@@ -732,6 +796,7 @@ class _RightPanel extends StatelessWidget {
   final bool isChecked;
   final bool hasLecture;
   final bool isGenerating;
+  final String? streamingText; // 流式生成时的实时 markdown
   final VoidCallback onGenerate;
 
   const _RightPanel({
@@ -745,74 +810,203 @@ class _RightPanel extends StatelessWidget {
     required this.hasLecture,
     required this.isGenerating,
     required this.onGenerate,
+    this.streamingText,
   });
 
   @override
+  State<_RightPanel> createState() => _RightPanelState();
+}
+
+class _RightPanelState extends State<_RightPanel> {
+  bool _editing = true; // 默认富文本编辑模式
+
+  /// 把 LectureBlock 列表转回 Markdown 字符串用于渲染
+  String _blocksToMarkdown(List<LectureBlock> blocks) {
+    final buf = StringBuffer();
+    for (final b in blocks) {
+      switch (b.type) {
+        case 'heading':
+          final level = (b.level ?? 2).clamp(1, 3);
+          buf.writeln('${'#' * level} ${_applySpans(b.text, b.spans)}');
+        case 'code':
+          buf.writeln('```${b.language ?? ''}');
+          buf.writeln(b.text);
+          buf.writeln('```');
+        case 'list':
+          buf.writeln('- ${_applySpans(b.text, b.spans)}');
+        case 'quote':
+          buf.writeln('> ${_applySpans(b.text, b.spans)}');
+        default:
+          final cleaned = _applySpans(b.text, b.spans)
+              .replaceAll(RegExp(r'[┌┐└┘├┤┬┴┼─│╔╗╚╝╠╣╦╩╬═║▲▼◄►]'), '');
+          buf.writeln(cleaned);
+      }
+      buf.writeln();
+    }
+    return buf.toString();
+  }
+
+  /// 把 spans 重新应用为 markdown 语法（**bold**、*italic*、`code`）
+  String _applySpans(String text, List<LectureSpan> spans) {
+    if (spans.isEmpty) return text;
+    final result = StringBuffer();
+    int cursor = 0;
+    final sorted = List<LectureSpan>.from(spans)
+      ..sort((a, b) => a.start.compareTo(b.start));
+    for (final span in sorted) {
+      if (span.start > cursor) result.write(text.substring(cursor, span.start));
+      final inner = text.substring(
+        span.start.clamp(0, text.length),
+        span.end.clamp(0, text.length),
+      );
+      String wrapped = inner;
+      if (span.code) wrapped = '`$wrapped`';
+      if (span.bold) wrapped = '**$wrapped**';
+      if (span.italic) wrapped = '*$wrapped*';
+      result.write(wrapped);
+      cursor = span.end;
+    }
+    if (cursor < text.length) result.write(text.substring(cursor));
+    return result.toString();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Still loading
-    if (isLoading || !isChecked) {
+    if (widget.isLoading || !widget.isChecked) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // Generating
-    if (isGenerating) {
+    if (widget.isGenerating) {
+      // 有流式内容时实时渲染，否则显示 spinner
+      final streaming = widget.streamingText ?? '';
+      if (streaming.isNotEmpty) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              child: Row(children: [
+                const SizedBox(width: 12, height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 8),
+                Text('AI 正在生成「${widget.nodeText}」的讲义…',
+                    style: TextStyle(fontSize: 13,
+                        color: Theme.of(context).colorScheme.outline)),
+              ]),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: MarkdownLatexView(
+                  data: streaming,
+                  textStyle: const TextStyle(fontSize: 15, height: 1.7),
+                ),
+              ),
+            ),
+          ],
+        );
+      }
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
-            Text(
-              'AI 正在生成「$nodeText」的讲义…',
-              style: const TextStyle(fontSize: 14),
-            ),
+            Text('AI 正在生成「${widget.nodeText}」的讲义…',
+                style: const TextStyle(fontSize: 14)),
           ],
         ),
       );
     }
 
-    // No lecture yet
-    if (!hasLecture) {
-      return _EmptyLectureState(
-        nodeText: nodeText,
-        onGenerate: onGenerate,
-      );
+    if (!widget.hasLecture) {
+      return _EmptyLectureState(nodeText: widget.nodeText, onGenerate: widget.onGenerate);
     }
 
-    // Has lecture — show editor
-    final ctrl = controller;
+    final ctrl = widget.controller;
     if (ctrl == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
+    // 查看模式：MarkdownLatexView 渲染（支持 LaTeX、H4、分隔线）
+    if (!_editing) {
+      final markdown = _blocksToMarkdown(widget.editorState.blocks);
+      return Column(
+        children: [
+          // 顶部工具栏
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+            ),
+            child: Row(
+              children: [
+                if (widget.editorState.saveError != null)
+                  Expanded(child: _SaveErrorBanner(error: widget.editorState.saveError!))
+                else
+                  const Spacer(),
+                TextButton.icon(
+                  onPressed: () => setState(() => _editing = true),
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('编辑'),
+                ),
+              ],
+            ),
+          ),
+          // Markdown + LaTeX 渲染
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: MarkdownLatexView(
+                data: markdown,
+                textStyle: const TextStyle(fontSize: 15, height: 1.7),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // 编辑模式：Quill 编辑器
     return Column(
       children: [
-        if (editorState.saveError != null)
-          _SaveErrorBanner(error: editorState.saveError!),
-        QuillSimpleToolbar(
-          controller: ctrl,
-          config: const QuillSimpleToolbarConfig(
-            showFontFamily: false,
-            showFontSize: false,
-            showStrikeThrough: false,
-            showUnderLineButton: false,
-            showColorButton: false,
-            showBackgroundColorButton: false,
-            showClearFormat: false,
-            showAlignmentButtons: false,
-            showIndent: false,
-            showLink: false,
-            showSearchButton: false,
-            showSubscript: false,
-            showSuperscript: false,
-          ),
+        if (widget.editorState.saveError != null)
+          _SaveErrorBanner(error: widget.editorState.saveError!),
+        // 工具栏 + 退出编辑按钮
+        Row(
+          children: [
+            Expanded(
+              child: QuillSimpleToolbar(
+                controller: ctrl,
+                config: const QuillSimpleToolbarConfig(
+                  showFontFamily: false,
+                  showFontSize: false,
+                  showStrikeThrough: false,
+                  showUnderLineButton: false,
+                  showColorButton: false,
+                  showBackgroundColorButton: false,
+                  showClearFormat: false,
+                  showAlignmentButtons: false,
+                  showIndent: false,
+                  showLink: false,
+                  showSearchButton: false,
+                  showSubscript: false,
+                  showSuperscript: false,
+                ),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () => setState(() => _editing = false),
+              icon: const Icon(Icons.visibility_outlined, size: 16),
+              label: const Text('预览'),
+            ),
+          ],
         ),
         const Divider(height: 1),
         Expanded(
-          child: _LectureEditor(
-            controller: ctrl,
-            blocks: editorState.blocks,
-          ),
+          child: _LectureEditor(controller: ctrl, blocks: widget.editorState.blocks),
         ),
       ],
     );
