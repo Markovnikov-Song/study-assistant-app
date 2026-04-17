@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/subject_provider.dart';
 import '../subject_detail/tabs/docs_tab.dart';
 import '../subject_detail/tabs/past_exams_tab.dart';
+import '../subject_detail/tabs/settings_tab.dart';
 
 class SubjectDetailPage extends ConsumerWidget {
   final int subjectId;
@@ -17,7 +18,7 @@ class SubjectDetailPage extends ConsumerWidget {
     );
 
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: Text(name),
@@ -25,6 +26,7 @@ class SubjectDetailPage extends ConsumerWidget {
             tabs: [
               Tab(icon: Icon(Icons.folder_outlined), text: '资料'),
               Tab(icon: Icon(Icons.assignment_outlined), text: '历年题'),
+              Tab(icon: Icon(Icons.settings_outlined), text: '设置'),
             ],
           ),
         ),
@@ -32,6 +34,7 @@ class SubjectDetailPage extends ConsumerWidget {
           children: [
             DocsTab(subjectId: subjectId),
             PastExamsTab(subjectId: subjectId),
+            SettingsTab(subjectId: subjectId),
           ],
         ),
       ),

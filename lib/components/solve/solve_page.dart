@@ -11,6 +11,7 @@ import '../../widgets/session_history_sheet.dart';
 import '../../widgets/subject_bar.dart';
 import '../../widgets/no_subject_hint.dart';
 import '../../widgets/markdown_latex_view.dart';
+import '../../widgets/mcp_status_indicator.dart';
 
 class SolvePage extends ConsumerStatefulWidget {
   const SolvePage({super.key});
@@ -22,6 +23,7 @@ class _SolvePageState extends ConsumerState<SolvePage> {
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   bool _useBroad = false;
+  bool _sending = false;
 
   @override
   void dispose() { _inputCtrl.dispose(); _scrollCtrl.dispose(); super.dispose(); }
@@ -29,14 +31,27 @@ class _SolvePageState extends ConsumerState<SolvePage> {
   int? get _subjectId => ref.read(currentSubjectProvider)?.id;
   (int, String) get _key => (_subjectId!, 'solve');
 
+  void _bindSendingCallback() {
+    final sid = _subjectId;
+    if (sid == null) return;
+    ref.read(chatProvider(_key).notifier).onSendingChanged = (v) {
+      if (mounted) setState(() => _sending = v);
+    };
+  }
+
   Future<void> _submit() async {
     final sid = _subjectId;
     if (sid == null) return;
     final text = _inputCtrl.text.trim();
     if (text.isEmpty) return;
     _inputCtrl.clear();
+    _bindSendingCallback();
     await ref.read(chatProvider(_key).notifier).sendMessage(text, mode: SessionType.solve, useBroad: _useBroad);
     _scrollToBottom();
+  }
+
+  void _cancelSending() {
+    ref.read(chatProvider(_key).notifier).cancelSending();
   }
 
   Future<void> _pickAndOcr(ImageSource source) async {
@@ -60,17 +75,22 @@ class _SolvePageState extends ConsumerState<SolvePage> {
   Widget build(BuildContext context) {
     final subject = ref.watch(currentSubjectProvider);
     return Scaffold(
-      appBar: AppBar(title: const SubjectBarTitle(), centerTitle: false),
+      appBar: AppBar(
+        title: const SubjectBarTitle(),
+        centerTitle: false,
+        actions: const [McpStatusIndicator(), SizedBox(width: 8)],
+      ),
       body: subject == null
           ? const NoSubjectHint()
           : _SolveBody(
               subjectId: subject.id,
-              sending: ref.watch(chatProvider((subject.id, 'solve'))).isLoading,
+              sending: _sending,
               useBroad: _useBroad,
               inputCtrl: _inputCtrl,
               scrollCtrl: _scrollCtrl,
               onBroadChanged: (v) => setState(() => _useBroad = v),
               onSubmit: _submit,
+              onCancel: _cancelSending,
               onCamera: () => _pickAndOcr(ImageSource.camera),
               onGallery: () => _pickAndOcr(ImageSource.gallery),
             ),
@@ -85,9 +105,9 @@ class _SolveBody extends ConsumerWidget {
   final TextEditingController inputCtrl;
   final ScrollController scrollCtrl;
   final ValueChanged<bool> onBroadChanged;
-  final VoidCallback onSubmit, onCamera, onGallery;
+  final VoidCallback onSubmit, onCancel, onCamera, onGallery;
 
-  const _SolveBody({required this.subjectId, required this.sending, required this.useBroad, required this.inputCtrl, required this.scrollCtrl, required this.onBroadChanged, required this.onSubmit, required this.onCamera, required this.onGallery});
+  const _SolveBody({required this.subjectId, required this.sending, required this.useBroad, required this.inputCtrl, required this.scrollCtrl, required this.onBroadChanged, required this.onSubmit, required this.onCancel, required this.onCamera, required this.onGallery});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -123,7 +143,7 @@ class _SolveBody extends ConsumerWidget {
             ],
           ),
         ),
-        _InputBar(controller: inputCtrl, sending: sending, onSubmit: onSubmit, onCamera: onCamera, onGallery: onGallery),
+        _InputBar(controller: inputCtrl, sending: sending, onSubmit: onSubmit, onCancel: onCancel, onCamera: onCamera, onGallery: onGallery),
       ],
     );
   }
@@ -229,8 +249,8 @@ class _EmptySolveHints extends ConsumerWidget {
 class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;
-  final VoidCallback onSubmit, onCamera, onGallery;
-  const _InputBar({required this.controller, required this.sending, required this.onSubmit, required this.onCamera, required this.onGallery});
+  final VoidCallback onSubmit, onCancel, onCamera, onGallery;
+  const _InputBar({required this.controller, required this.sending, required this.onSubmit, required this.onCancel, required this.onCamera, required this.onGallery});
 
   @override
   Widget build(BuildContext context) {
@@ -240,18 +260,24 @@ class _InputBar extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          IconButton(icon: const Icon(Icons.camera_alt_outlined), onPressed: onCamera, tooltip: '拍照识题'),
-          IconButton(icon: const Icon(Icons.image_outlined), onPressed: onGallery, tooltip: '图库识题'),
+          IconButton(icon: const Icon(Icons.camera_alt_outlined), onPressed: sending ? null : onCamera, tooltip: '拍照识题'),
+          IconButton(icon: const Icon(Icons.image_outlined), onPressed: sending ? null : onGallery, tooltip: '图库识题'),
           Expanded(
             child: TextField(
               controller: controller, maxLines: 5, minLines: 1,
+              enabled: !sending,
               decoration: InputDecoration(hintText: '输入题目…', border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)), contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), isDense: true),
             ),
           ),
           const SizedBox(width: 8),
           IconButton.filled(
-            icon: sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send),
-            onPressed: sending ? null : onSubmit,
+            icon: sending
+                ? const Icon(Icons.stop_rounded)
+                : const Icon(Icons.send),
+            style: sending
+                ? IconButton.styleFrom(backgroundColor: Colors.red.shade400)
+                : null,
+            onPressed: sending ? onCancel : onSubmit,
           ),
         ],
       ),

@@ -420,6 +420,9 @@ def upsert_node_states(session_id: int, body: NodeStatesIn, user=Depends(get_cur
 
 @router.get("/lectures/{session_id}")
 def get_lecture(session_id: int, node_id: str, user=Depends(get_current_user)):
+    from urllib.parse import unquote_plus
+    # 前端可能把空格编码为 +，FastAPI 默认不解码 +，需要手动处理
+    node_id = unquote_plus(node_id)
     with db_session() as db:
         lecture = (
             db.query(NodeLecture)
@@ -524,6 +527,8 @@ def patch_lecture(lecture_id: int, body: LectureContentIn, user=Depends(get_curr
 
 @router.delete("/lectures/{session_id}")
 def delete_lecture(session_id: int, node_id: str, user=Depends(get_current_user)):
+    from urllib.parse import unquote_plus
+    node_id = unquote_plus(node_id)
     with db_session() as db:
         lecture = (
             db.query(NodeLecture)
@@ -549,9 +554,11 @@ def export_lecture(lecture_id: int, format: str = "docx", user=Depends(get_curre
         content = lecture.content
         node_id = lecture.node_id
 
-    blocks = content.get("blocks", [])
+    blocks = (content or {}).get("blocks", [])
+    if not blocks:
+        raise HTTPException(422, "讲义内容为空，无法导出")
     # 取节点名作为标题（从 node_id 解析最后一段）
-    title = node_id.split("_")[-1] if node_id else "讲义"
+    title = _parse_text_from_node_id(node_id) if node_id else "讲义"
 
     from fastapi.responses import StreamingResponse
     import io
@@ -564,7 +571,9 @@ def export_lecture(lecture_id: int, format: str = "docx", user=Depends(get_curre
         except ImportError as e:
             raise HTTPException(500, f"PDF 导出依赖缺失：{e}")
 
-        try:
+        import concurrent.futures
+
+        def _build_pdf():
             exporter = PdfBookExporter()
             node_info = NodeInfo(
                 node_id=node_id,
@@ -572,13 +581,22 @@ def export_lecture(lecture_id: int, format: str = "docx", user=Depends(get_curre
                 depth=1,
                 blocks=blocks,
             )
-            pdf_bytes = exporter.build(
+            return exporter.build(
                 session_title=title,
                 nodes=[node_info],
                 include_toc=False,
             )
-        except RuntimeError as e:
-            raise HTTPException(500, str(e))
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(_build_pdf)
+                pdf_bytes = future.result(timeout=90)
+        except concurrent.futures.TimeoutError:
+            raise HTTPException(504, "PDF 生成超时，请稍后重试")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(500, f"PDF 生成失败：{type(e).__name__}: {e}")
 
         return StreamingResponse(
             io.BytesIO(pdf_bytes),
@@ -736,8 +754,10 @@ def export_book(session_id: int, body: ExportBookIn, user=Depends(get_current_us
             nodes=nodes,
             include_toc=body.include_toc,
         )
-    except RuntimeError as e:
-        raise HTTPException(500, str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"导出失败：{type(e).__name__}: {e}")
 
     # 6. Return streaming response with Content-Disposition
     filename = f"book_{session_id}.{ext}"

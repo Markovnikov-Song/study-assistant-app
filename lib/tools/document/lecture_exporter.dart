@@ -88,8 +88,21 @@ class LectureExporter {
     required LibraryService service,
     String nodeText = '讲义',
   }) async {
+    // 显示加载提示
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(children: [
+          SizedBox(width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+          SizedBox(width: 12),
+          Text('正在生成 PDF，请稍候…'),
+        ]),
+        duration: Duration(seconds: 60),
+      ),
+    );
     try {
       final bytes = await service.exportLecture(lectureId, format: 'pdf');
+      if (context.mounted) ScaffoldMessenger.of(context).hideCurrentSnackBar();
       await FileSaver.instance.saveFile(
         name: _filename(nodeText),
         bytes: Uint8List.fromList(bytes),
@@ -98,6 +111,7 @@ class LectureExporter {
       );
     } catch (e) {
       if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('PDF 导出失败：$e'),
           action: SnackBarAction(

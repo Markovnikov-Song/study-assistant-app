@@ -1,7 +1,11 @@
 // Learning OS — Agent Kernel (Core)
-// AgentKernel is the central dispatcher: it resolves user intent, schedules
-// Skills, and coordinates Components to fulfil learning tasks.
+// AgentKernel is retained as a backward-compatible shim.
+// New code should use AgentCouncil (agent_council.dart) directly.
 // Phase 1: Interface skeleton only — no business logic.
+//
+// Upgrade path:
+//   AgentKernel (single dispatcher)
+//     → AgentCouncil (multi-agent deliberation, see agent_council.dart)
 
 import 'package:study_assistant_app/core/skill/skill_model.dart';
 
@@ -22,25 +26,19 @@ class SkillExecutionError implements Exception {
       'SkillExecutionError: skill "$skillId", node "$nodeId" — $reason';
 }
 
-/// The central intelligence of Learning OS.
-/// Resolves natural-language intent, dispatches Skills, and coordinates
-/// multi-Component tasks (e.g. multi-subject learning plans).
+/// Backward-compatible single-dispatcher interface.
+/// Prefer [AgentCouncil] for new implementations.
 abstract class AgentKernel {
   /// Parse the user's natural-language [text] within [session] context and
   /// return up to 3 recommended Skills with rationale, plus suggested
-  /// Component IDs.
-  /// Should complete within 3 seconds.
+  /// Component IDs. Should complete within 3 seconds.
   Future<IntentResult> resolveIntent(String text, SessionContext session);
 
-  /// Execute [skill] by running its PromptChain nodes in order, passing each
-  /// node's output as the next node's input.
-  /// Throws [SkillExecutionError] if any node fails; execution stops at the
-  /// failing node and subsequent nodes are not called.
+  /// Execute [skill] by running its PromptChain nodes in order.
+  /// Throws [SkillExecutionError] if any node fails.
   Future<SkillExecution> dispatchSkill(Skill skill, SessionContext session);
 
-  /// Coordinate multiple Components identified by [componentIds] to complete
-  /// a composite task described by [data] (e.g. generate a multi-subject
-  /// learning plan and push it to the Calendar Component).
+  /// Coordinate multiple Components for a composite task.
   Future<void> coordinateComponents(
     List<String> componentIds,
     CoordinationData data,

@@ -12,6 +12,7 @@ import '../../widgets/session_history_sheet.dart';
 import '../../widgets/subject_bar.dart';
 import '../../widgets/no_subject_hint.dart';
 import '../../widgets/markdown_latex_view.dart';
+import '../../widgets/mcp_status_indicator.dart';
 import '../notebook/widgets/notebook_picker_sheet.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
@@ -94,7 +95,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         centerTitle: false,
       );
     } else {
-      appBar = AppBar(title: const SubjectBarTitle(), centerTitle: false);
+      appBar = AppBar(
+        title: const SubjectBarTitle(),
+        centerTitle: false,
+        actions: const [
+          McpStatusIndicator(),
+          SizedBox(width: 8),
+        ],
+      );
     }
 
     return Scaffold(

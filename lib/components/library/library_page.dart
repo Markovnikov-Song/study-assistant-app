@@ -34,7 +34,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
 
     filtered.sort((a, b) {
       // Pinned first
-      final pinCmp = b.subject.isPinned ? 1 : 0 - (a.subject.isPinned ? 1 : 0);
+      final pinCmp = (b.subject.isPinned ? 1 : 0) - (a.subject.isPinned ? 1 : 0);
       if (pinCmp != 0) return pinCmp;
       // Then by last visited desc
       final aTime = a.lastVisitedAt ?? DateTime(0);

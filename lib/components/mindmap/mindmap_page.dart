@@ -10,6 +10,7 @@ import '../../providers/document_provider.dart';
 import '../../widgets/no_subject_hint.dart';
 import '../../widgets/session_history_sheet.dart';
 import '../../widgets/subject_bar.dart';
+import '../../widgets/mcp_status_indicator.dart';
 import 'providers/mindmap_providers.dart';
 import 'widgets/mindmap_editor_canvas.dart';
 import 'widgets/mindmap_export_handler.dart';
@@ -61,6 +62,7 @@ class _MindMapPageState extends ConsumerState<MindMapPage>
         appBar: AppBar(
           title: const SubjectBarTitle(),
           centerTitle: false,
+          actions: const [McpStatusIndicator(), SizedBox(width: 8)],
         ),
         body: const NoSubjectHint(),
       );

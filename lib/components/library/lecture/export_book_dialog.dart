@@ -246,7 +246,7 @@ class _ExportBookDialogState extends ConsumerState<ExportBookDialog> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        '$noLectureCount 个节点暂无讲义，导出时将跳过',
+                        '$noLectureCount 个节点内容为空，导出时将跳过',
                         style: TextStyle(fontSize: 13, color: cs.outline),
                       ),
                     ),

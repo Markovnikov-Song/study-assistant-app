@@ -22,6 +22,8 @@ import '../components/notebook/note_detail_page.dart';
 import '../features/profile/edit_profile_page.dart';
 import '../features/profile/memory_page.dart';
 import '../providers/auth_provider.dart';
+import '../features/skill_marketplace/marketplace_page.dart';
+import '../features/skill_creation/dialog_creation_page.dart';
 
 class AppRoutes {
   static const login       = '/login';
@@ -48,12 +50,16 @@ class AppRoutes {
   static String notebookDetail(int id) => '/profile/notebooks/$id';
   static String noteDetail(int nbId, int noteId) => '/profile/notebooks/$nbId/notes/$noteId';
 
+  // Skill 生态路由
+  static const skillMarketplace  = '/skill-marketplace';   // 学习方法库（DIY 模式入口）
+  static const skillDialogCreate = '/skill-create-dialog'; // 对话式创建学习方法
+
   // Library nested routes
   static String courseSpace(int subjectId) => '/library/$subjectId';
   static String editableMindMap(int subjectId, int sessionId) =>
       '/library/$subjectId/mindmap/$sessionId';
   static String lecturePage(int subjectId, int sessionId, String nodeId) =>
-      '/library/$subjectId/mindmap/$sessionId/lecture';
+      '/library/$subjectId/mindmap/$sessionId/lecture?node_id=${Uri.encodeQueryComponent(nodeId)}';
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -77,7 +83,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppRoutes.subjects,    builder: (_, _) => const SubjectsPage()),
       GoRoute(path: AppRoutes.resources,   builder: (_, _) => const ResourcesPage()),
       GoRoute(path: AppRoutes.history,     builder: (_, _) => const HistoryPage()),
-      GoRoute(path: AppRoutes.mistakeBook, builder: (_, _) => const MistakeBookPage()),      GoRoute(
+      GoRoute(path: AppRoutes.mistakeBook, builder: (_, _) => const MistakeBookPage()),
+      GoRoute(path: AppRoutes.skillMarketplace,  builder: (_, _) => const MarketplacePage()),
+      GoRoute(path: AppRoutes.skillDialogCreate, builder: (_, _) => const DialogCreationPage()),
+      GoRoute(
         path: '/profile/resources/:id',
         builder: (_, state) => SubjectDetailPage(subjectId: int.parse(state.pathParameters['id']!)),
       ),
@@ -100,7 +109,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 builder: (_, state) => LecturePage(
                   subjectId: int.parse(state.pathParameters['subjectId']!),
                   sessionId: int.parse(state.pathParameters['sessionId']!),
-                  nodeId: state.extra as String,
+                  nodeId: state.uri.queryParameters['node_id'] ?? '',
                 ),
               ),
             ],

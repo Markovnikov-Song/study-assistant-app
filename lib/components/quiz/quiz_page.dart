@@ -1,9 +1,13 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_saver/file_saver.dart';
 import '../../providers/current_subject_provider.dart';
 import '../../providers/exam_provider.dart';
 import '../../widgets/subject_bar.dart';
 import '../../widgets/no_subject_hint.dart';
+import '../../widgets/mcp_status_indicator.dart';
 
 class QuizPage extends ConsumerStatefulWidget {
   const QuizPage({super.key});
@@ -31,7 +35,11 @@ class _QuizPageState extends ConsumerState<QuizPage>
   Widget build(BuildContext context) {
     final subject = ref.watch(currentSubjectProvider);
     return Scaffold(
-      appBar: AppBar(title: const SubjectBarTitle(), centerTitle: false),
+      appBar: AppBar(
+        title: const SubjectBarTitle(),
+        centerTitle: false,
+        actions: const [McpStatusIndicator(), SizedBox(width: 8)],
+      ),
       body: subject == null
           ? const NoSubjectHint()
           : Column(
@@ -128,13 +136,24 @@ class _PredictedTabState extends ConsumerState<_PredictedTab> {
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: () => _exportMarkdown(state.result!),
               icon: const Icon(Icons.download),
               label: const Text('导出 Markdown'),
             ),
           ],
         ],
       ),
+    );
+  }
+
+  Future<void> _exportMarkdown(String content) async {
+    final date = DateTime.now();
+    final d = '${date.year}${date.month.toString().padLeft(2,'0')}${date.day.toString().padLeft(2,'0')}';
+    await FileSaver.instance.saveFile(
+      name: '预测试卷_$d',
+      bytes: Uint8List.fromList(utf8.encode(content)),
+      ext: 'md',
+      mimeType: MimeType.text,
     );
   }
 }
@@ -301,13 +320,24 @@ class _CustomTabState extends ConsumerState<_CustomTab> {
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: () => _exportMarkdown(state.result!),
               icon: const Icon(Icons.download),
               label: const Text('导出 Markdown'),
             ),
           ],
         ],
       ),
+    );
+  }
+
+  Future<void> _exportMarkdown(String content) async {
+    final date = DateTime.now();
+    final d = '${date.year}${date.month.toString().padLeft(2,'0')}${date.day.toString().padLeft(2,'0')}';
+    await FileSaver.instance.saveFile(
+      name: '自定义题目_$d',
+      bytes: Uint8List.fromList(utf8.encode(content)),
+      ext: 'md',
+      mimeType: MimeType.text,
     );
   }
 }

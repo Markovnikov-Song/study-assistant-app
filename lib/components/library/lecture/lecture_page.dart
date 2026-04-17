@@ -5,12 +5,15 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill/quill_delta.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:go_router/go_router.dart';
 import '../../../models/mindmap_library.dart';
+import '../../../routes/app_router.dart';
 import '../../../services/library_service.dart';
 import '../../../services/notebook_service.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/notebook_provider.dart';
 import '../../../providers/subject_provider.dart';
+import '../../../providers/rag_sync_settings_provider.dart';
 import '../../../widgets/markdown_latex_view.dart';
 import '../../../tools/document/block_converter.dart';
 import 'export_book_dialog.dart';
@@ -52,7 +55,7 @@ class LectureEditorState {
 
 // ── LectureEditorNotifier ─────────────────────────────────────────────────────
 
-typedef LectureKey = ({int sessionId, String nodeId});
+typedef LectureKey = ({int sessionId, String nodeId, int subjectId});
 
 class LectureEditorNotifier
     extends FamilyNotifier<LectureEditorState, LectureKey> {
@@ -181,6 +184,19 @@ class LectureEditorNotifier
         LectureContent(blocks: state.blocks).toJson(),
       );
       state = state.copyWith(isDirty: false, isSaving: false, clearError: true);
+
+      // Auto-sync to RAG if enabled for this subject
+      final settings = ref.read(ragSyncSettingsProvider(arg.subjectId));
+      if (settings.autoSyncLecture) {
+        try {
+          await _service.importLectureToRag(
+            lectureId: state.lectureId!,
+            subjectId: arg.subjectId,
+          );
+        } catch (_) {
+          // RAG sync failure is non-fatal — lecture is already saved
+        }
+      }
     } catch (e) {
       state = state.copyWith(isSaving: false, saveError: e.toString());
     }
@@ -286,14 +302,20 @@ class _LecturePageState extends ConsumerState<LecturePage> {
     }
     collect(roots);
 
-    // 并发检查（最多同时 5 个，避免请求风暴）
+    // 并发检查所有节点的讲义存在性（最多同时 5 个），跳过当前正在加载的节点
     final service = ref.read(libraryServiceProvider);
     const batchSize = 5;
-    for (var i = 0; i < allNodeIds.length; i += batchSize) {
+    // 把当前节点排到最后，避免和 _loadLectureForNode 竞争
+    final currentId = _currentNodeId;
+    final otherIds = allNodeIds.where((id) => id != currentId).toList();
+    final orderedIds = [...otherIds, currentId];
+
+    for (var i = 0; i < orderedIds.length; i += batchSize) {
       if (!mounted) return;
-      final batch = allNodeIds.skip(i).take(batchSize);
+      final batch = orderedIds.skip(i).take(batchSize);
       await Future.wait(batch.map((nodeId) async {
         if (_checkedNodeIds.contains(nodeId)) return;
+        if (_nodeLoading[nodeId] == true) return;
         try {
           await service.getLecture(widget.sessionId, nodeId);
           if (mounted) setState(() {
@@ -316,7 +338,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   LectureKey _keyFor(String nodeId) =>
-      (sessionId: widget.sessionId, nodeId: nodeId);
+      (sessionId: widget.sessionId, nodeId: nodeId, subjectId: widget.subjectId);
 
   String _currentNodeText(List<TreeNode> roots) {
     return _findNodeText(roots, _currentNodeId) ?? '讲义';
@@ -401,13 +423,30 @@ class _LecturePageState extends ConsumerState<LecturePage> {
           _checkedNodeIds.add(nodeId);
           _nodeLoading[nodeId] = false;
         });
+      } else {
+        // mounted=false 时也要清除状态，防止重建后死转圈
+        _hasLectureNodeIds.add(nodeId);
+        _checkedNodeIds.add(nodeId);
+        _nodeLoading[nodeId] = false;
       }
     } catch (_) {
+      // 节点无讲义，创建空白编辑器供用户直接编辑
+      final ctrl = QuillController.basic();
+      ctrl.addListener(() {
+        ref
+            .read(lectureEditorProvider(_keyFor(nodeId)).notifier)
+            .onContentChanged(ctrl.document.toDelta());
+      });
+      final old = _controllers.get(nodeId);
+      old?.dispose();
+      _controllers.put(nodeId, ctrl);
+
+      // 无论 mounted 状态如何，都要清除 loading 标记，防止死转圈
+      _nodeLoading[nodeId] = false;
+      _checkedNodeIds.add(nodeId);
+
       if (mounted) {
-        setState(() {
-          _checkedNodeIds.add(nodeId);
-          _nodeLoading[nodeId] = false;
-        });
+        setState(() {});
       }
     }
   }
@@ -428,22 +467,21 @@ class _LecturePageState extends ConsumerState<LecturePage> {
     }
   }
 
+  // ── Generate lecture ──────────────────────────────────────────────────────
+
   Future<void> _generateLecture(String nodeId, String nodeText) async {
     setState(() {
       _generatingNodeIds.add(nodeId);
       _streamingText[nodeId] = '';
-      _currentNodeId = nodeId; // 切换到正在生成的节点
+      _currentNodeId = nodeId;
     });
-
     try {
       final stream = ref.read(libraryServiceProvider).generateLectureStream(
         sessionId: widget.sessionId,
         nodeId: nodeId,
       );
-
       bool hasError = false;
       String? errorMsg;
-
       await for (final event in stream) {
         if (event == '[DONE]') break;
         if (event.startsWith('[ERROR]')) {
@@ -451,14 +489,12 @@ class _LecturePageState extends ConsumerState<LecturePage> {
           errorMsg = event.substring(7);
           break;
         }
-        // 实时追加 token，触发 UI 更新
         if (mounted) {
           setState(() {
             _streamingText[nodeId] = (_streamingText[nodeId] ?? '') + event;
           });
         }
       }
-
       if (hasError) {
         if (mounted) {
           setState(() {
@@ -471,15 +507,12 @@ class _LecturePageState extends ConsumerState<LecturePage> {
         }
         return;
       }
-
-      // 生成完成，重新加载正式讲义
       _checkedNodeIds.remove(nodeId);
       await _loadLectureForNode(nodeId);
-
       if (mounted) {
         setState(() {
           _generatingNodeIds.remove(nodeId);
-          _streamingText.remove(nodeId); // 清除流式文本，显示正式讲义
+          _streamingText.remove(nodeId);
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -524,6 +557,8 @@ class _LecturePageState extends ConsumerState<LecturePage> {
       hasLectureNodeIds: _hasLectureNodeIds,
       generatingNodeIds: _generatingNodeIds,
       expandedNodes: _expandedNodes,
+      subjectId: widget.subjectId,
+      sessionId: widget.sessionId,
       onNodeTap: (nodeId) {
         if (isWide) {
           _switchToNode(nodeId);
@@ -588,6 +623,15 @@ class _LecturePageState extends ConsumerState<LecturePage> {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: _SaveStatusChip(state: editorState),
             ),
+            // 无讲义时显示"生成"按钮
+            if (_checkedNodeIds.contains(_currentNodeId) &&
+                !_hasLectureNodeIds.contains(_currentNodeId) &&
+                !_generatingNodeIds.contains(_currentNodeId))
+              TextButton.icon(
+                onPressed: () => _generateLecture(_currentNodeId, currentNodeText),
+                icon: const Icon(Icons.auto_awesome, size: 16),
+                label: const Text('AI 生成'),
+              ),
             IconButton(
               icon: const Icon(Icons.ios_share_outlined),
               tooltip: '导出',
@@ -636,7 +680,6 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                       hasLecture: _hasLectureNodeIds.contains(_currentNodeId),
                       isGenerating: _generatingNodeIds.contains(_currentNodeId),
                       streamingText: _streamingText[_currentNodeId],
-                      onGenerate: () => _generateLecture(_currentNodeId, currentNodeText),
                     ),
                   ),
                 ],
@@ -653,7 +696,6 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                 hasLecture: _hasLectureNodeIds.contains(_currentNodeId),
                 isGenerating: _generatingNodeIds.contains(_currentNodeId),
                 streamingText: _streamingText[_currentNodeId],
-                onGenerate: () => _generateLecture(_currentNodeId, currentNodeText),
               ),
       ),
     );
@@ -826,6 +868,8 @@ class _OutlinePanel extends StatelessWidget {
   final Set<String> hasLectureNodeIds;
   final Set<String> generatingNodeIds;
   final Map<String, bool> expandedNodes;
+  final int subjectId;
+  final int sessionId;
   final void Function(String nodeId) onNodeTap;
   final void Function(String nodeId) onToggleExpand;
 
@@ -835,9 +879,44 @@ class _OutlinePanel extends StatelessWidget {
     required this.hasLectureNodeIds,
     required this.generatingNodeIds,
     required this.expandedNodes,
+    required this.subjectId,
+    required this.sessionId,
     required this.onNodeTap,
     required this.onToggleExpand,
   });
+
+  void _showNodeMenu(BuildContext context, String nodeId,
+      {required bool hasLecture}) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.menu_book_outlined),
+              title: const Text('查看讲义'),
+              onTap: () {
+                Navigator.pop(context);
+                onNodeTap(nodeId);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.account_tree_outlined),
+              title: const Text('跳转大纲'),
+              subtitle: const Text('在思维导图中定位此节点'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push(
+                  AppRoutes.editableMindMap(subjectId, sessionId),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -978,7 +1057,6 @@ class _RightPanel extends StatefulWidget {
   final bool hasLecture;
   final bool isGenerating;
   final String? streamingText;
-  final VoidCallback onGenerate;
 
   const _RightPanel({
     required this.nodeId,
@@ -991,7 +1069,6 @@ class _RightPanel extends StatefulWidget {
     required this.isChecked,
     required this.hasLecture,
     required this.isGenerating,
-    required this.onGenerate,
     this.streamingText,
   });
 
@@ -1002,7 +1079,12 @@ class _RightPanel extends StatefulWidget {
 class _RightPanelState extends State<_RightPanel> {
   @override
   Widget build(BuildContext context) {
-    if (widget.isLoading || !widget.isChecked) {
+    if (widget.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // 还未检查过（首次进入），触发加载后显示空白编辑器而非死转圈
+    if (!widget.isChecked) {
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -1026,8 +1108,39 @@ class _RightPanelState extends State<_RightPanel> {
     }
 
     if (!widget.hasLecture) {
-      return _EmptyLectureState(
-          nodeText: widget.nodeText, onGenerate: widget.onGenerate);
+      // 无讲义时显示空白编辑器（可直接编辑，保存时会自动创建）
+      final emptyCtrl = widget.controller;
+      if (emptyCtrl == null) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      return Column(
+        children: [
+          _statusBar(context),
+          QuillSimpleToolbar(
+            controller: emptyCtrl,
+            config: const QuillSimpleToolbarConfig(
+              showFontFamily: false,
+              showFontSize: false,
+              showStrikeThrough: false,
+              showUnderLineButton: false,
+              showColorButton: false,
+              showBackgroundColorButton: false,
+              showClearFormat: false,
+              showAlignmentButtons: false,
+              showIndent: false,
+              showLink: false,
+              showSearchButton: false,
+              showSubscript: false,
+              showSuperscript: false,
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _LectureEditor(
+                controller: emptyCtrl, blocks: const []),
+          ),
+        ],
+      );
     }
 
     // ── 直接 WYSIWYG 编辑（Quill）──────────────────────────────────────────────
@@ -1124,54 +1237,6 @@ class _RightPanelState extends State<_RightPanel> {
   }
 }
 
-// ── Empty lecture state ───────────────────────────────────────────────────────
-
-class _EmptyLectureState extends StatelessWidget {
-  final String nodeText;
-  final VoidCallback onGenerate;
-
-  const _EmptyLectureState({
-    required this.nodeText,
-    required this.onGenerate,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.menu_book_outlined, size: 56, color: cs.outlineVariant),
-            const SizedBox(height: 16),
-            Text(
-              nodeText,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '此节点还没有讲义',
-              style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: onGenerate,
-              icon: const Icon(Icons.auto_awesome, size: 18),
-              label: const Text('生成讲义'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ── Editor widget (WYSIWYG) ───────────────────────────────────────────────────
 
 class _LectureEditor extends StatelessWidget {
@@ -1188,6 +1253,7 @@ class _LectureEditor extends StatelessWidget {
     return QuillEditor.basic(
       controller: controller,
       config: QuillEditorConfig(
+        placeholder: '点击此处开始编写讲义，或使用右上角导出菜单生成 AI 讲义…',
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         customStyles: DefaultStyles(
           // 正文

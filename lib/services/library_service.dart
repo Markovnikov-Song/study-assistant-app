@@ -210,7 +210,28 @@ class LibraryService {
         queryParameters: {'format': format},
         options: Options(responseType: ResponseType.bytes),
       );
-      return (res.data as List).cast<int>();
+      final data = res.data;
+      if (data == null) throw const ApiException(message: '服务器返回空响应');
+      if (data is List<int>) return data;
+      if (data is List) return data.cast<int>();
+      if (data is Iterable) return List<int>.from(data);
+      throw ApiException(message: '响应格式错误：${data.runtimeType}');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// 将讲义内容导入 RAG 知识库。
+  /// 由自动同步开关触发，失败不影响讲义保存流程。
+  Future<void> importLectureToRag({
+    required int lectureId,
+    required int subjectId,
+  }) async {
+    try {
+      await _dio.post(
+        '$_base/lectures/$lectureId/import-to-rag',
+        queryParameters: {'subject_id': subjectId},
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

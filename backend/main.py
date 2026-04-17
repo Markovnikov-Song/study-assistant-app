@@ -17,7 +17,7 @@ import config as _st_config
 import backend_config as _api_config
 _st_config.get_config = _api_config.get_config
 
-from routers import auth, subjects, sessions, chat, documents, past_exams, exam_gen, ocr, notebooks, notes, users, hints, library
+from routers import auth, subjects, sessions, chat, documents, past_exams, exam_gen, ocr, notebooks, notes, users, hints, library, agent, mcp, marketplace, council
 
 app = FastAPI(title="学科学习助手 API", version="1.0.0")
 
@@ -52,6 +52,10 @@ app.include_router(notes.router,      prefix="/api",            tags=["notes"])
 app.include_router(users.router,      prefix="/api/users",      tags=["users"])
 app.include_router(hints.router,      prefix="/api/hints",      tags=["hints"])
 app.include_router(library.router,    prefix="/api/library",    tags=["library"])
+app.include_router(agent.router,      prefix="/api/agent",      tags=["agent"])
+app.include_router(mcp.router,        prefix="/api/mcp",        tags=["mcp"])
+app.include_router(marketplace.router, prefix="/api/marketplace", tags=["marketplace"])
+app.include_router(council.router,    prefix="/api/council",    tags=["council"])
 
 @app.get("/api/health")
 def health():
