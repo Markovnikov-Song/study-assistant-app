@@ -10,9 +10,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // 导入同项目的其他文件（相对路径，类似 Python 的 from . import xxx）
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'app.dart';                          // App 根组件
 import 'core/network/dio_client.dart';      // HTTP 客户端
 import 'core/storage/storage_service.dart'; // 本地存储（保存登录 token）
+import 'providers/shared_preferences_provider.dart';
 
 // main() 是 Dart 程序的唯一入口，async 表示这是异步函数
 // 相当于 Python 的 async def main()
@@ -29,9 +32,15 @@ void main() async {
   // 初始化 HTTP 客户端（Dio），配置 baseUrl、超时时间、拦截器等
   DioClient.instance.init();
 
+  // 初始化 SharedPreferences，供 mindmap 等功能使用
+  final prefs = await SharedPreferences.getInstance();
+
   // 启动 Flutter 应用
   // ProviderScope 是 Riverpod 的根容器，必须包裹整个 App
-  // 类似 Python 里的 app = Flask(__name__)，是所有状态的根
-  // const 表示这个对象在编译时就确定了，不会变化（性能优化）
-  runApp(const ProviderScope(child: App()));
+  runApp(ProviderScope(
+    overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+    ],
+    child: const App(),
+  ));
 }

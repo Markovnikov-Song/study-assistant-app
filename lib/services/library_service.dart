@@ -58,8 +58,8 @@ class LibraryService {
   Future<void> updateSessionMeta(int sessionId, {bool? isPinned, int? sortOrder}) async {
     try {
       await _dio.patch('$_base/sessions/$sessionId/meta', data: {
-        if (isPinned != null) 'is_pinned': isPinned,
-        if (sortOrder != null) 'sort_order': sortOrder,
+        if (isPinned != null) 'is_pinned': isPinned!,
+        if (sortOrder != null) 'sort_order': sortOrder!,
       });
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -148,7 +148,7 @@ class LibraryService {
     }
   }
 
-  /// 流式生成讲义，返回 Stream<String>（SSE token 流）
+  /// 流式生成讲义，返回 Stream of String（SSE token 流）
   Stream<String> generateLectureStream({
     required int sessionId,
     required String nodeId,

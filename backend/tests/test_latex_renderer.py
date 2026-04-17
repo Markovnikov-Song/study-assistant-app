@@ -18,7 +18,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from services.latex_renderer import LatexRenderer
+from book_services.latex_renderer import LatexRenderer
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ def _make_mock_figure(png_bytes: bytes) -> MagicMock:
 # ---------------------------------------------------------------------------
 
 class TestSuccessfulRender:
-    """Requirement 6.3 â€” renderer returns PNG bytes on success."""
+    """Requirement 6.3 â€?renderer returns PNG bytes on success."""
 
     def test_render_returns_bytes(self):
         """render() returns a non-empty bytes object when matplotlib succeeds."""
@@ -92,7 +92,7 @@ class TestSuccessfulRender:
 # ---------------------------------------------------------------------------
 
 class TestRenderFailure:
-    """Requirement 6.3 â€” renderer returns None on any exception."""
+    """Requirement 6.3 â€?renderer returns None on any exception."""
 
     def test_render_returns_none_when_matplotlib_raises(self):
         """render() returns None when matplotlib.pyplot.figure raises."""
@@ -142,7 +142,7 @@ class TestRenderFailure:
 # ---------------------------------------------------------------------------
 
 class TestCaching:
-    """Requirement 6.4 â€” identical formulas are only rendered once per instance."""
+    """Requirement 6.4 â€?identical formulas are only rendered once per instance."""
 
     def test_cache_hit_skips_rerender(self):
         """Calling render() twice with the same latex string only renders once."""
@@ -175,7 +175,7 @@ class TestCaching:
              patch("matplotlib.use"):
             first = renderer.render(r"\theta")
 
-        # Second call â€” matplotlib is NOT patched; cache must be used
+        # Second call â€?matplotlib is NOT patched; cache must be used
         second = renderer.render(r"\theta")
 
         assert first is not None
@@ -243,7 +243,7 @@ class TestCaching:
 
         assert result_fail is None
 
-        # Second call succeeds â€” should actually render, not return cached None
+        # Second call succeeds â€?should actually render, not return cached None
         with patch("matplotlib.pyplot.figure", side_effect=counting_figure), \
              patch("matplotlib.pyplot.close"), \
              patch("matplotlib.use"):

@@ -538,22 +538,62 @@ def delete_lecture(session_id: int, node_id: str, user=Depends(get_current_user)
 
 @router.post("/lectures/{lecture_id}/export")
 def export_lecture(lecture_id: int, format: str = "docx", user=Depends(get_current_user)):
-    """导出讲义为 Word 文件（python-docx）。"""
-    try:
-        from docx import Document as DocxDocument
-        from fastapi.responses import StreamingResponse
-        import io
-    except ImportError:
-        raise HTTPException(500, "python-docx 未安装")
+    """导出讲义为 PDF 或 Word 文件。"""
+    if format not in ("pdf", "docx"):
+        raise HTTPException(400, "不支持的格式，请使用 pdf 或 docx")
 
     with db_session() as db:
         lecture = db.query(NodeLecture).filter_by(id=lecture_id, user_id=user["id"]).first()
         if not lecture:
             raise HTTPException(404, "讲义不存在")
         content = lecture.content
+        node_id = lecture.node_id
+
+    blocks = content.get("blocks", [])
+    # 取节点名作为标题（从 node_id 解析最后一段）
+    title = node_id.split("_")[-1] if node_id else "讲义"
+
+    from fastapi.responses import StreamingResponse
+    import io
+
+    # ── PDF ──────────────────────────────────────────────────────────────────
+    if format == "pdf":
+        try:
+            from book_services.pdf_book_exporter import PdfBookExporter
+            from book_services.book_exporter import NodeInfo
+        except ImportError as e:
+            raise HTTPException(500, f"PDF 导出依赖缺失：{e}")
+
+        try:
+            exporter = PdfBookExporter()
+            node_info = NodeInfo(
+                node_id=node_id,
+                text=title,
+                depth=1,
+                blocks=blocks,
+            )
+            pdf_bytes = exporter.build(
+                session_title=title,
+                nodes=[node_info],
+                include_toc=False,
+            )
+        except RuntimeError as e:
+            raise HTTPException(500, str(e))
+
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=lecture_{lecture_id}.pdf"},
+        )
+
+    # ── DOCX ─────────────────────────────────────────────────────────────────
+    try:
+        from docx import Document as DocxDocument
+    except ImportError:
+        raise HTTPException(500, "python-docx 未安装")
 
     doc = DocxDocument()
-    blocks = content.get("blocks", [])
+    doc.add_heading(title, level=1)
     for block in blocks:
         btype = block.get("type", "paragraph")
         text = block.get("text", "")
@@ -573,7 +613,6 @@ def export_lecture(lecture_id: int, format: str = "docx", user=Depends(get_curre
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
-    from fastapi.responses import StreamingResponse
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -595,6 +634,23 @@ def _parse_depth_from_node_id(node_id: str) -> int:
     return 1
 
 
+def _parse_text_from_node_id(node_id: str) -> str:
+    """Extract display title from node_id.
+
+    node_id format: L{depth}_{ancestor_path}_{title}
+    e.g. "L1_基本概念" → "基本概念"
+         "L2_第1章_绪论_基本概念" → "基本概念"
+    We take the last underscore-separated segment as the title.
+    """
+    import re as _re
+    # Strip leading L{n}_ prefix
+    text = _re.sub(r"^L\d+_", "", node_id)
+    # The last segment after splitting by _ is the node's own title
+    # But node titles themselves may contain underscores, so we can't just split.
+    # Best effort: return the full text after stripping the depth prefix.
+    return text or node_id
+
+
 @router.post("/sessions/{session_id}/export-book")
 def export_book(session_id: int, body: ExportBookIn, user=Depends(get_current_user)):
     """将多个节点的讲义合并导出为 PDF 或 Word 书籍。
@@ -602,17 +658,26 @@ def export_book(session_id: int, body: ExportBookIn, user=Depends(get_current_us
     Requirements: 4.1, 4.6, 5.1, 5.6, 7.1, 7.5, 7.6
     """
     import io as _io
+    import sys as _sys
+    import os as _os
     from fastapi.responses import StreamingResponse
-    from backend.services.book_exporter import NodeInfo
-    from backend.services.pdf_book_exporter import PdfBookExporter
-    from backend.services.docx_book_exporter import DocxBookExporter
+    from book_services.book_exporter import NodeInfo
+    from book_services.pdf_book_exporter import PdfBookExporter
+    from book_services.docx_book_exporter import DocxBookExporter
 
     with db_session() as db:
         # 1. Verify session ownership
         sess = _assert_session_owner(db, session_id, user["id"])
         session_title: str = sess.title or f"session_{session_id}"
 
-        # 2. Batch-query node_lectures for the requested node_ids
+        # 2. 从 mindmap 内容中建立 node_id → 真实标题 的映射
+        mindmap_content = _get_mindmap_content(db, session_id)
+        node_text_map: dict[str, str] = {}
+        if mindmap_content:
+            for node_dict in _build_node_tree(mindmap_content):
+                node_text_map[node_dict["node_id"]] = node_dict["text"]
+
+        # 3. Batch-query node_lectures for the requested node_ids
         lectures = (
             db.query(NodeLecture)
             .filter(
@@ -626,7 +691,7 @@ def export_book(session_id: int, body: ExportBookIn, user=Depends(get_current_us
         # Build a lookup map for O(1) access
         lecture_map: dict[str, NodeLecture] = {lec.node_id: lec for lec in lectures}
 
-        # 3. Preserve input order; build NodeInfo objects; filter nodes without content
+        # 4. Preserve input order; build NodeInfo objects; filter nodes without content
         nodes: list[NodeInfo] = []
         for nid in body.node_ids:
             lec = lecture_map.get(nid)
@@ -635,10 +700,12 @@ def export_book(session_id: int, body: ExportBookIn, user=Depends(get_current_us
             blocks = (lec.content or {}).get("blocks", []) if lec.content else []
             if not blocks:
                 continue
+            # 优先用 mindmap 里的真实标题，fallback 到解析 node_id
+            display_text = node_text_map.get(nid) or _parse_text_from_node_id(nid)
             nodes.append(
                 NodeInfo(
                     node_id=nid,
-                    text=nid,  # use node_id as display text
+                    text=display_text,
                     depth=_parse_depth_from_node_id(nid),
                     blocks=blocks,
                 )

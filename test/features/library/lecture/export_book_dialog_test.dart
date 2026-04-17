@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:study_assistant_app/features/library/lecture/export_book_dialog.dart';
+import 'package:study_assistant_app/components/library/lecture/export_book_dialog.dart';
 import 'package:study_assistant_app/models/mindmap_library.dart';
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
@@ -58,25 +58,25 @@ void main() {
     testWidgets('select-none deselects all nodes', (tester) async {
       await _pumpDialog(tester, nodes: flatNodes, hasLectureNodeIds: allIds);
 
-      expect(find.text('已选 3 个节点'), findsOneWidget);
+      expect(find.text('已�?3 个节�?), findsOneWidget);
 
-      await tester.tap(find.text('全不选'));
+      await tester.tap(find.text('全不�?));
       await tester.pump();
 
-      expect(find.text('已选 0 个节点'), findsOneWidget);
+      expect(find.text('已�?0 个节�?), findsOneWidget);
     });
 
     testWidgets('select-all re-selects all nodes after deselecting', (tester) async {
       await _pumpDialog(tester, nodes: flatNodes, hasLectureNodeIds: allIds);
 
-      await tester.tap(find.text('全不选'));
+      await tester.tap(find.text('全不�?));
       await tester.pump();
-      expect(find.text('已选 0 个节点'), findsOneWidget);
+      expect(find.text('已�?0 个节�?), findsOneWidget);
 
-      await tester.tap(find.text('全选'));
+      await tester.tap(find.text('全�?));
       await tester.pump();
 
-      expect(find.text('已选 3 个节点'), findsOneWidget);
+      expect(find.text('已�?3 个节�?), findsOneWidget);
     });
   });
 
@@ -95,13 +95,13 @@ void main() {
       );
 
       // All 3 selected initially
-      expect(find.text('已选 3 个节点'), findsOneWidget);
+      expect(find.text('已�?3 个节�?), findsOneWidget);
 
-      // Tap the parent row — all descendants should deselect
+      // Tap the parent row �?all descendants should deselect
       await tester.tap(find.text('Parent'));
       await tester.pump();
 
-      expect(find.text('已选 0 个节点'), findsOneWidget);
+      expect(find.text('已�?0 个节�?), findsOneWidget);
     });
 
     testWidgets('checking parent checks all children', (tester) async {
@@ -116,15 +116,15 @@ void main() {
       );
 
       // Deselect all first
-      await tester.tap(find.text('全不选'));
+      await tester.tap(find.text('全不�?));
       await tester.pump();
-      expect(find.text('已选 0 个节点'), findsOneWidget);
+      expect(find.text('已�?0 个节�?), findsOneWidget);
 
       // Tap parent row to select it and all descendants
       await tester.tap(find.text('Parent'));
       await tester.pump();
 
-      expect(find.text('已选 3 个节点'), findsOneWidget);
+      expect(find.text('已�?3 个节�?), findsOneWidget);
     });
   });
 
@@ -143,7 +143,7 @@ void main() {
     testWidgets('export button is disabled when no nodes selected', (tester) async {
       await _pumpDialog(tester, nodes: flatNodes, hasLectureNodeIds: allIds);
 
-      await tester.tap(find.text('全不选'));
+      await tester.tap(find.text('全不�?));
       await tester.pump();
 
       final exportBtn = tester.widget<FilledButton>(
@@ -155,17 +155,17 @@ void main() {
     testWidgets('validation text shown when no nodes selected', (tester) async {
       await _pumpDialog(tester, nodes: flatNodes, hasLectureNodeIds: allIds);
 
-      await tester.tap(find.text('全不选'));
+      await tester.tap(find.text('全不�?));
       await tester.pump();
 
-      expect(find.text('请至少选择一个节点'), findsOneWidget);
+      expect(find.text('请至少选择一个节�?), findsOneWidget);
     });
 
     testWidgets('validation text hidden when at least one node selected', (tester) async {
       await _pumpDialog(tester, nodes: flatNodes, hasLectureNodeIds: allIds);
 
-      // All nodes selected by default — no validation text
-      expect(find.text('请至少选择一个节点'), findsNothing);
+      // All nodes selected by default �?no validation text
+      expect(find.text('请至少选择一个节�?), findsNothing);
     });
   });
 
@@ -180,7 +180,7 @@ void main() {
         hasLectureNodeIds: {'A', 'B'},
       );
 
-      expect(find.textContaining('暂无讲义，导出时将跳过'), findsOneWidget);
+      expect(find.textContaining('暂无讲义，导出时将跳�?), findsOneWidget);
     });
 
     testWidgets('warning shows correct count of nodes without lectures', (tester) async {
@@ -197,7 +197,7 @@ void main() {
     testWidgets('warning hidden when all selected nodes have lectures', (tester) async {
       await _pumpDialog(tester, nodes: flatNodes, hasLectureNodeIds: allIds);
 
-      expect(find.textContaining('暂无讲义，导出时将跳过'), findsNothing);
+      expect(find.textContaining('暂无讲义，导出时将跳�?), findsNothing);
     });
 
     testWidgets('warning disappears after deselecting nodes without lectures', (tester) async {
@@ -209,13 +209,13 @@ void main() {
       );
 
       // Warning visible initially (C is selected but has no lecture)
-      expect(find.textContaining('暂无讲义，导出时将跳过'), findsOneWidget);
+      expect(find.textContaining('暂无讲义，导出时将跳�?), findsOneWidget);
 
       // Deselect nodeC by tapping its row
       await tester.tap(find.text('Node C'));
       await tester.pump();
 
-      expect(find.textContaining('暂无讲义，导出时将跳过'), findsNothing);
+      expect(find.textContaining('暂无讲义，导出时将跳�?), findsNothing);
     });
   });
 }

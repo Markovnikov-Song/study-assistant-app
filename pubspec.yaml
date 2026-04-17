@@ -41,6 +41,15 @@ dependencies:
   screenshot: ^3.0.0
   gal: ^2.3.0
 
+  # UUID 生成
+  uuid: ^4.5.1
+
+  # ZIP 解压（用于 XMind 导入）
+  archive: ^3.6.1
+
+  # XML 解析（用于 XMind / FreeMind 导入）
+  xml: ^6.5.0
+
   # 工具
   freezed_annotation: ^2.4.4
   json_annotation: ^4.9.0
@@ -51,6 +60,10 @@ dependencies:
   # 富文本编辑器
   flutter_quill: ^11.5.0
   markdown_quill: ^4.3.0
+
+  # 分享与文件路径
+  share_plus: ^10.0.0
+  path_provider: ^2.1.4
 
   # 文件保存
   file_saver: ^0.2.12

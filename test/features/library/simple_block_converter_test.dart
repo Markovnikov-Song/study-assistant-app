@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:study_assistant_app/features/library/lecture/block_converter.dart';
+import 'package:study_assistant_app/components/library/lecture/block_converter.dart';
 import 'package:study_assistant_app/models/mindmap_library.dart';
 
 void main() {

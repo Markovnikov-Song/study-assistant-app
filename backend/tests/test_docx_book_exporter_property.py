@@ -1,6 +1,6 @@
 """Property-based tests for DocxBookExporter.
 
-# Feature: lecture-book-export, Property 8: Word 中文字体与标题样式
+# Feature: lecture-book-export, Property 8: Word 中文字体与标题样�?
 # Feature: lecture-book-export, Property 1: 节点顺序保留 (docx)
 """
 from __future__ import annotations
@@ -22,8 +22,8 @@ from hypothesis import strategies as st
 from docx import Document
 from docx.oxml.ns import qn
 
-from services.book_exporter import NodeInfo, TocEntry
-from services.docx_book_exporter import DocxBookExporter
+from book_services.book_exporter import NodeInfo, TocEntry
+from book_services.docx_book_exporter import DocxBookExporter
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +99,7 @@ def nodes_with_blocks(draw, min_nodes=1, max_nodes=8):
 
 _ALLOWED_CHINESE_FONTS = {"宋体", "微软雅黑"}
 _ALLOWED_FONTS_LOWER = {f.lower() for f in _ALLOWED_CHINESE_FONTS}
-# Code blocks use Courier New — that is acceptable for non-Chinese content
+# Code blocks use Courier New �?that is acceptable for non-Chinese content
 _CODE_FONT = "courier new"
 
 
@@ -117,7 +117,7 @@ def _get_run_east_asian_font(run) -> str | None:
 def _is_acceptable_font(font_name: str | None, para_style: str) -> bool:
     """Return True if font_name is acceptable for the given paragraph style."""
     if font_name is None:
-        return True  # no explicit font set — inherits from style, acceptable
+        return True  # no explicit font set �?inherits from style, acceptable
     fn_lower = font_name.lower()
     if fn_lower in _ALLOWED_FONTS_LOWER:
         return True
@@ -129,7 +129,7 @@ def _is_acceptable_font(font_name: str | None, para_style: str) -> bool:
 
 def _build_docx_with_mock_latex(nodes, include_toc=False):
     """Call DocxBookExporter.build() with LatexRenderer mocked to return None."""
-    import services.docx_book_exporter as _mod
+    import book_services.docx_book_exporter as _mod
 
     mock_renderer = MagicMock()
     mock_renderer.render.return_value = None  # triggers fallback text path
@@ -145,14 +145,14 @@ def _build_docx_with_mock_latex(nodes, include_toc=False):
 
 
 # ---------------------------------------------------------------------------
-# Property 8: Word 中文字体与标题样式
+# Property 8: Word 中文字体与标题样�?
 # Validates: Requirements 5.2, 5.3, 5.4
 # ---------------------------------------------------------------------------
 
 @given(nodes_with_all_block_types())
 @settings(max_examples=50, deadline=None)
 def test_word_chinese_fonts_and_heading_styles(nodes):
-    """Property 8: Word 中文字体与标题样式
+    """Property 8: Word 中文字体与标题样�?
 
     For any block list containing heading/paragraph/code/list/quote blocks,
     DocxBookExporter.build() must produce a docx where:
@@ -160,7 +160,7 @@ def test_word_chinese_fonts_and_heading_styles(nodes):
     - Heading blocks map to the correct Heading N paragraph style.
 
     Validates: Requirements 5.2, 5.3, 5.4
-    # Feature: lecture-book-export, Property 8: Word 中文字体与标题样式
+    # Feature: lecture-book-export, Property 8: Word 中文字体与标题样�?
     """
     docx_bytes = _build_docx_with_mock_latex(nodes, include_toc=False)
 
@@ -197,7 +197,7 @@ def test_word_chinese_fonts_and_heading_styles(nodes):
                     f"is not in allowed set {_ALLOWED_CHINESE_FONTS | {'Courier New'}}"
                 )
 
-    # --- Heading style check: heading blocks → Heading N style ---
+    # --- Heading style check: heading blocks �?Heading N style ---
     # Collect paragraphs that have a Heading style
     heading_paras = [
         p for p in doc.paragraphs

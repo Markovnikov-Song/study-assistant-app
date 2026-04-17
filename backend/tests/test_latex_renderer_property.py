@@ -1,6 +1,6 @@
 """Property-based tests for LatexRenderer.
 
-# Feature: lecture-book-export, Property 5: LaTeX 缓存幂等性
+# Feature: lecture-book-export, Property 5: LaTeX 缓存幂等�?
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from services.latex_renderer import LatexRenderer
+from book_services.latex_renderer import LatexRenderer
 
 
 # ---------------------------------------------------------------------------
@@ -53,28 +53,28 @@ _latex_chars = st.text(
 )
 
 # Build a list that is guaranteed to have duplicates:
-# pick 1–5 unique strings, then repeat them to form a list of 2–15 items.
+# pick 1�? unique strings, then repeat them to form a list of 2�?5 items.
 @st.composite
 def latex_list_with_duplicates(draw):
     unique_strings = draw(
         st.lists(_latex_chars, min_size=1, max_size=5, unique=True)
     )
     # Repeat each string at least once so duplicates are present
-    repeated = unique_strings * 2  # guarantees every string appears ≥ 2 times
+    repeated = unique_strings * 2  # guarantees every string appears �?2 times
     # Optionally shuffle
     order = draw(st.permutations(repeated))
     return order, unique_strings
 
 
 # ---------------------------------------------------------------------------
-# Property 5: LaTeX 渲染缓存幂等性
+# Property 5: LaTeX 渲染缓存幂等�?
 # Validates: Requirements 6.4
 # ---------------------------------------------------------------------------
 
 @given(latex_list_with_duplicates())
 @settings(max_examples=100, deadline=None)
 def test_latex_cache_idempotency(latex_data):
-    """Property 5: LaTeX 渲染缓存幂等性
+    """Property 5: LaTeX 渲染缓存幂等�?
 
     For any list of LaTeX strings that contains duplicates, the number of
     *actual* render calls (matplotlib figure creations) must equal the number
@@ -82,7 +82,7 @@ def test_latex_cache_idempotency(latex_data):
     the cache without triggering a second render.
 
     Validates: Requirements 6.4
-    # Feature: lecture-book-export, Property 5: LaTeX 缓存幂等性
+    # Feature: lecture-book-export, Property 5: LaTeX 缓存幂等�?
     """
     latex_list, unique_strings = latex_data
 

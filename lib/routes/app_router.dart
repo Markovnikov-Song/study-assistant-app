@@ -5,19 +5,20 @@ import '../features/auth/login_page.dart';
 import '../features/auth/register_page.dart';
 import '../features/home/shell_page.dart';
 import '../features/classroom/classroom_page.dart';
-import '../features/library/library_page.dart';
-import '../features/library/course_space_page.dart';
-import '../features/library/editable_mindmap_page.dart';
-import '../features/library/lecture/lecture_page.dart';
-import '../features/stationery/stationery_page.dart';
+import '../components/library/library_page.dart';
+import '../components/library/course_space_page.dart';
+import '../components/library/editable_mindmap_page.dart';
+import '../components/library/lecture/lecture_page.dart';
+import '../components/mistake_book/stationery_page.dart';
+import '../components/mistake_book/mistake_book_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/subjects/subjects_page.dart';
 import '../features/resources/resources_page.dart';
 import '../features/subject_detail/subject_detail_page.dart';
 import '../features/history/history_page.dart';
-import '../features/notebook/notebook_list_page.dart';
-import '../features/notebook/notebook_detail_page.dart';
-import '../features/notebook/note_detail_page.dart';
+import '../components/notebook/notebook_list_page.dart';
+import '../components/notebook/notebook_detail_page.dart';
+import '../components/notebook/note_detail_page.dart';
 import '../features/profile/edit_profile_page.dart';
 import '../features/profile/memory_page.dart';
 import '../providers/auth_provider.dart';
@@ -28,6 +29,7 @@ class AppRoutes {
   static const classroom   = '/classroom';  // 答疑室
   static const library     = '/library';    // 学校（学科 → 大纲 → 思维导图 → 讲义）
   static const stationery  = '/stationery'; // 文具盒
+  static const mistakeBook = '/mistakes'; // 错题本（顶层路由，push 覆盖 shell）
   static const profile     = '/profile';
   static const subjects    = '/profile/subjects';
   static const resources   = '/profile/resources';
@@ -75,7 +77,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: AppRoutes.subjects,    builder: (_, _) => const SubjectsPage()),
       GoRoute(path: AppRoutes.resources,   builder: (_, _) => const ResourcesPage()),
       GoRoute(path: AppRoutes.history,     builder: (_, _) => const HistoryPage()),
-      GoRoute(
+      GoRoute(path: AppRoutes.mistakeBook, builder: (_, _) => const MistakeBookPage()),      GoRoute(
         path: '/profile/resources/:id',
         builder: (_, state) => SubjectDetailPage(subjectId: int.parse(state.pathParameters['id']!)),
       ),
@@ -133,7 +135,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: AppRoutes.library,
             builder: (_, _) => const LibraryPage(),
           ),
-          GoRoute(path: AppRoutes.stationery, builder: (_, _) => const StationeryPage()),
+          GoRoute(
+            path: AppRoutes.stationery,
+            builder: (_, _) => const StationeryPage(),
+          ),
           GoRoute(
             path: AppRoutes.profile,
             builder: (_, _) => const ProfilePage(),

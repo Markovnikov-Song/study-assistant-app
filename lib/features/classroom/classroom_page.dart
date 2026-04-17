@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../chat/chat_page.dart';
-import '../solve/solve_page.dart';
-import '../mindmap/mindmap_page.dart';
-import '../quiz/quiz_page.dart';
+import '../../components/chat/chat_page.dart';
+import '../../components/solve/solve_page.dart';
+import '../../components/mindmap/mindmap_page.dart';
+import '../../components/quiz/quiz_page.dart';
 
 /// 答疑室：整合问答、解题、导图、出题四个功能
 class ClassroomPage extends StatefulWidget {

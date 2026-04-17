@@ -4,9 +4,10 @@ FastAPI 入口。
     uvicorn main:app --reload --port 8000
 """
 import sys, os
-# 把 study_assistant_streamlit/ 加入 path，
-# 这样 `from database import ...`、`from services.xxx import ...` 都能找到
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "study_assistant_streamlit"))
+# backend/ 自身加入 path 最前面（book_services 包需要）
+sys.path.insert(0, os.path.dirname(__file__))
+# study_assistant_streamlit/ 加入 path（database, config 等）
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), "..", "study_assistant_streamlit"))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

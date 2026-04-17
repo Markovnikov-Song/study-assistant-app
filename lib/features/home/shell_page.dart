@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../providers/hint_provider.dart';
 import '../../providers/subject_provider.dart';
 import '../classroom/classroom_page.dart';
-import '../library/library_page.dart';
-import '../stationery/stationery_page.dart';
+import '../../components/library/library_page.dart';
+import '../../components/mistake_book/stationery_page.dart';
 import '../profile/profile_page.dart';
 
 class ShellPage extends ConsumerStatefulWidget {

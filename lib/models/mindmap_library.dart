@@ -1,3 +1,5 @@
+import 'package:uuid/uuid.dart';
+
 import 'subject.dart';
 
 // ── SubjectWithProgress ───────────────────────────────────────────────────────
@@ -74,7 +76,7 @@ class MindMapSession {
 class TreeNode {
   final String nodeId;
   final String text;
-  final int depth; // 1-4
+  final int depth; // 1-6
   final String? parentId;
   final bool isUserCreated;
   final List<TreeNode> children;
@@ -90,13 +92,29 @@ class TreeNode {
     this.isExpanded = true,
   }) : children = children ?? [];
 
+  Map<String, dynamic> toJson() => {
+        'node_id': nodeId,
+        'text': text,
+        'depth': depth,
+        if (parentId != null) 'parent_id': parentId,
+        'is_user_created': isUserCreated,
+        'children': children.map((c) => c.toJson()).toList(),
+      };
+
   factory TreeNode.fromJson(Map<String, dynamic> json) {
     return TreeNode(
-      nodeId: json['node_id'] as String,
+      // Backward compat: generate UUID if node_id is absent
+      nodeId: json['node_id'] as String? ?? const Uuid().v4(),
       text: json['text'] as String,
       depth: (json['depth'] as num).toInt(),
+      // Backward compat: parentId absent → null
       parentId: json['parent_id'] as String?,
+      // Backward compat: isUserCreated absent → false
       isUserCreated: json['is_user_created'] as bool? ?? false,
+      children: (json['children'] as List<dynamic>?)
+              ?.map((e) => TreeNode.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
     );
   }
 

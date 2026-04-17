@@ -100,3 +100,19 @@ final noteDetailProvider =
     AsyncNotifierProviderFamily<NoteDetailNotifier, Note, int>(
   NoteDetailNotifier.new,
 );
+
+// ── All Mistake Notes ─────────────────────────────────────────────────────────
+
+/// Fetches all notes from the system notebook named '错题本' (isSystem == true).
+/// Returns null if no such notebook exists.
+final allMistakeNotesProvider = FutureProvider<List<Note>?>((ref) async {
+  final notebooks = await ref.watch(notebookListProvider.future);
+  final mistakeBook = notebooks.cast<Notebook?>().firstWhere(
+    (nb) => nb != null && nb.isSystem && nb.name == '错题本',
+    orElse: () => null,
+  );
+  if (mistakeBook == null) return null;
+  final grouped = await ref.watch(notebookNotesProvider(mistakeBook.id).future);
+  final allNotes = grouped.values.expand((list) => list).toList();
+  return allNotes.where((n) => n.isMistake).toList();
+});

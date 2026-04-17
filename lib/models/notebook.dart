@@ -54,6 +54,8 @@ class Note {
   final List<MessageSource>? sources;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String noteType; // 'general' | 'mistake'
+  final String? mistakeStatus; // 'pending' | 'reviewed' (only when noteType == 'mistake')
 
   const Note({
     required this.id,
@@ -69,6 +71,8 @@ class Note {
     this.sources,
     required this.createdAt,
     required this.updatedAt,
+    this.noteType = 'general',
+    this.mistakeStatus,
   });
 
   /// 显示标题：有 title 用 title，否则截取前 20 字符
@@ -82,6 +86,8 @@ class Note {
   bool get hasTitleSet => title != null && title!.isNotEmpty;
 
   bool get isImported => importedToDocId != null;
+
+  bool get isMistake => noteType == 'mistake';
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
         id: (json['id'] as num).toInt(),
@@ -99,6 +105,8 @@ class Note {
             .toList(),
         createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
         updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
+        noteType: json['note_type'] as String? ?? 'general',
+        mistakeStatus: json['mistake_status'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -120,5 +128,7 @@ class Note {
             }).toList(),
         'created_at': createdAt.toUtc().toIso8601String(),
         'updated_at': updatedAt.toUtc().toIso8601String(),
+        'note_type': noteType,
+        'mistake_status': mistakeStatus,
       };
 }
