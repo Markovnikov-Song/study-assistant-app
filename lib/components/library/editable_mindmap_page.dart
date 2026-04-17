@@ -6,9 +6,9 @@ import 'package:vector_math/vector_math_64.dart' show Vector3;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/mindmap_library.dart';
 import '../../providers/library_provider.dart';
-import 'mindmap/mindmap_painter.dart';
-import 'mindmap/mindmap_parser.dart';
-import 'mindmap/mindmap_serializer.dart';
+import '../../../tools/mindmap/mindmap_painter.dart';
+import '../../../tools/mindmap/mindmap_parser.dart';
+import '../../../tools/mindmap/mindmap_serializer.dart';
 import '../../routes/app_router.dart';
 import 'package:go_router/go_router.dart';
 

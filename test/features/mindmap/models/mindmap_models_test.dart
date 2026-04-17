@@ -227,16 +227,6 @@ void main() {
 
   group('MindMapParser depth-6 support', () {
     test('parses nodes up to depth 6', () {
-      const markdown = '''
-# Level 1
-## Level 2
-### Level 3
-#### Level 4
-##### Level 5
-###### Level 6
-''';
-      // Import the parser
-      // (tested indirectly via TreeNode depth field)
       // We just verify TreeNode accepts depth 6
       final node = TreeNode(nodeId: 'n', text: 'Deep', depth: 6);
       expect(node.depth, equals(6));

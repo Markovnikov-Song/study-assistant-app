@@ -5,9 +5,9 @@ import '../core/network/dio_client.dart';
 import '../core/storage/storage_service.dart';
 import '../models/mindmap_library.dart';
 
-import 'sse_client_stub.dart'
-    if (dart.library.html) 'sse_client_web.dart'
-    if (dart.library.io) 'sse_client_native.dart';
+import 'package:study_assistant_app/tools/network/sse_client_stub.dart'
+    if (dart.library.html) 'package:study_assistant_app/tools/network/sse_client_web.dart'
+    if (dart.library.io) 'package:study_assistant_app/tools/network/sse_client_native.dart';
 
 class LibraryService {
   final Dio _dio = DioClient.instance.dio;
@@ -58,8 +58,8 @@ class LibraryService {
   Future<void> updateSessionMeta(int sessionId, {bool? isPinned, int? sortOrder}) async {
     try {
       await _dio.patch('$_base/sessions/$sessionId/meta', data: {
-        if (isPinned != null) 'is_pinned': isPinned!,
-        if (sortOrder != null) 'sort_order': sortOrder!,
+        if (isPinned != null) 'is_pinned': isPinned,
+        if (sortOrder != null) 'sort_order': sortOrder,
       });
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

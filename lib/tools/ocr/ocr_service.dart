@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-import '../data/ocr_api_client.dart';
-import 'import_parser.dart';
+import '../ocr/ocr_api_client.dart';
+import '../mindmap/import_parser.dart';
 
 // ── OcrResult ─────────────────────────────────────────────────────────────────
 

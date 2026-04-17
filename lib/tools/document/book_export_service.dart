@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
-import '../core/network/dio_client.dart';
+import '../../core/network/dio_client.dart';
 
 class BookExportException implements Exception {
   final String message;

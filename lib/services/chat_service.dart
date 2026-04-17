@@ -10,9 +10,9 @@ import '../core/network/dio_client.dart';
 import '../core/storage/storage_service.dart';
 import '../models/chat_message.dart';
 
-import 'sse_client_stub.dart'
-    if (dart.library.html) 'sse_client_web.dart'
-    if (dart.library.io) 'sse_client_native.dart';
+import 'package:study_assistant_app/tools/network/sse_client_stub.dart'
+    if (dart.library.html) 'package:study_assistant_app/tools/network/sse_client_web.dart'
+    if (dart.library.io) 'package:study_assistant_app/tools/network/sse_client_native.dart';
 
 // ─── 发送消息的返回结果 ──────────────────────────────────────
 // 把多个返回值打包成一个类，类似 Python 的 NamedTuple 或 dataclass

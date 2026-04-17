@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../data/ocr_api_client.dart';
-import '../domain/import_parser.dart';
-import '../domain/ocr_service.dart';
+import '../../../tools/ocr/ocr_api_client.dart';
+import '../../../tools/mindmap/import_parser.dart';
+import '../../../tools/ocr/ocr_service.dart';
 import '../providers/mindmap_providers.dart';
 import 'import_mode_dialog.dart';
 

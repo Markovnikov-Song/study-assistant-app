@@ -184,7 +184,7 @@ class _MindmapSelectorSheet extends ConsumerWidget {
       final activeId = ref.read(activeMindmapIdProvider(subjectId));
       if (activeId == meta.id) {
         final remaining = await repo.listMindmaps(subjectId);
-        if (remaining.isNotEmpty) {
+        if (remaining.isNotEmpty && context.mounted) {
           _switchMindmap(context, ref, remaining.first.id);
         }
       }
@@ -240,8 +240,10 @@ class _MindmapSelectorSheet extends ConsumerWidget {
       final repo = ref.read(mindmapRepositoryProvider);
       final meta = await repo.createMindmap(subjectId, name);
       ref.invalidate(mindmapListProvider(subjectId));
-      _switchMindmap(context, ref, meta.id);
-      if (context.mounted) Navigator.pop(context); // close bottom sheet
+      if (context.mounted) {
+        _switchMindmap(context, ref, meta.id);
+        Navigator.pop(context); // close bottom sheet
+      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

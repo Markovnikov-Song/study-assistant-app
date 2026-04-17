@@ -12,9 +12,9 @@ import '../../../providers/library_provider.dart';
 import '../../../providers/notebook_provider.dart';
 import '../../../providers/subject_provider.dart';
 import '../../../widgets/markdown_latex_view.dart';
-import 'block_converter.dart';
+import '../../../tools/document/block_converter.dart';
 import 'export_book_dialog.dart';
-import 'lecture_exporter.dart';
+import '../../../tools/document/lecture_exporter.dart';
 
 // ── LectureEditorState ────────────────────────────────────────────────────────
 

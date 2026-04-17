@@ -2,18 +2,18 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../components/library/mindmap/mindmap_parser.dart';
+import '../../../tools/mindmap/mindmap_parser.dart';
 import '../../../models/mindmap_library.dart';
 import '../../../providers/current_subject_provider.dart';
 import '../../../providers/shared_preferences_provider.dart';
 import '../data/mindmap_local_data_source.dart';
 import '../data/mindmap_repository.dart';
 import '../../../core/network/dio_client.dart';
-import '../data/ocr_api_client.dart';
+import '../../../tools/ocr/ocr_api_client.dart';
 import '../domain/edit_history.dart';
-import '../domain/export_service.dart';
+import '../../../tools/mindmap/export_service.dart';
 import '../domain/node_tree_editor.dart';
-import '../domain/ocr_service.dart';
+import '../../../tools/ocr/ocr_service.dart';
 import '../models/mindmap_meta.dart';
 import '../models/node_tree_state.dart';
 

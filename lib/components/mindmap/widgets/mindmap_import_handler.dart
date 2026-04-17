@@ -2,7 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../domain/import_parser.dart';
+import '../../../tools/mindmap/import_parser.dart';
 import '../providers/mindmap_providers.dart';
 import 'import_mode_dialog.dart';
 

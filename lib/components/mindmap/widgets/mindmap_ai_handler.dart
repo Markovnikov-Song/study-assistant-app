@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../domain/export_service.dart';
-import '../domain/import_parser.dart';
+import '../../../tools/mindmap/export_service.dart';
+import '../../../tools/mindmap/import_parser.dart';
 import '../providers/mindmap_providers.dart';
 import '../../../providers/chat_provider.dart';
 import '../../../providers/current_subject_provider.dart';

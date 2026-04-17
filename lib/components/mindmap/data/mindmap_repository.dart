@@ -1,6 +1,6 @@
-import '../../../components/library/mindmap/mindmap_parser.dart';
+import '../../../tools/mindmap/mindmap_parser.dart';
 import '../../../models/mindmap_library.dart';
-import '../domain/export_service.dart';
+import '../../../tools/mindmap/export_service.dart';
 import '../models/mindmap_exception.dart';
 import '../models/mindmap_meta.dart';
 import 'mindmap_local_data_source.dart';

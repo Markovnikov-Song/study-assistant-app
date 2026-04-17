@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:study_assistant_app/components/library/mindmap/mindmap_parser.dart';
-import 'package:study_assistant_app/components/library/mindmap/mindmap_serializer.dart';
+import 'package:study_assistant_app/tools/mindmap/mindmap_parser.dart';
+import 'package:study_assistant_app/tools/mindmap/mindmap_serializer.dart';
 import 'package:study_assistant_app/models/mindmap_library.dart';
 
 void main() {

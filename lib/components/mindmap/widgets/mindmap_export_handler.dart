@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../domain/export_service.dart';
+import '../../../tools/mindmap/export_service.dart';
 import '../providers/mindmap_providers.dart';
 
 // ── Export handlers ───────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:study_assistant_app/components/mindmap/domain/import_parser.dart';
+import 'package:study_assistant_app/tools/mindmap/import_parser.dart';
 import 'package:study_assistant_app/models/mindmap_library.dart';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

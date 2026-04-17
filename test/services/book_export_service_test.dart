@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:study_assistant_app/services/book_export_service.dart';
+import 'package:study_assistant_app/tools/document/book_export_service.dart';
 
 /// A simple [HttpClientAdapter] that returns a pre-configured response.
 class _MockAdapter implements HttpClientAdapter {
@@ -107,7 +107,7 @@ void main() {
     });
 
     // ------------------------------------------------------------------ //
-    // 3. Timeout → BookExportException with timeout message               //
+    // 3. Timeout �?BookExportException with timeout message               //
     // ------------------------------------------------------------------ //
     test('receiveTimeout surfaces as BookExportException with timeout message',
         () async {
@@ -137,7 +137,7 @@ void main() {
     });
 
     // ------------------------------------------------------------------ //
-    // 4. HTTP error → backend detail message passed through               //
+    // 4. HTTP error �?backend detail message passed through               //
     // ------------------------------------------------------------------ //
     test('HTTP 422 passes through backend detail message', () async {
       final adapter = _MockAdapter((_) async {
@@ -147,7 +147,7 @@ void main() {
           response: Response(
             requestOptions: RequestOptions(path: '/'),
             statusCode: 422,
-            data: {'detail': '所选节点均无讲义内容'},
+            data: {'detail': '所选节点均无讲义内�?},
           ),
         );
       });
@@ -162,7 +162,7 @@ void main() {
         ),
         throwsA(
           isA<BookExportException>()
-              .having((e) => e.message, 'message', equals('所选节点均无讲义内容'))
+              .having((e) => e.message, 'message', equals('所选节点均无讲义内�?))
               .having((e) => e.statusCode, 'statusCode', equals(422)),
         ),
       );
@@ -198,7 +198,7 @@ void main() {
     });
 
     // ------------------------------------------------------------------ //
-    // 5. Other DioException → generic BookExportException                 //
+    // 5. Other DioException �?generic BookExportException                 //
     // ------------------------------------------------------------------ //
     test('other DioException wraps message in BookExportException', () async {
       final adapter = _MockAdapter((_) async {
