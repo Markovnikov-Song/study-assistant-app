@@ -36,7 +36,7 @@ class NoSubjectHint extends ConsumerWidget {
               onPressed: () => showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
-                builder: (_) => SubjectPickerSheet(ref: ref),
+                builder: (_) => const SubjectPickerSheet(),
               ),
               icon: const Icon(Icons.book_outlined),
               label: const Text('选择学科'),
@@ -50,7 +50,7 @@ class NoSubjectHint extends ConsumerWidget {
               onPressed: () => showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
-                builder: (_) => CreateSubjectSheet(ref: ref),
+                builder: (_) => const CreateSubjectSheet(),
               ),
               icon: const Icon(Icons.add),
               label: const Text('新建学科'),

@@ -12,11 +12,11 @@ import 'mcp_models.dart';
 
 // ── 轮询间隔 ──────────────────────────────────────────────────────────────────
 
-/// 正常状态下的轮询间隔（30 秒）
-const _kPollIntervalNormal = Duration(seconds: 30);
+/// 正常状态下的轮询间隔（60 秒）
+const _kPollIntervalNormal = Duration(seconds: 60);
 
-/// 离线/降级状态下的轮询间隔（10 秒，更快感知恢复）
-const _kPollIntervalDegraded = Duration(seconds: 10);
+/// 离线/降级状态下的轮询间隔（5 分钟，MCP 不是核心功能，不必频繁重试）
+const _kPollIntervalDegraded = Duration(minutes: 5);
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
@@ -24,7 +24,9 @@ const _kPollIntervalDegraded = Duration(seconds: 10);
 ///
 /// 使用 [StreamProvider] 定期轮询后端 `/api/mcp/status`。
 /// 网络不可用时返回 [MCPConnectionSummary.offline]，不抛出异常。
+/// keepAlive 确保全局只有一个轮询实例。
 final mcpStatusProvider = StreamProvider<MCPConnectionSummary>((ref) {
+  ref.keepAlive();
   return _mcpStatusStream();
 });
 

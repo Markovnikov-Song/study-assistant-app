@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import io
 import re
+import tempfile
+import os
 from pathlib import Path
+from typing import Any
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
@@ -16,10 +19,9 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     BaseDocTemplate, Frame, PageTemplate,
     Paragraph, Spacer, PageBreak, HRFlowable,
-    KeepTogether,
+    KeepTogether, Image,
 )
 from reportlab.platypus.tableofcontents import TableOfContents
-from reportlab.platypus.flowables import Flowable
 
 from book_services.book_exporter import BookExporter, NodeInfo, TocEntry
 from book_services.latex_renderer import LatexRenderer
@@ -107,30 +109,34 @@ class _BookDocTemplate(BaseDocTemplate):
 
 
 # ---------------------------------------------------------------------------
-# Inline image flowable for LaTeX
+# LaTeX rendering helpers
 # ---------------------------------------------------------------------------
 
-class _InlineImage(Flowable):
-    """A small inline image (for LaTeX rendered as PNG)."""
+# 临时文件列表，导出完成后清理
+_temp_files: list[str] = []
 
-    def __init__(self, png_bytes: bytes, height_pt: float = 14):
-        super().__init__()
-        from PIL import Image as PILImage
-        img = PILImage.open(io.BytesIO(png_bytes))
-        w, h = img.size
-        scale = height_pt / h if h > 0 else 1
-        self.img_bytes = png_bytes
-        self.img_width = w * scale
-        self.img_height = height_pt
-        self.width = self.img_width
-        self.height = self.img_height
 
-    def draw(self):
-        from reportlab.lib.utils import ImageReader
-        self.canv.drawImage(
-            ImageReader(io.BytesIO(self.img_bytes)),
-            0, 0, self.img_width, self.img_height,
-        )
+def _png_to_temp_file(png_bytes: bytes) -> str:
+    """Write PNG bytes to a temp file and return the path."""
+    fd, path = tempfile.mkstemp(suffix=".png")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(png_bytes)
+    except Exception:
+        os.close(fd)
+        raise
+    _temp_files.append(path)
+    return path
+
+
+def _cleanup_temp_files() -> None:
+    """Remove all temp PNG files created during export."""
+    for path in _temp_files:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+    _temp_files.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +206,21 @@ class PdfBookExporter(BookExporter):
         }
 
     # ------------------------------------------------------------------
-    # Text → Paragraph (handles **bold**, *italic*, inline LaTeX)
+    # LaTeX pattern
+    # ------------------------------------------------------------------
+
+    # 匹配 display math: \[...\] 或 $$...$$（独占一行或跨行）
+    # 匹配 inline math:  \(...\) 或 $...$
+    _LATEX_PATTERN = re.compile(
+        r"\$\$(.+?)\$\$"        # $$...$$  display
+        r"|\\\[(.+?)\\\]"       # \[...\]  display
+        r"|\\\((.+?)\\\)"       # \(...\)  inline
+        r"|\$([^$\n]+?)\$",     # $...$    inline (no newlines, no empty)
+        re.DOTALL,
+    )
+
+    # ------------------------------------------------------------------
+    # Text → mixed flowables (Paragraph + Image for display math)
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -208,57 +228,140 @@ class PdfBookExporter(BookExporter):
         """Escape XML special chars for Paragraph."""
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-    def _text_to_xml(self, text: str, latex_renderer: LatexRenderer, font_name: str) -> str:
-        """Convert text with **bold**, *italic*, $latex$ to reportlab XML markup."""
-        # First handle LaTeX: replace with [公式] placeholder (images can't go inline in Paragraph)
-        # We'll render LaTeX as separate flowables for display math,
-        # and inline as [公式] text for inline math (limitation of Platypus)
-        result = []
-        # 支持 $$...$$, \[...\], \(...\), $...$
-        pattern = re.compile(
-            r"\$\$(.+?)\$\$"
-            r"|\\\[(.+?)\\\]"
-            r"|\\\((.+?)\\\)"
-            r"|\$(.+?)\$",
-            re.DOTALL,
-        )
-        last = 0
-        for m in pattern.finditer(text):
-            plain = text[last:m.start()]
-            result.append(self._apply_inline_markup(plain))
-            if m.group(1) is not None:
-                latex_src, is_display = m.group(1), True
-            elif m.group(2) is not None:
-                latex_src, is_display = m.group(2), True
-            elif m.group(3) is not None:
-                latex_src, is_display = m.group(3), False
-            else:
-                latex_src, is_display = m.group(4), False
-            png = latex_renderer.render(latex_src, display=is_display)
-            if png is None:
-                result.append(f'<font color="#cc0000">[公式: {self._escape(latex_src)}]</font>')
-            else:
-                import base64
-                b64 = base64.b64encode(png).decode()
-                h = 16 if not is_display else 20
-                result.append(f'<img src="data:image/png;base64,{b64}" height="{h}"/>')
-            last = m.end()
-        result.append(self._apply_inline_markup(text[last:]))
-        return "".join(result)
-
     @staticmethod
     def _apply_inline_markup(text: str) -> str:
-        """Convert **bold** and *italic* markdown to reportlab XML tags.
-        
-        只处理 **bold** 和 `code`，不处理 *italic*（避免误匹配下划线）。
-        """
-        # Escape XML first
+        """Convert **bold** and `code` markdown to reportlab XML tags."""
         text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        # Bold: **text**
         text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
-        # Inline code: `text`
         text = re.sub(r"`(.+?)`", r'<font name="Courier">\1</font>', text)
         return text
+
+    def _text_to_flowables(
+        self,
+        text: str,
+        latex_renderer: LatexRenderer,
+        style: Any,
+        page_width_pt: float = 160 * mm,
+    ) -> list:
+        """
+        Convert a text string (possibly containing LaTeX) into a list of flowables.
+
+        Strategy:
+        - Display math (display math): rendered as PNG -> standalone Image flowable,
+          centered, with vertical spacing.
+        - Inline math (inline math): rendered as PNG -> written to temp file ->
+          embedded via <img src="path"> inside the Paragraph XML.
+        - Plain text + **bold** + `code`: converted to reportlab XML markup.
+
+        If the text contains no LaTeX, returns a single Paragraph.
+        """
+        # Split text into segments: (content, is_display_latex, is_inline_latex)
+        segments: list[tuple[str, bool, bool]] = []  # (text, is_display, is_latex)
+        last = 0
+
+        for m in self._LATEX_PATTERN.finditer(text):
+            # Plain text before this match
+            before = text[last:m.start()]
+            if before:
+                segments.append((before, False, False))
+
+            if m.group(1) is not None:
+                segments.append((m.group(1), True, True))   # $$...$$
+            elif m.group(2) is not None:
+                segments.append((m.group(2), True, True))   # \[...\]
+            elif m.group(3) is not None:
+                segments.append((m.group(3), False, True))  # \(...\)
+            else:
+                segments.append((m.group(4), False, True))  # $...$
+
+            last = m.end()
+
+        # Remaining plain text
+        tail = text[last:]
+        if tail:
+            segments.append((tail, False, False))
+
+        # If no LaTeX at all, return a single Paragraph
+        if not any(is_latex for _, _, is_latex in segments):
+            xml = self._apply_inline_markup(text)
+            return [Paragraph(xml, style)]
+
+        # Build flowables
+        flowables = []
+        # Accumulate inline segments (plain + inline math) into one Paragraph
+        inline_xml_parts: list[str] = []
+
+        def _flush_inline():
+            """Flush accumulated inline XML into a Paragraph."""
+            if inline_xml_parts:
+                xml = "".join(inline_xml_parts)
+                if xml.strip():
+                    flowables.append(Paragraph(xml, style))
+                inline_xml_parts.clear()
+
+        for content, is_display, is_latex in segments:
+            if not is_latex:
+                # Plain text — add to inline buffer
+                inline_xml_parts.append(self._apply_inline_markup(content))
+            elif is_display:
+                # Display math — flush inline buffer first, then add image
+                _flush_inline()
+                png = latex_renderer.render(content.strip(), display=True)
+                if png is None:
+                    # Fallback: show formula source in red
+                    fallback = f'<font color="#cc0000">[公式: {self._escape(content.strip())}]</font>'
+                    flowables.append(Paragraph(fallback, style))
+                else:
+                    try:
+                        path = _png_to_temp_file(png)
+                        # Scale image to fit page width, max 80% of page width
+                        from PIL import Image as PILImage
+                        img = PILImage.open(io.BytesIO(png))
+                        w_px, h_px = img.size
+                        dpi = 200  # 与 LatexRenderer 渲染 DPI 一致
+                        w_pt = w_px / dpi * 72
+                        h_pt = h_px / dpi * 72
+                        max_w = page_width_pt * 0.8
+                        if w_pt > max_w:
+                            scale = max_w / w_pt
+                            w_pt *= scale
+                            h_pt *= scale
+                        img_flowable = Image(path, width=w_pt, height=h_pt)
+                        img_flowable.hAlign = "CENTER"
+                        flowables.append(Spacer(1, 4))
+                        flowables.append(img_flowable)
+                        flowables.append(Spacer(1, 4))
+                    except Exception:
+                        fallback = f'<font color="#cc0000">[公式渲染失败: {self._escape(content.strip())}]</font>'
+                        flowables.append(Paragraph(fallback, style))
+            else:
+                # Inline math — render as PNG, embed via <img src="path">
+                png = latex_renderer.render(content.strip(), display=False)
+                if png is None:
+                    inline_xml_parts.append(
+                        f'<font color="#cc0000">[{self._escape(content.strip())}]</font>'
+                    )
+                else:
+                    try:
+                        path = _png_to_temp_file(png)
+                        # Compute display height in points (match body font size ~11pt)
+                        from PIL import Image as PILImage
+                        img = PILImage.open(io.BytesIO(png))
+                        w_px, h_px = img.size
+                        dpi = 200  # 与 LatexRenderer 渲染 DPI 一致
+                        h_pt = min(h_px / dpi * 72, 14)  # cap at 14pt for inline (matches 11pt body text)
+                        w_pt = w_px / dpi * 72 * (h_pt / (h_px / dpi * 72))
+                        # reportlab <img> in Paragraph supports file paths
+                        inline_xml_parts.append(
+                            f'<img src="{path}" width="{w_pt:.1f}" height="{h_pt:.1f}"/>'
+                        )
+                    except Exception:
+                        inline_xml_parts.append(
+                            f'<font color="#cc0000">[{self._escape(content.strip())}]</font>'
+                        )
+
+        _flush_inline()
+        return flowables
 
     # ------------------------------------------------------------------
     # Block → Flowables
@@ -269,24 +372,26 @@ class PdfBookExporter(BookExporter):
         block: dict,
         styles: dict,
         latex_renderer: LatexRenderer,
+        page_width_pt: float = 160 * mm,
     ) -> list:
         btype = block.get("type", "paragraph")
         text = block.get("text", "") or block.get("content", "") or ""
-        fn = self._font_name
         flowables = []
 
         if btype == "heading":
             level = block.get("level", 1)
             style_key = {1: "h1", 2: "h2", 3: "h3"}.get(level, "h3")
-            xml = self._text_to_xml(text, latex_renderer, fn)
-            flowables.append(Paragraph(xml, styles[style_key]))
+            flowables.extend(
+                self._text_to_flowables(text, latex_renderer, styles[style_key], page_width_pt)
+            )
 
         elif btype == "paragraph":
-            xml = self._text_to_xml(text, latex_renderer, fn)
-            flowables.append(Paragraph(xml, styles["body"]))
+            flowables.extend(
+                self._text_to_flowables(text, latex_renderer, styles["body"], page_width_pt)
+            )
 
         elif btype == "code":
-            # Code blocks: preserve newlines, use Courier
+            # Code blocks: preserve newlines, use Courier — no LaTeX processing
             lines = text.splitlines() or [""]
             escaped = "<br/>".join(
                 l.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -295,17 +400,28 @@ class PdfBookExporter(BookExporter):
             flowables.append(Paragraph(escaped, styles["code"]))
 
         elif btype == "list":
-            xml = self._text_to_xml(text, latex_renderer, fn)
-            flowables.append(Paragraph(f"• {xml}", styles["bullet"]))
+            # Bullet items may contain inline math
+            sub = self._text_to_flowables(text, latex_renderer, styles["bullet"], page_width_pt)
+            # Prepend bullet character to first paragraph
+            if sub and isinstance(sub[0], Paragraph):
+                # Access the internal XML string stored in Paragraph
+                first_xml = getattr(sub[0], "text", "") or ""
+                sub[0] = Paragraph(f"• {first_xml}", styles["bullet"])
+            elif not sub:
+                # Fallback: plain bullet
+                sub = [Paragraph(f"• {self._escape(text)}", styles["bullet"])]
+            flowables.extend(sub)
 
         elif btype == "quote":
-            xml = self._text_to_xml(text, latex_renderer, fn)
             flowables.append(HRFlowable(width="2pt", color=colors.grey, spaceAfter=0))
-            flowables.append(Paragraph(xml, styles["quote"]))
+            flowables.extend(
+                self._text_to_flowables(text, latex_renderer, styles["quote"], page_width_pt)
+            )
 
         else:
-            xml = self._text_to_xml(text, latex_renderer, fn)
-            flowables.append(Paragraph(xml, styles["body"]))
+            flowables.extend(
+                self._text_to_flowables(text, latex_renderer, styles["body"], page_width_pt)
+            )
 
         return flowables
 
@@ -327,6 +443,9 @@ class PdfBookExporter(BookExporter):
         styles = self._make_styles()
         fn = self._font_name
 
+        # Page content width (A4 minus margins)
+        page_width_pt = A4[0] - 50 * mm  # 25mm each side
+
         buf = io.BytesIO()
         doc = _BookDocTemplate(
             buf,
@@ -344,7 +463,6 @@ class PdfBookExporter(BookExporter):
         # --- Document title ---
         story.append(Spacer(1, 20 * mm))
         story.append(Paragraph(self._escape(session_title), styles["title"]))
-        # 副标题
         from datetime import date as _date
         today = _date.today().strftime("%Y 年 %m 月 %d 日")
         subtitle_style = ParagraphStyle(
@@ -362,7 +480,7 @@ class PdfBookExporter(BookExporter):
         if include_toc:
             story.append(Paragraph("目录", styles["toc_h"]))
             toc = TableOfContents()
-            toc.dotsMinLevel = 0  # 所有级别都显示点线
+            toc.dotsMinLevel = 0
             toc.levelStyles = [
                 styles["toc0"],
                 styles["toc1"],
@@ -372,18 +490,23 @@ class PdfBookExporter(BookExporter):
             story.append(PageBreak())
 
         # --- Body ---
-        for node in filtered:
-            # Chapter heading
-            story.append(Paragraph(self._escape(node.text), styles["chapter"]))
-            story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#cccccc"), spaceAfter=6))
+        try:
+            for node in filtered:
+                # Chapter heading
+                story.append(Paragraph(self._escape(node.text), styles["chapter"]))
+                story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#cccccc"), spaceAfter=6))
 
-            for block in node.blocks:
-                flowables = self._block_to_flowables(block, styles, latex_renderer)
-                story.extend(flowables)
+                for block in node.blocks:
+                    flowables = self._block_to_flowables(block, styles, latex_renderer, page_width_pt)
+                    story.extend(flowables)
 
-            story.append(Spacer(1, 6 * mm))
-            story.append(PageBreak())
+                story.append(Spacer(1, 6 * mm))
+                story.append(PageBreak())
 
-        doc.multiBuild(story)
+            doc.multiBuild(story)
+        finally:
+            # Always clean up temp PNG files
+            _cleanup_temp_files()
+
         buf.seek(0)
         return buf.read()

@@ -322,8 +322,14 @@ class _LecturePageState extends ConsumerState<LecturePage> {
             _hasLectureNodeIds.add(nodeId);
             _checkedNodeIds.add(nodeId);
           });
+          // 即使 unmounted 也要记录，避免重建后重复请求
+          if (!mounted) {
+            _hasLectureNodeIds.add(nodeId);
+            _checkedNodeIds.add(nodeId);
+          }
         } catch (_) {
-          if (mounted) setState(() => _checkedNodeIds.add(nodeId));
+          _checkedNodeIds.add(nodeId); // 先更新数据
+          if (mounted) setState(() {}); // 再触发重建
         }
       }));
     }
@@ -445,8 +451,11 @@ class _LecturePageState extends ConsumerState<LecturePage> {
       _nodeLoading[nodeId] = false;
       _checkedNodeIds.add(nodeId);
 
+      // 强制触发重建，确保 UI 从转圈状态退出
       if (mounted) {
         setState(() {});
+      } else {
+        // mounted=false 时，下次 build 时状态已经正确，不需要额外处理
       }
     }
   }
@@ -680,6 +689,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                       hasLecture: _hasLectureNodeIds.contains(_currentNodeId),
                       isGenerating: _generatingNodeIds.contains(_currentNodeId),
                       streamingText: _streamingText[_currentNodeId],
+                      onGenerate: () => _generateLecture(_currentNodeId, currentNodeText),
                     ),
                   ),
                 ],
@@ -696,6 +706,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                 hasLecture: _hasLectureNodeIds.contains(_currentNodeId),
                 isGenerating: _generatingNodeIds.contains(_currentNodeId),
                 streamingText: _streamingText[_currentNodeId],
+                onGenerate: () => _generateLecture(_currentNodeId, currentNodeText),
               ),
       ),
     );
@@ -1057,6 +1068,7 @@ class _RightPanel extends StatefulWidget {
   final bool hasLecture;
   final bool isGenerating;
   final String? streamingText;
+  final VoidCallback? onGenerate;
 
   const _RightPanel({
     required this.nodeId,
@@ -1070,6 +1082,7 @@ class _RightPanel extends StatefulWidget {
     required this.hasLecture,
     required this.isGenerating,
     this.streamingText,
+    this.onGenerate,
   });
 
   @override
@@ -1077,6 +1090,9 @@ class _RightPanel extends StatefulWidget {
 }
 
 class _RightPanelState extends State<_RightPanel> {
+  bool _manualEdit = false; // 用户主动选择手动编写
+  bool _previewMode = false; // 预览模式（渲染 Markdown + LaTeX）
+
   @override
   Widget build(BuildContext context) {
     if (widget.isLoading) {
@@ -1108,70 +1124,185 @@ class _RightPanelState extends State<_RightPanel> {
     }
 
     if (!widget.hasLecture) {
-      // 无讲义时显示空白编辑器（可直接编辑，保存时会自动创建）
-      final emptyCtrl = widget.controller;
-      if (emptyCtrl == null) {
-        return const Center(child: CircularProgressIndicator());
+      // 用户选择手动编写时，显示空白编辑器
+      if (_manualEdit) {
+        final ctrl = widget.controller;
+        if (ctrl == null) return const Center(child: CircularProgressIndicator());
+
+        // 手动编写模式的预览
+        if (_previewMode) {
+          final markdown = widget.markdown ?? '';
+          return Column(
+            children: [
+              _statusBar(context, previewToggle: true),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  child: markdown.isEmpty
+                      ? Center(
+                          child: Text('暂无内容',
+                              style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant)),
+                        )
+                      : MarkdownLatexView(data: markdown),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            _statusBar(context, previewToggle: true),
+            Row(
+              children: [
+                Expanded(
+                  child: QuillSimpleToolbar(
+                    controller: ctrl,
+                    config: const QuillSimpleToolbarConfig(
+                      showFontFamily: false,
+                      showFontSize: false,
+                      showStrikeThrough: false,
+                      showUnderLineButton: false,
+                      showColorButton: false,
+                      showBackgroundColorButton: false,
+                      showClearFormat: false,
+                      showAlignmentButtons: false,
+                      showIndent: false,
+                      showLink: false,
+                      showSearchButton: false,
+                      showSubscript: false,
+                      showSuperscript: false,
+                    ),
+                  ),
+                ),
+                Tooltip(
+                  message: '插入公式',
+                  child: IconButton(
+                    icon: const Text('∑',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    onPressed: () => _showFormulaDialog(context, ctrl),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 1),
+            Expanded(child: _LectureEditor(controller: ctrl, blocks: const [])),
+          ],
+        );
       }
+
+      // 默认：中央显示醒目的操作区
+      final cs = Theme.of(context).colorScheme;
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.menu_book_outlined, size: 64, color: cs.outlineVariant),
+              const SizedBox(height: 20),
+              Text(
+                widget.nodeText,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text('此节点还没有讲义', style: TextStyle(color: cs.onSurfaceVariant)),
+              const SizedBox(height: 32),
+              FilledButton.icon(
+                onPressed: widget.onGenerate,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('AI 生成讲义'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(200, 48),
+                  textStyle: const TextStyle(fontSize: 16),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => setState(() => _manualEdit = true),
+                child: const Text('手动编写'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ── 直接 WYSIWYG 编辑（Quill）或预览（MarkdownLatexView）──────────────────
+    final ctrl = widget.controller;
+    if (ctrl == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // 预览模式：用 MarkdownLatexView 渲染 Markdown + LaTeX
+    if (_previewMode) {
+      final markdown = widget.markdown ?? '';
       return Column(
         children: [
-          _statusBar(context),
-          QuillSimpleToolbar(
-            controller: emptyCtrl,
-            config: const QuillSimpleToolbarConfig(
-              showFontFamily: false,
-              showFontSize: false,
-              showStrikeThrough: false,
-              showUnderLineButton: false,
-              showColorButton: false,
-              showBackgroundColorButton: false,
-              showClearFormat: false,
-              showAlignmentButtons: false,
-              showIndent: false,
-              showLink: false,
-              showSearchButton: false,
-              showSubscript: false,
-              showSuperscript: false,
-            ),
-          ),
-          const Divider(height: 1),
+          _statusBar(context, previewToggle: true),
           Expanded(
-            child: _LectureEditor(
-                controller: emptyCtrl, blocks: const []),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+              child: markdown.isEmpty
+                  ? Center(
+                      child: Text('暂无内容',
+                          style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant)),
+                    )
+                  : MarkdownLatexView(data: markdown),
+            ),
           ),
         ],
       );
     }
 
-    // ── 直接 WYSIWYG 编辑（Quill）──────────────────────────────────────────────
-    final ctrl = widget.controller;
-    if (ctrl == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
     return Column(
       children: [
-        // 保存状态栏
-        _statusBar(context),
+        // 保存状态栏（含预览切换按钮）
+        _statusBar(context, previewToggle: true),
         if (widget.editorState.saveError != null)
           _SaveErrorBanner(error: widget.editorState.saveError!),
-        // 格式工具栏
-        QuillSimpleToolbar(
-          controller: ctrl,
-          config: const QuillSimpleToolbarConfig(
-            showFontFamily: false,
-            showFontSize: false,
-            showStrikeThrough: false,
-            showUnderLineButton: false,
-            showColorButton: false,
-            showBackgroundColorButton: false,
-            showClearFormat: false,
-            showAlignmentButtons: false,
-            showIndent: false,
-            showLink: false,
-            showSearchButton: false,
-            showSubscript: false,
-            showSuperscript: false,
-          ),
+        // 格式工具栏 + 公式按钮
+        Row(
+          children: [
+            Expanded(
+              child: QuillSimpleToolbar(
+                controller: ctrl,
+                config: const QuillSimpleToolbarConfig(
+                  showFontFamily: false,
+                  showFontSize: false,
+                  showStrikeThrough: false,
+                  showUnderLineButton: false,
+                  showColorButton: false,
+                  showBackgroundColorButton: false,
+                  showClearFormat: false,
+                  showAlignmentButtons: false,
+                  showIndent: false,
+                  showLink: false,
+                  showSearchButton: false,
+                  showSubscript: false,
+                  showSuperscript: false,
+                ),
+              ),
+            ),
+            // 公式插入按钮
+            Tooltip(
+              message: '插入公式',
+              child: IconButton(
+                icon: const Text('∑',
+                    style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
+                onPressed: () => _showFormulaDialog(context, ctrl),
+              ),
+            ),
+          ],
         ),
         const Divider(height: 1),
         // WYSIWYG 编辑区
@@ -1183,7 +1314,65 @@ class _RightPanelState extends State<_RightPanel> {
     );
   }
 
-  Widget _statusBar(BuildContext context) {
+  /// 弹出公式输入对话框，确认后插入 \[...\] 到编辑器
+  Future<void> _showFormulaDialog(
+      BuildContext context, QuillController ctrl) async {
+    final formulaCtrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('插入公式'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '输入 LaTeX 公式（不需要加 \$ 符号）',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: formulaCtrl,
+              autofocus: true,
+              maxLines: 4,
+              minLines: 2,
+              decoration: const InputDecoration(
+                hintText: r'例如：\frac{\pi d^4}{32}',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '提示：行内公式用 \$...\$，块级公式用 \\[...\\]',
+              style: TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final f = formulaCtrl.text.trim();
+              if (f.isNotEmpty) Navigator.pop(ctx, f);
+            },
+            child: const Text('插入'),
+          ),
+        ],
+      ),
+    );
+    formulaCtrl.dispose();
+    if (result == null || result.isEmpty) return;
+    // 插入为块级公式（换行包裹）
+    final index = ctrl.selection.baseOffset;
+    ctrl.replaceText(index, 0, '\n\\[$result\\]\n', null);
+  }
+
+  Widget _statusBar(BuildContext context, {bool previewToggle = false}) {
     final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -1211,6 +1400,24 @@ class _RightPanelState extends State<_RightPanel> {
                 style:
                     TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
           const Spacer(),
+          // 预览/编辑切换按钮
+          if (previewToggle)
+            TextButton.icon(
+              onPressed: () => setState(() => _previewMode = !_previewMode),
+              icon: Icon(
+                _previewMode ? Icons.edit_outlined : Icons.visibility_outlined,
+                size: 16,
+              ),
+              label: Text(
+                _previewMode ? '编辑' : '预览',
+                style: const TextStyle(fontSize: 13),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
         ],
       ),
     );
@@ -1239,11 +1446,24 @@ class _RightPanelState extends State<_RightPanel> {
 
 // ── Editor widget (WYSIWYG) ───────────────────────────────────────────────────
 
-class _LectureEditor extends StatelessWidget {
+class _LectureEditor extends StatefulWidget {
   final QuillController controller;
   final List<LectureBlock> blocks;
 
   const _LectureEditor({required this.controller, required this.blocks});
+
+  @override
+  State<_LectureEditor> createState() => _LectureEditorState();
+}
+
+class _LectureEditorState extends State<_LectureEditor> {
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1251,9 +1471,10 @@ class _LectureEditor extends StatelessWidget {
     final baseColor = cs.onSurface;
 
     return QuillEditor.basic(
-      controller: controller,
+      controller: widget.controller,
+      focusNode: _focusNode,
       config: QuillEditorConfig(
-        placeholder: '点击此处开始编写讲义，或使用右上角导出菜单生成 AI 讲义…',
+        placeholder: '点击此处开始编写…',
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         customStyles: DefaultStyles(
           // 正文
@@ -1353,11 +1574,9 @@ class _LectureEditor extends StatelessWidget {
           ),
         ),
       ),
-    );
+    );  // QuillEditor.basic
   }
 }
-
-// ── Save status chip ──────────────────────────────────────────────────────────
 
 class _SaveStatusChip extends StatelessWidget {
   final LectureEditorState state;

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 int _viewIdCounter = 0;
 
-Widget buildMindMapView(String htmlContent) {
+Widget buildMindMapView(String htmlContent, {void Function(dynamic)? onController}) {
   final viewId = 'mindmap-iframe-${_viewIdCounter++}';
 
   // ignore: undefined_prefixed_name

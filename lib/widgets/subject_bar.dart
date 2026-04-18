@@ -14,7 +14,7 @@ class SubjectBarTitle extends ConsumerWidget {
       onTap: () => showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        builder: (_) => SubjectPickerSheet(ref: ref),
+        builder: (_) => const SubjectPickerSheet(),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -31,8 +31,7 @@ class SubjectBarTitle extends ConsumerWidget {
 }
 
 class SubjectPickerSheet extends ConsumerStatefulWidget {
-  final WidgetRef ref;
-  const SubjectPickerSheet({super.key, required this.ref});
+  const SubjectPickerSheet({super.key});
 
   @override
   ConsumerState<SubjectPickerSheet> createState() => _SubjectPickerSheetState();
@@ -60,7 +59,7 @@ class _SubjectPickerSheetState extends ConsumerState<SubjectPickerSheet> {
                 TextButton.icon(
                   onPressed: () {
                     Navigator.pop(context);
-                    showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => CreateSubjectSheet(ref: ref));
+                    showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => const CreateSubjectSheet());
                   },
                   icon: const Icon(Icons.add, size: 16),
                   label: const Text('新建'),
@@ -155,15 +154,14 @@ class _SubjectTile extends ConsumerWidget {
   }
 }
 
-class CreateSubjectSheet extends StatefulWidget {
-  final WidgetRef ref;
-  const CreateSubjectSheet({super.key, required this.ref});
+class CreateSubjectSheet extends ConsumerStatefulWidget {
+  const CreateSubjectSheet({super.key});
 
   @override
-  State<CreateSubjectSheet> createState() => _CreateSubjectSheetState();
+  ConsumerState<CreateSubjectSheet> createState() => _CreateSubjectSheetState();
 }
 
-class _CreateSubjectSheetState extends State<CreateSubjectSheet> {
+class _CreateSubjectSheetState extends ConsumerState<CreateSubjectSheet> {
   final _nameCtrl = TextEditingController();
   final _categoryCtrl = TextEditingController();
   bool _loading = false;
@@ -174,12 +172,12 @@ class _CreateSubjectSheetState extends State<CreateSubjectSheet> {
   Future<void> _submit() async {
     if (_nameCtrl.text.trim().isEmpty) return;
     setState(() => _loading = true);
-    final subject = await widget.ref.read(subjectActionsProvider).createAndReturn(
+    final subject = await ref.read(subjectActionsProvider).createAndReturn(
       _nameCtrl.text.trim(),
       category: _categoryCtrl.text.trim().isEmpty ? null : _categoryCtrl.text.trim(),
     );
-    widget.ref.invalidate(subjectsProvider);
-    if (subject != null) widget.ref.read(currentSubjectProvider.notifier).state = subject;
+    ref.invalidate(subjectsProvider);
+    if (subject != null) ref.read(currentSubjectProvider.notifier).state = subject;
     if (mounted) Navigator.pop(context);
   }
 

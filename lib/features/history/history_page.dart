@@ -10,6 +10,7 @@ import '../../providers/history_provider.dart';
 import '../../providers/subject_provider.dart';
 import '../../routes/app_router.dart';
 import '../../services/history_service.dart';
+import '../../features/classroom/classroom_page.dart';
 import '../../widgets/message_search_delegate.dart';
 
 class HistoryPage extends ConsumerStatefulWidget {
@@ -33,7 +34,6 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   ];
 
   List<HistorySessionItem> _filter(List<HistorySessionItem> all) => all
-      .where((s) => s.title != null && s.title!.isNotEmpty)
       .where((s) => _filterSubjectId == null || s.subjectId == _filterSubjectId)
       .where((s) => _filterType == null || s.sessionType.name == _filterType)
       .toList();
@@ -56,12 +56,15 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       await ref.read(chatProvider(key).notifier).loadSession(s.id);
     }
     if (!mounted) return;
-    context.go(switch (s.sessionType) {
-      SessionType.solve   => AppRoutes.solve,
-      SessionType.mindmap => AppRoutes.mindmap,
-      SessionType.exam    => AppRoutes.quiz,
-      _                   => AppRoutes.chat,
-    });
+    // 设置答疑室应跳转到的 tab（0=问答,1=解题,2=导图,3=出题）
+    final tabIndex = switch (s.sessionType) {
+      SessionType.solve   => 1,
+      SessionType.mindmap => 2,
+      SessionType.exam    => 3,
+      _                   => 0,
+    };
+    ref.read(classroomInitialTabProvider.notifier).state = tabIndex;
+    context.go(AppRoutes.classroom);
   }
 
   @override

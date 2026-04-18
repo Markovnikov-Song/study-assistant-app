@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_message.dart';
 import '../providers/chat_provider.dart';
 import '../widgets/message_search_delegate.dart';
+import '../features/classroom/classroom_page.dart';
 
 /// 通用历史记录底部弹窗，支持按 session 类型筛选
 /// [subjectId] 当前学科
@@ -19,7 +20,6 @@ void showSessionHistorySheet(
     builder: (_) => _SessionHistorySheet(
       subjectId: subjectId,
       initialType: initialType,
-      ref: ref,
     ),
   );
 }
@@ -27,8 +27,7 @@ void showSessionHistorySheet(
 class _SessionHistorySheet extends ConsumerStatefulWidget {
   final int subjectId;
   final String? initialType;
-  final WidgetRef ref;
-  const _SessionHistorySheet({required this.subjectId, this.initialType, required this.ref});
+  const _SessionHistorySheet({required this.subjectId, this.initialType});
 
   @override
   ConsumerState<_SessionHistorySheet> createState() => _SessionHistorySheetState();
@@ -73,6 +72,14 @@ class _SessionHistorySheetState extends ConsumerState<_SessionHistorySheet> {
     final key = (widget.subjectId, typeKey);
     await ref.read(chatProvider(key).notifier).loadSession(s.id);
     if (!mounted) return;
+    // 设置答疑室应跳转到的 tab，让 ClassroomPage 在 initState 时读取
+    final tabIndex = switch (s.sessionType) {
+      SessionType.solve   => 1,
+      SessionType.mindmap => 2,
+      SessionType.exam    => 3,
+      _                   => 0,
+    };
+    ref.read(classroomInitialTabProvider.notifier).state = tabIndex;
     Navigator.pop(context);
   }
 

@@ -130,8 +130,16 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
               role: MessageRole.assistant,
               content: '在已上传资料中未找到相关内容。\n\n可以勾选「结合通用知识」后重新提问，AI 将优先检索知识库，检索不到时自动用通用知识回答。',
             );
-            state = AsyncValue.data([...current, hint]);
+            // 保留用户消息，只替换 AI 占位消息为提示消息
+            state = AsyncValue.data([...current, userMsg, hint]);
             if (!completer.isCompleted) completer.complete();
+            return;
+          }
+          if (event.startsWith('[SESSION_ID:')) {
+            // 后端通过 SSE 返回本次会话 ID，更新后续消息复用同一会话
+            final idStr = event.substring(12, event.length - 1);
+            final id = int.tryParse(idStr);
+            if (id != null) _currentSessionId = id;
             return;
           }
           if (event.startsWith('[SOURCES]')) return; // 后端已保存，忽略
@@ -173,7 +181,7 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
 
     } catch (e, st) {
       if (buffer.isEmpty) {
-        state = AsyncValue.data(current);
+        // 出错时保留用户消息，显示错误状态
         state = AsyncValue.error(e, st);
       }
       // 有部分内容时保留已输出内容，不报错
@@ -182,9 +190,9 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       _cancelToken = null;
       onSendingChanged?.call(false);
 
-      // 取消时回滚到发送前状态
+      // 取消时：保留用户消息，移除空的 AI 占位消息
       if (cancelled && buffer.isEmpty) {
-        state = AsyncValue.data(current);
+        state = AsyncValue.data([...current, userMsg]);
       }
     }
   }

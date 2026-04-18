@@ -22,7 +22,6 @@ class SolvePage extends ConsumerStatefulWidget {
 class _SolvePageState extends ConsumerState<SolvePage> {
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
-  bool _useBroad = false;
   bool _sending = false;
 
   @override
@@ -46,11 +45,14 @@ class _SolvePageState extends ConsumerState<SolvePage> {
     if (text.isEmpty) return;
     _inputCtrl.clear();
     _bindSendingCallback();
-    await ref.read(chatProvider(_key).notifier).sendMessage(text, mode: SessionType.solve, useBroad: _useBroad);
+    // 解题固定使用 solve 模式，不支持 useBroad（业务设计 4.2）
+    await ref.read(chatProvider(_key).notifier).sendMessage(text, mode: SessionType.solve);
     _scrollToBottom();
   }
 
   void _cancelSending() {
+    final sid = _subjectId;
+    if (sid == null) return;
     ref.read(chatProvider(_key).notifier).cancelSending();
   }
 
@@ -74,6 +76,13 @@ class _SolvePageState extends ConsumerState<SolvePage> {
   @override
   Widget build(BuildContext context) {
     final subject = ref.watch(currentSubjectProvider);
+
+    // 学科切换时重置发送状态，避免旧学科的 sending 状态残留
+    ref.listen(currentSubjectProvider, (prev, next) {
+      if (prev?.id != next?.id && _sending) {
+        setState(() => _sending = false);
+      }
+    });
     return Scaffold(
       appBar: AppBar(
         title: const SubjectBarTitle(),
@@ -85,10 +94,8 @@ class _SolvePageState extends ConsumerState<SolvePage> {
           : _SolveBody(
               subjectId: subject.id,
               sending: _sending,
-              useBroad: _useBroad,
               inputCtrl: _inputCtrl,
               scrollCtrl: _scrollCtrl,
-              onBroadChanged: (v) => setState(() => _useBroad = v),
               onSubmit: _submit,
               onCancel: _cancelSending,
               onCamera: () => _pickAndOcr(ImageSource.camera),
@@ -101,13 +108,20 @@ class _SolvePageState extends ConsumerState<SolvePage> {
 class _SolveBody extends ConsumerWidget {
   final int subjectId;
   final bool sending;
-  final bool useBroad;
   final TextEditingController inputCtrl;
   final ScrollController scrollCtrl;
-  final ValueChanged<bool> onBroadChanged;
   final VoidCallback onSubmit, onCancel, onCamera, onGallery;
 
-  const _SolveBody({required this.subjectId, required this.sending, required this.useBroad, required this.inputCtrl, required this.scrollCtrl, required this.onBroadChanged, required this.onSubmit, required this.onCancel, required this.onCamera, required this.onGallery});
+  const _SolveBody({
+    required this.subjectId,
+    required this.sending,
+    required this.inputCtrl,
+    required this.scrollCtrl,
+    required this.onSubmit,
+    required this.onCancel,
+    required this.onCamera,
+    required this.onGallery,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -128,22 +142,27 @@ class _SolveBody extends ConsumerWidget {
                 : ListView.builder(
                     controller: scrollCtrl,
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    itemCount: msgs.length,
-                    itemBuilder: (_, i) => _SolveBubble(message: msgs[i]),
+                    itemCount: msgs.length + (sending ? 1 : 0),
+                    itemBuilder: (_, i) {
+                      if (sending && i == msgs.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: _TypingIndicator(),
+                        );
+                      }
+                      return _SolveBubble(message: msgs[i]);
+                    },
                   ),
           ),
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          child: Row(
-            children: [
-              Checkbox(value: useBroad, onChanged: (v) => onBroadChanged(v ?? false), visualDensity: VisualDensity.compact),
-              const Text('结合通用知识', style: TextStyle(fontSize: 13)),
-            ],
-          ),
+        _InputBar(
+          controller: inputCtrl,
+          sending: sending,
+          onSubmit: onSubmit,
+          onCancel: onCancel,
+          onCamera: onCamera,
+          onGallery: onGallery,
         ),
-        _InputBar(controller: inputCtrl, sending: sending, onSubmit: onSubmit, onCancel: onCancel, onCamera: onCamera, onGallery: onGallery),
       ],
     );
   }
@@ -181,7 +200,7 @@ class _SessionBar extends ConsumerWidget {
   }
 }
 
-// 解题气泡：AI 回复用等宽字体展示结构化内容
+// 解题气泡：AI 回复用 Markdown 渲染结构化内容
 class _SolveBubble extends StatelessWidget {
   final ChatMessage message;
   const _SolveBubble({required this.message});
@@ -210,6 +229,36 @@ class _SolveBubble extends StatelessWidget {
                 textStyle: TextStyle(color: cs.onSurface),
                 codeBackgroundColor: cs.surfaceContainerHighest,
               ),
+      ),
+    );
+  }
+}
+
+class _TypingIndicator extends StatelessWidget {
+  const _TypingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHigh,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16), topRight: Radius.circular(16),
+            bottomLeft: Radius.circular(4), bottomRight: Radius.circular(16),
+          ),
+        ),
+        child: SizedBox(
+          width: 48,
+          child: LinearProgressIndicator(
+            borderRadius: BorderRadius.circular(4),
+            color: cs.primary,
+            backgroundColor: cs.surfaceContainerHighest,
+          ),
+        ),
       ),
     );
   }
@@ -250,13 +299,23 @@ class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSubmit, onCancel, onCamera, onGallery;
-  const _InputBar({required this.controller, required this.sending, required this.onSubmit, required this.onCancel, required this.onCamera, required this.onGallery});
+  const _InputBar({
+    required this.controller,
+    required this.sending,
+    required this.onSubmit,
+    required this.onCancel,
+    required this.onCamera,
+    required this.onGallery,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
-      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, border: Border(top: BorderSide(color: Theme.of(context).dividerColor))),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -266,17 +325,18 @@ class _InputBar extends StatelessWidget {
             child: TextField(
               controller: controller, maxLines: 5, minLines: 1,
               enabled: !sending,
-              decoration: InputDecoration(hintText: '输入题目…', border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)), contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), isDense: true),
+              decoration: InputDecoration(
+                hintText: '输入题目…',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                isDense: true,
+              ),
             ),
           ),
           const SizedBox(width: 8),
           IconButton.filled(
-            icon: sending
-                ? const Icon(Icons.stop_rounded)
-                : const Icon(Icons.send),
-            style: sending
-                ? IconButton.styleFrom(backgroundColor: Colors.red.shade400)
-                : null,
+            icon: sending ? const Icon(Icons.stop_rounded) : const Icon(Icons.send),
+            style: sending ? IconButton.styleFrom(backgroundColor: Colors.red.shade400) : null,
             onPressed: sending ? onCancel : onSubmit,
           ),
         ],

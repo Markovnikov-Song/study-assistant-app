@@ -249,6 +249,7 @@ class _AiGenerationTabState extends ConsumerState<_AiGenerationTab> {
   String? _lastContent;
   String? _currentHtml;
   bool _customGenerating = false;
+  dynamic _webViewController; // WebViewController on native, null on web
 
   String _buildHtml(String markdown) {
     final escaped = jsonEncode(markdown);
@@ -582,7 +583,9 @@ class _AiGenerationTabState extends ConsumerState<_AiGenerationTab> {
                         ],
                       ),
                     )
-                  : buildMindMapView(_currentHtml!),
+                  : buildMindMapView(_currentHtml!, onController: (ctrl) {
+                      _webViewController = ctrl;
+                    }),
         ),
 
         // Bottom action bar
@@ -593,7 +596,7 @@ class _AiGenerationTabState extends ConsumerState<_AiGenerationTab> {
               if (_currentHtml != null) ...[
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => saveMindMapImage(context, null),
+                    onPressed: () => saveMindMapImage(context, _webViewController),
                     icon: const Icon(Icons.save_alt, size: 16),
                     label: const Text('保存图片'),
                   ),

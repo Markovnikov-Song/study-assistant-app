@@ -40,6 +40,12 @@ def _configure_cjk_font() -> None:
         import matplotlib
         import matplotlib.font_manager as fm
 
+        # 使用 Computer Modern 数学字体（LaTeX 标准字体，视觉最专业）
+        # 同时注册 CJK 字体用于公式中的中文字符
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
+        matplotlib.rcParams["axes.unicode_minus"] = False
+
+        # 注册 CJK 字体，用于公式中出现中文时的 fallback
         font_path: Path | None = None
         if _BUNDLED_FONT_PATH.is_file():
             font_path = _BUNDLED_FONT_PATH
@@ -47,22 +53,13 @@ def _configure_cjk_font() -> None:
             font_path = _find_system_cjk_font()
 
         if font_path is not None:
-            # Register the font with matplotlib's font manager
             fm.fontManager.addfont(str(font_path))
             font_name = fm.FontProperties(fname=str(font_path)).get_name()
-
-            matplotlib.rcParams["font.family"] = "sans-serif"
+            # 设置 sans-serif fallback，让中文字符能渲染
             matplotlib.rcParams["font.sans-serif"] = [font_name, "DejaVu Sans"]
-            # mathtext.fontset 'custom' lets us override the roman/sans/tt fonts
-            matplotlib.rcParams["mathtext.fontset"] = "custom"
-            matplotlib.rcParams["mathtext.rm"] = font_name
-            matplotlib.rcParams["mathtext.it"] = font_name
-            matplotlib.rcParams["mathtext.bf"] = font_name
-            matplotlib.rcParams["axes.unicode_minus"] = False
 
         _cjk_font_configured = True
     except Exception:
-        # Non-fatal: fall back to default fonts (warnings may still appear)
         _cjk_font_configured = True
 
 
@@ -70,7 +67,7 @@ class LatexRenderer:
     """Render LaTeX strings to PNG bytes using matplotlib mathtext.
 
     Results are cached per instance so identical formulas within the same
-    export request are only rendered once (Requirement 6.4).
+    export request are only rendered once.
     """
 
     def __init__(self) -> None:
@@ -82,7 +79,7 @@ class LatexRenderer:
         Parameters
         ----------
         latex:
-            The LaTeX source string (without surrounding ``$`` delimiters).
+            The LaTeX source string (without surrounding $ delimiters).
         display:
             When *True* the formula is rendered in display (block) style at a
             larger font size; when *False* it is rendered inline.
@@ -98,20 +95,35 @@ class LatexRenderer:
 
         try:
             import matplotlib
-            matplotlib.use("Agg")  # non-interactive backend, safe for threads
+            matplotlib.use("Agg")
             import matplotlib.pyplot as plt
 
-            # Configure CJK-capable font so Chinese characters inside LaTeX
-            # expressions (e.g. labels like "（抗扭截面系数）") render correctly
-            # instead of producing "Font 'rm' does not have a glyph" warnings.
             _configure_cjk_font()
 
-            fontsize = 14 if display else 11
+            # Display math uses larger font and more padding for readability
+            fontsize = 16 if display else 12
+            dpi = 200  # higher DPI for sharper output in PDF
+
             fig = plt.figure(figsize=(0.01, 0.01))
-            fig.text(0, 0, f"${latex}$", fontsize=fontsize)
+            # Use white background so the image blends into the PDF page
+            fig.patch.set_facecolor("white")
+            fig.text(
+                0, 0,
+                f"${latex}$",
+                fontsize=fontsize,
+                color="black",
+                verticalalignment="bottom",
+            )
 
             buf = io.BytesIO()
-            fig.savefig(buf, format="png", bbox_inches="tight", pad_inches=0.1, dpi=150)
+            fig.savefig(
+                buf,
+                format="png",
+                bbox_inches="tight",
+                pad_inches=0.08 if display else 0.04,
+                dpi=dpi,
+                facecolor="white",
+            )
             plt.close(fig)
 
             buf.seek(0)

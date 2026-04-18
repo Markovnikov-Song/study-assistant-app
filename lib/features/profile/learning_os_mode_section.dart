@@ -1,11 +1,8 @@
-// Learning OS — AI 学习功能入口区块
-// 叠加在"我的"页面，不替换底部导航（需求 4.1）。
-//
-// 设计原则：用户不需要"选择模式"，只需要选择"想做什么"。
-// 四种调用路径对用户透明，UI 只暴露意图入口。
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../skill_runner/my_skills_page.dart';
+import '../skill_runner/skill_runner_page.dart';
+import '../../core/network/dio_client.dart';
 
 /// AI 学习功能入口区块，展示在"我的"页面。
 ///
@@ -78,21 +75,135 @@ class _IntentInputCardState extends ConsumerState<_IntentInputCard> {
     _controller.clear();
 
     try {
-      // TODO: 调用 AgentCouncilImpl.resolveIntent()，展示推荐 Skill 列表
-      // 当前先用 SnackBar 占位，Phase 3 UI 完成后替换
-      await Future.delayed(const Duration(milliseconds: 800));
+      // 调用 /api/agent/resolve-intent，获取推荐 Skill 列表
+      final res = await DioClient.instance.dio.post(
+        '/api/agent/resolve-intent',
+        data: {'text': text},
+      );
+      final data = res.data as Map<String, dynamic>;
+      final recommendations = (data['recommended_skills'] as List?) ?? [];
+
+      if (!mounted) return;
+
+      if (recommendations.isEmpty) {
+        // 没有匹配的 Skill，跳转到方法库让用户自己选
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('没有找到完全匹配的方法，请从方法库中选择'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MySkillsPage()),
+        );
+        return;
+      }
+
+      if (recommendations.length == 1) {
+        // 只有一个推荐，直接进入
+        final skill = recommendations.first as Map<String, dynamic>;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SkillRunnerPage(
+              skillId: skill['skill_id'] as String,
+              skillName: skill['name'] as String? ?? skill['skill_id'] as String,
+            ),
+          ),
+        );
+        return;
+      }
+
+      // 多个推荐，弹出选择对话框
+      _showSkillPicker(context, recommendations.cast<Map<String, dynamic>>(), text);
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('正在为「$text」匹配学习方法…'),
+            content: Text('匹配失败：$e'),
             behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(label: '查看', onPressed: () {}),
+            backgroundColor: Colors.red,
           ),
         );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _showSkillPicker(
+    BuildContext context,
+    List<Map<String, dynamic>> recommendations,
+    String goal,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('为你推荐的学习方法',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          )),
+                  const SizedBox(height: 4),
+                  Text('目标：$goal',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ...recommendations.map((rec) {
+              final skillId = rec['skill_id'] as String;
+              final name = rec['name'] as String? ?? skillId;
+              final rationale = rec['rationale'] as String? ?? '';
+              final score = ((rec['match_score'] as num?)?.toDouble() ?? 0.0);
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor:
+                      Theme.of(context).colorScheme.primaryContainer,
+                  child: Text(
+                    '${(score * 100).round()}%',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+                title: Text(name,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(rationale,
+                    style: const TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SkillRunnerPage(
+                        skillId: skillId,
+                        skillName: name,
+                      ),
+                    ),
+                  );
+                },
+              );
+            }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -195,12 +306,9 @@ class _LongTermPlanCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: InkWell(
         onTap: () {
-          // TODO: 跳转到议事会/长期计划页面（Phase 3 UI）
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('长期学习计划功能开发中，敬请期待'),
-              behavior: SnackBarBehavior.floating,
-            ),
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const MySkillsPage()),
           );
         },
         borderRadius: BorderRadius.circular(14),

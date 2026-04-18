@@ -57,6 +57,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _cancelSending() {
+    final sid = _subjectId;
+    if (sid == null) return;
     ref.read(chatProvider(_key).notifier).cancelSending();
   }
 
@@ -83,6 +85,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final multiSelect = ref.watch(multiSelectProvider);
     final selectedCount = multiSelect.selectedMessageIds.length;
     final sending = _sending;
+
+    // 学科切换时重置发送状态，避免旧学科的 sending 状态残留
+    ref.listen(currentSubjectProvider, (prev, next) {
+      if (prev?.id != next?.id && _sending) {
+        setState(() => _sending = false);
+      }
+    });
 
     PreferredSizeWidget appBar;
     if (multiSelect.isActive) {

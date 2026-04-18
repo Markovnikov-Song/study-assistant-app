@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-Widget buildMindMapView(String htmlContent) {
+Widget buildMindMapView(String htmlContent, {void Function(dynamic)? onController}) {
   final ctrl = WebViewController()
     ..setJavaScriptMode(JavaScriptMode.unrestricted)
     ..setBackgroundColor(Colors.white)
     ..loadHtmlString(htmlContent);
+  onController?.call(ctrl);
   return WebViewWidget(controller: ctrl);
 }
 
