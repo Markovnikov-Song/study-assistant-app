@@ -236,7 +236,7 @@ class LecturePage extends ConsumerStatefulWidget {
 // Simple LRU cache for QuillControllers (max 5 entries)
 class _LruCache<K, V> {
   final int maxSize;
-  final _map = LinkedHashMap<K, V>();
+  final _map = <K, V>{};
 
   _LruCache(this.maxSize);
 
@@ -318,10 +318,12 @@ class _LecturePageState extends ConsumerState<LecturePage> {
         if (_nodeLoading[nodeId] == true) return;
         try {
           await service.getLecture(widget.sessionId, nodeId);
-          if (mounted) setState(() {
-            _hasLectureNodeIds.add(nodeId);
-            _checkedNodeIds.add(nodeId);
-          });
+          if (mounted) {
+            setState(() {
+              _hasLectureNodeIds.add(nodeId);
+              _checkedNodeIds.add(nodeId);
+            });
+          }
           // 即使 unmounted 也要记录，避免重建后重复请求
           if (!mounted) {
             _hasLectureNodeIds.add(nodeId);
@@ -896,39 +898,6 @@ class _OutlinePanel extends StatelessWidget {
     required this.onToggleExpand,
   });
 
-  void _showNodeMenu(BuildContext context, String nodeId,
-      {required bool hasLecture}) {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.menu_book_outlined),
-              title: const Text('查看讲义'),
-              onTap: () {
-                Navigator.pop(context);
-                onNodeTap(nodeId);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.account_tree_outlined),
-              title: const Text('跳转大纲'),
-              subtitle: const Text('在思维导图中定位此节点'),
-              onTap: () {
-                Navigator.pop(context);
-                context.push(
-                  AppRoutes.editableMindMap(subjectId, sessionId),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (roots.isEmpty) {
@@ -1091,7 +1060,6 @@ class _RightPanel extends StatefulWidget {
 
 class _RightPanelState extends State<_RightPanel> {
   bool _manualEdit = false; // 用户主动选择手动编写
-  bool _previewMode = false; // 预览模式（渲染 Markdown + LaTeX）
 
   @override
   Widget build(BuildContext context) {
@@ -1129,33 +1097,9 @@ class _RightPanelState extends State<_RightPanel> {
         final ctrl = widget.controller;
         if (ctrl == null) return const Center(child: CircularProgressIndicator());
 
-        // 手动编写模式的预览
-        if (_previewMode) {
-          final markdown = widget.markdown ?? '';
-          return Column(
-            children: [
-              _statusBar(context, previewToggle: true),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                  child: markdown.isEmpty
-                      ? Center(
-                          child: Text('暂无内容',
-                              style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant)),
-                        )
-                      : MarkdownLatexView(data: markdown),
-                ),
-              ),
-            ],
-          );
-        }
-
         return Column(
           children: [
-            _statusBar(context, previewToggle: true),
+            _statusBar(context),
             Row(
               children: [
                 Expanded(
@@ -1233,40 +1177,15 @@ class _RightPanelState extends State<_RightPanel> {
       );
     }
 
-    // ── 直接 WYSIWYG 编辑（Quill）或预览（MarkdownLatexView）──────────────────
+    // ── 直接 WYSIWYG 编辑（Quill）──────────────────────────────────────────────
     final ctrl = widget.controller;
     if (ctrl == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // 预览模式：用 MarkdownLatexView 渲染 Markdown + LaTeX
-    if (_previewMode) {
-      final markdown = widget.markdown ?? '';
-      return Column(
-        children: [
-          _statusBar(context, previewToggle: true),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              child: markdown.isEmpty
-                  ? Center(
-                      child: Text('暂无内容',
-                          style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant)),
-                    )
-                  : MarkdownLatexView(data: markdown),
-            ),
-          ),
-        ],
-      );
-    }
-
     return Column(
       children: [
-        // 保存状态栏（含预览切换按钮）
-        _statusBar(context, previewToggle: true),
+        _statusBar(context),
         if (widget.editorState.saveError != null)
           _SaveErrorBanner(error: widget.editorState.saveError!),
         // 格式工具栏 + 公式按钮
@@ -1372,7 +1291,7 @@ class _RightPanelState extends State<_RightPanel> {
     ctrl.replaceText(index, 0, '\n\\[$result\\]\n', null);
   }
 
-  Widget _statusBar(BuildContext context, {bool previewToggle = false}) {
+  Widget _statusBar(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -1400,24 +1319,6 @@ class _RightPanelState extends State<_RightPanel> {
                 style:
                     TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
           const Spacer(),
-          // 预览/编辑切换按钮
-          if (previewToggle)
-            TextButton.icon(
-              onPressed: () => setState(() => _previewMode = !_previewMode),
-              icon: Icon(
-                _previewMode ? Icons.edit_outlined : Icons.visibility_outlined,
-                size: 16,
-              ),
-              label: Text(
-                _previewMode ? '编辑' : '预览',
-                style: const TextStyle(fontSize: 13),
-              ),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
         ],
       ),
     );

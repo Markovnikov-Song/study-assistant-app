@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -43,6 +44,9 @@ class NoteOut(BaseModel):
     outline: Optional[List[str]]
     imported_to_doc_id: Optional[int]
     sources: Optional[Any]
+    note_type: str
+    mistake_status: Optional[str]
+    mistake_details: Optional[Any]
     created_at: str
     updated_at: str
 
@@ -60,6 +64,9 @@ class NoteOut(BaseModel):
             outline=note.outline,
             imported_to_doc_id=note.imported_to_doc_id,
             sources=note.sources,
+            note_type=note.note_type,
+            mistake_status=note.mistake_status,
+            mistake_details=note.mistake_details,
             created_at=note.created_at.isoformat(),
             updated_at=note.updated_at.isoformat(),
         )
@@ -73,6 +80,9 @@ class NoteCreateItem(BaseModel):
     sources: Optional[Any] = None
     notebook_id: int
     subject_id: Optional[int] = None
+    note_type: Optional[str] = None
+    mistake_status: Optional[str] = None
+    mistake_details: Optional[Any] = None
 
 
 class BatchCreateNotesIn(BaseModel):
@@ -82,6 +92,8 @@ class BatchCreateNotesIn(BaseModel):
 class NoteUpdateIn(BaseModel):
     title: Optional[str] = Field(default=None, max_length=64)
     original_content: Optional[str] = None
+    mistake_status: Optional[str] = None
+    mistake_details: Optional[Any] = None
 
 
 class GenerateTitleOut(BaseModel):
@@ -141,6 +153,9 @@ def batch_create_notes(body: BatchCreateNotesIn, user=Depends(get_current_user))
                 role=item.role,
                 original_content=item.original_content,
                 sources=item.sources,
+                note_type=item.note_type or "general",
+                mistake_status=item.mistake_status,
+                mistake_details=item.mistake_details,
             )
             db.add(note)
             db.flush()
@@ -166,6 +181,16 @@ def update_note(note_id: int, body: NoteUpdateIn, user=Depends(get_current_user)
             note.title = body.title
         if body.original_content is not None:
             note.original_content = body.original_content
+        if body.mistake_status is not None:
+            note.mistake_status = body.mistake_status
+            if note.note_type == "mistake":
+                details = note.mistake_details or {}
+                if not isinstance(details, dict):
+                    details = {}
+                details["last_reviewed_at"] = datetime.now(timezone.utc).isoformat()
+                note.mistake_details = details
+        if body.mistake_details is not None:
+            note.mistake_details = body.mistake_details
         db.flush()
         return NoteOut.from_orm(note)
 

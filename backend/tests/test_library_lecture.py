@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-sys.path.insert(1, os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "study_assistant_streamlit"))
 
 import pytest
 from urllib.parse import unquote_plus, quote_plus

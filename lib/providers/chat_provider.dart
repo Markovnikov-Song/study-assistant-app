@@ -150,15 +150,15 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
             return;
           }
 
-          // 普通 token：追加并更新最后一条 AI 消息
+          // 普通 token：追加并更新最后一条 AI 消息（直接替换末尾，不重建整个列表）
           buffer.write(event);
-          final msgs = List<ChatMessage>.from(state.value ?? []);
-          if (msgs.isNotEmpty && msgs.last.role == MessageRole.assistant) {
-            msgs[msgs.length - 1] = ChatMessage.local(
+          final msgs = state.value;
+          if (msgs != null && msgs.isNotEmpty && msgs.last.role == MessageRole.assistant) {
+            final updated = ChatMessage.local(
               role: MessageRole.assistant,
               content: buffer.toString(),
             );
-            state = AsyncValue.data(msgs);
+            state = AsyncValue.data([...msgs.sublist(0, msgs.length - 1), updated]);
           }
         },
         onError: (e) {

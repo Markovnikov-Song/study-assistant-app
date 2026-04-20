@@ -171,6 +171,9 @@ class NoteOut(BaseModel):
     outline: Optional[List[str]]
     imported_to_doc_id: Optional[int]
     sources: Optional[Any]
+    note_type: str
+    mistake_status: Optional[str]
+    mistake_details: Optional[Any]
     created_at: str
     updated_at: str
 
@@ -188,6 +191,9 @@ class NoteOut(BaseModel):
             outline=note.outline,
             imported_to_doc_id=note.imported_to_doc_id,
             sources=note.sources,
+            note_type=note.note_type,
+            mistake_status=note.mistake_status,
+            mistake_details=note.mistake_details,
             created_at=note.created_at.isoformat(),
             updated_at=note.updated_at.isoformat(),
         )

@@ -46,6 +46,7 @@ class App extends ConsumerWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4A90D9)),
         useMaterial3: true,
+        fontFamily: 'Noto Sans SC',
       ),
 
       darkTheme: ThemeData(
@@ -54,6 +55,7 @@ class App extends ConsumerWidget {
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
+        fontFamily: 'Noto Sans SC',
       ),
     );
   }

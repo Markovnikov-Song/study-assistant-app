@@ -56,6 +56,7 @@ class Note {
   final DateTime updatedAt;
   final String noteType; // 'general' | 'mistake'
   final String? mistakeStatus; // 'pending' | 'reviewed' (only when noteType == 'mistake')
+  final Map<String, dynamic>? mistakeDetails;
 
   const Note({
     required this.id,
@@ -73,6 +74,7 @@ class Note {
     required this.updatedAt,
     this.noteType = 'general',
     this.mistakeStatus,
+    this.mistakeDetails,
   });
 
   /// 显示标题：有 title 用 title，否则截取前 20 字符
@@ -107,6 +109,7 @@ class Note {
         updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
         noteType: json['note_type'] as String? ?? 'general',
         mistakeStatus: json['mistake_status'] as String?,
+        mistakeDetails: (json['mistake_details'] as Map<String, dynamic>?)?.cast<String, dynamic>(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -130,5 +133,6 @@ class Note {
         'updated_at': updatedAt.toUtc().toIso8601String(),
         'note_type': noteType,
         'mistake_status': mistakeStatus,
+        'mistake_details': mistakeDetails,
       };
 }

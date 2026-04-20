@@ -154,48 +154,101 @@ def get_subjects(user=Depends(get_current_user)):
             .order_by(Subject.is_pinned.desc(), Subject.created_at.desc())
             .all()
         )
-        result = []
-        for subj in subjects:
-            sessions = (
-                db.query(ConversationSession)
-                .filter_by(user_id=user["id"], subject_id=subj.id, session_type="mindmap")
-                .order_by(
-                    ConversationSession.is_pinned.desc(),
-                    ConversationSession.created_at.desc(),
+        if not subjects:
+            return []
+
+        subject_ids = [s.id for s in subjects]
+
+        # 批量查询所有相关 mindmap sessions
+        all_sessions = (
+            db.query(ConversationSession)
+            .filter(
+                ConversationSession.user_id == user["id"],
+                ConversationSession.subject_id.in_(subject_ids),
+                ConversationSession.session_type == "mindmap",
+            )
+            .order_by(
+                ConversationSession.is_pinned.desc(),
+                ConversationSession.created_at.desc(),
+            )
+            .all()
+        )
+
+        # 按 subject_id 分组，取每个学科的 active session（置顶优先，否则最新）
+        from collections import defaultdict
+        sessions_by_subject: dict[int, list] = defaultdict(list)
+        for s in all_sessions:
+            sessions_by_subject[s.subject_id].append(s)
+
+        active_session_ids = [
+            sessions_by_subject[sid][0].id
+            for sid in subject_ids
+            if sessions_by_subject[sid]
+        ]
+
+        # 批量查询 mindmap 内容（最新 assistant 消息）
+        mindmap_contents: dict[int, str] = {}
+        if active_session_ids:
+            # 用子查询取每个 session 最新的 assistant 消息
+            from sqlalchemy import func
+            latest_ids = (
+                db.query(func.max(ConversationHistory.id))
+                .filter(
+                    ConversationHistory.session_id.in_(active_session_ids),
+                    ConversationHistory.role == "assistant",
                 )
+                .group_by(ConversationHistory.session_id)
+                .subquery()
+            )
+            records = (
+                db.query(ConversationHistory)
+                .filter(ConversationHistory.id.in_(latest_ids))
                 .all()
             )
+            mindmap_contents = {r.session_id: r.content for r in records}
 
-            # 进度只基于"当前大纲"：优先取置顶的，否则取最新的
-            # 多份大纲是同一学科的不同版本，累加没有意义
-            active_session = sessions[0] if sessions else None
+        # 批量查询点亮节点数
+        lit_counts: dict[int, int] = {}
+        if active_session_ids:
+            from sqlalchemy import func
+            rows = (
+                db.query(
+                    MindmapNodeState.session_id,
+                    func.count(MindmapNodeState.id).label("cnt"),
+                )
+                .filter(
+                    MindmapNodeState.user_id == user["id"],
+                    MindmapNodeState.session_id.in_(active_session_ids),
+                    MindmapNodeState.is_lit == 1,
+                )
+                .group_by(MindmapNodeState.session_id)
+                .all()
+            )
+            lit_counts = {r.session_id: r.cnt for r in rows}
+
+        result = []
+        for subj in subjects:
+            sess_list = sessions_by_subject[subj.id]
+            active = sess_list[0] if sess_list else None
             total_nodes = 0
             lit_nodes = 0
             last_visited_at = None
-
-            if active_session:
-                content = _get_mindmap_content(db, active_session.id)
+            if active:
+                content = mindmap_contents.get(active.id)
                 if content:
                     total_nodes = _parse_node_count(content)
-                lit_nodes = (
-                    db.query(MindmapNodeState)
-                    .filter_by(user_id=user["id"], session_id=active_session.id, is_lit=1)
-                    .count()
-                )
-                last_visited_at = active_session.created_at
-
-            result.append(
-                SubjectProgressOut(
-                    id=subj.id,
-                    name=subj.name,
-                    category=subj.category,
-                    is_pinned=subj.is_pinned,
-                    session_count=len(sessions),
-                    total_nodes=total_nodes,
-                    lit_nodes=lit_nodes,
-                    last_visited_at=last_visited_at.isoformat() if last_visited_at else None,
-                )
-            )
+                lit_nodes = lit_counts.get(active.id, 0)
+                last_visited_at = active.created_at
+            result.append(SubjectProgressOut(
+                id=subj.id,
+                name=subj.name,
+                category=subj.category,
+                is_pinned=subj.is_pinned,
+                session_count=len(sess_list),
+                total_nodes=total_nodes,
+                lit_nodes=lit_nodes,
+                last_visited_at=last_visited_at.isoformat() if last_visited_at else None,
+            ))
         return result
 
 
@@ -217,27 +270,57 @@ def get_sessions(subject_id: int, user=Depends(get_current_user)):
             )
             .all()
         )
-        result = []
-        for sess in sessions:
-            content = _get_mindmap_content(db, sess.id)
-            total = _parse_node_count(content) if content else 0
-            lit = (
-                db.query(MindmapNodeState)
-                .filter_by(user_id=user["id"], session_id=sess.id, is_lit=1)
-                .count()
+        if not sessions:
+            return []
+
+        session_ids = [s.id for s in sessions]
+
+        # 批量查 mindmap 内容
+        from sqlalchemy import func
+        latest_ids = (
+            db.query(func.max(ConversationHistory.id))
+            .filter(
+                ConversationHistory.session_id.in_(session_ids),
+                ConversationHistory.role == "assistant",
             )
-            result.append(
-                SessionSummaryOut(
-                    id=sess.id,
-                    title=sess.title,
-                    created_at=sess.created_at.isoformat(),
-                    total_nodes=total,
-                    lit_nodes=lit,
-                    is_pinned=bool(getattr(sess, "is_pinned", 0)),
-                    sort_order=getattr(sess, "sort_order", 0),
-                )
+            .group_by(ConversationHistory.session_id)
+            .subquery()
+        )
+        records = (
+            db.query(ConversationHistory)
+            .filter(ConversationHistory.id.in_(latest_ids))
+            .all()
+        )
+        content_map = {r.session_id: r.content for r in records}
+
+        # 批量查点亮数
+        lit_rows = (
+            db.query(
+                MindmapNodeState.session_id,
+                func.count(MindmapNodeState.id).label("cnt"),
             )
-        return result
+            .filter(
+                MindmapNodeState.user_id == user["id"],
+                MindmapNodeState.session_id.in_(session_ids),
+                MindmapNodeState.is_lit == 1,
+            )
+            .group_by(MindmapNodeState.session_id)
+            .all()
+        )
+        lit_map = {r.session_id: r.cnt for r in lit_rows}
+
+        return [
+            SessionSummaryOut(
+                id=sess.id,
+                title=sess.title,
+                created_at=sess.created_at.isoformat(),
+                total_nodes=_parse_node_count(content_map.get(sess.id, "")),
+                lit_nodes=lit_map.get(sess.id, 0),
+                is_pinned=bool(getattr(sess, "is_pinned", 0)),
+                sort_order=getattr(sess, "sort_order", 0),
+            )
+            for sess in sessions
+        ]
 
 
 # ---------------------------------------------------------------------------

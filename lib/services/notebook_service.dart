@@ -97,11 +97,15 @@ class NotebookService {
     int noteId, {
     String? title,
     String? originalContent,
+    String? mistakeStatus,
+    Map<String, dynamic>? mistakeDetails,
   }) async {
     try {
       final res = await _dio.patch('${ApiConstants.notes}/$noteId', data: {
         'title': ?title,
         'original_content': ?originalContent,
+        'mistake_status': ?mistakeStatus,
+        'mistake_details': ?mistakeDetails,
       });
       return Note.fromJson(res.data);
     } on DioException catch (e) {
