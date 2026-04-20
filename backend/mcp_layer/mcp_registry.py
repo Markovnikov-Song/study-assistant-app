@@ -26,8 +26,10 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
-# 网络检测间隔（秒）
-_RECONNECT_INTERVAL = 30
+# 网络检测间隔（秒）- 从配置读取
+def _get_reconnect_interval() -> int:
+    from backend_config import get_config
+    return get_config().MCP_RECONNECT_INTERVAL_SECONDS
 
 
 class MCPRegistry:
@@ -319,13 +321,14 @@ class MCPRegistry:
             name="mcp-reconnect-monitor",
         )
         self._reconnect_thread.start()
-        logger.info("MCP 自动重连监听器已启动（间隔 %ds）", _RECONNECT_INTERVAL)
+        logger.info("MCP 自动重连监听器已启动（间隔 %ds）", _get_reconnect_interval())
 
     def stop_reconnect_monitor(self) -> None:
         """停止后台重连监听线程。"""
         self._stop_reconnect.set()
         if self._reconnect_thread is not None:
-            self._reconnect_thread.join(timeout=5)
+            from backend_config import get_config
+            self._reconnect_thread.join(timeout=get_config().MCP_STOP_MONITOR_TIMEOUT_SECONDS)
             self._reconnect_thread = None
 
     def set_network_available(self, available: bool) -> None:
@@ -341,7 +344,7 @@ class MCPRegistry:
 
     def _reconnect_loop(self) -> None:
         """后台重连循环：定期检测网络并重连失败的远程服务器。"""
-        while not self._stop_reconnect.wait(timeout=_RECONNECT_INTERVAL):
+        while not self._stop_reconnect.wait(timeout=_get_reconnect_interval()):
             self._check_and_reconnect()
 
     def _check_and_reconnect(self) -> None:

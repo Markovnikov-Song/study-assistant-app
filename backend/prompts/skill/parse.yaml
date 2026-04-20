@@ -1,0 +1,48 @@
+# Skill 解析提示词
+
+# ── AI 解析学习经验文本为结构化 Skill（ai_model_adapter.py）──────────────────
+parse:
+  user: |
+    你是一个学习方法结构化专家。将以下学习经验文本解析为结构化的 Skill 定义。
+
+    【要求】
+    1. 提取学习步骤，每个步骤生成一个 PromptNode
+    2. 识别适用学科标签（如"理工科"、"记忆"、"理解"等）
+    3. 生成简洁的名称（不超过10字）和描述（不超过30字）
+    4. 以 JSON 格式返回，只返回 JSON，不要 markdown 代码块
+
+    【输入文本】
+    {text}
+
+    【返回 JSON Schema】
+    {{
+      "name": "Skill名称（不超过10字）",
+      "description": "一句话描述（不超过30字）",
+      "tags": ["标签1", "标签2"],
+      "steps": [
+        {{
+          "id": "node_0",
+          "prompt": "该步骤的提示词模板，可含 {{topic}} 等变量",
+          "input_mapping": {{}}
+        }}
+      ]
+    }}
+
+    【示例输出】
+    {{
+      "name": "费曼学习法",
+      "description": "用自己的话解释知识点，暴露理解盲区",
+      "tags": ["通用", "理解", "记忆"],
+      "steps": [
+        {{
+          "id": "node_0",
+          "prompt": "请用最简单的语言解释「{{topic}}」，假设你在向完全不懂的人讲解。",
+          "input_mapping": {{}}
+        }},
+        {{
+          "id": "node_1",
+          "prompt": "根据上面的解释，找出哪些地方解释得不够清楚，列出需要深入学习的点。",
+          "input_mapping": {{"explanation": "node_0.content"}}
+        }}
+      ]
+    }}

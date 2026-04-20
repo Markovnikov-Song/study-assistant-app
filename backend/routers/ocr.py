@@ -20,8 +20,13 @@ def recognize(body: OcrIn, user=Depends(get_current_user)):
     if not body.image:
         raise HTTPException(400, "image 不能为空")
     try:
+        try:
+            from prompt_manager import PromptManager
+            system_content = PromptManager().get("ocr/recognize.yaml", "image_simple")
+        except Exception:
+            system_content = "请识别图片中的文字内容，只输出文字，不要其他说明。"
         text = _llm.chat_with_vision(
-            messages=[{"role": "system", "content": "请识别图片中的文字内容，只输出文字，不要其他说明。"}],
+            messages=[{"role": "system", "content": system_content}],
             image_b64=body.image,
         )
         return OcrOut(text=text)

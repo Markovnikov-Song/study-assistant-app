@@ -21,14 +21,12 @@ from skill_ecosystem.models import (
 
 def export_skill(skill_id: str) -> str:
     """
-    从内置 Skill 列表序列化为 JSON 字符串（含 schema_version）。
+    从 SkillRegistry 序列化为 JSON 字符串（含 schema_version）。
     若 skill_id 不存在则抛出 KeyError。
     需求 8.1、8.2。
     """
-    # 延迟导入避免循环依赖
-    from routers.agent import _SKILL_INDEX
-
-    raw = _SKILL_INDEX.get(skill_id)
+    from skill_registry import get_registry
+    raw = get_registry().get_skill(skill_id)
     if raw is None:
         raise KeyError(f"Skill '{skill_id}' 不存在")
 

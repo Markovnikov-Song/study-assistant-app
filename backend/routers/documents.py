@@ -5,10 +5,13 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from deps import get_current_user
 from services.document_service import DocumentService
+from backend_config import get_config
 
 router = APIRouter()
 _svc = DocumentService()
-_ALLOWED = {".pdf", ".docx", ".pptx", ".txt", ".md"}
+
+def _get_allowed() -> set[str]:
+    return get_config().document_allowed_extensions_set
 
 
 class DocOut(BaseModel):
@@ -32,8 +35,9 @@ def list_docs(subject_id: int, user=Depends(get_current_user)):
 @router.post("", status_code=202)
 async def upload(file: UploadFile = File(...), subject_id: int = Form(...), user=Depends(get_current_user)):
     ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in _ALLOWED:
-        raise HTTPException(400, f"不支持的文件格式：{ext}，支持：{', '.join(_ALLOWED)}")
+    allowed = _get_allowed()
+    if ext not in allowed:
+        raise HTTPException(400, f"不支持的文件格式：{ext}，支持：{', '.join(sorted(allowed))}")
     # 重复文件名检测
     existing = _svc.list_documents(subject_id=subject_id, user_id=user["id"])
     if any(d["filename"] == file.filename for d in existing):

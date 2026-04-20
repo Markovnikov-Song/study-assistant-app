@@ -205,18 +205,23 @@ def custom_mindmap(body: CustomMindMapIn, user=Depends(get_current_user)):
         from fastapi import HTTPException
         raise HTTPException(400, "主题不能为空")
 
-    prompt = (
-        "你是一个专业的知识结构分析助手。请根据以下主题或内容，生成一份结构清晰的思维导图（markmap 格式）。\n\n"
-        "输出要求：\n"
-        "1. 使用 Markdown 标题语法（# ## ### ####）表示层级\n"
-        "2. 第一行用 # 作为根节点，内容为主题名称\n"
-        "3. 二级节点（##）对应主要分支\n"
-        "4. 三级节点（###）对应核心概念\n"
-        "5. 四级节点（####）对应具体细节，最多四级\n"
-        "6. 每个节点简洁，不超过 15 个字\n"
-        "7. 只输出 Markdown 内容，不要有任何代码块标记或说明文字\n\n"
-        f"主题/内容：\n{topic}"
-    )
+    try:
+        from prompt_manager import PromptManager
+        base_prompt = PromptManager().get("mindmap/generate.yaml", "custom")
+        prompt = base_prompt + f"\n\n主题/内容：\n{topic}"
+    except Exception:
+        prompt = (
+            "你是一个专业的知识结构分析助手。请根据以下主题或内容，生成一份结构清晰的思维导图（markmap 格式）。\n\n"
+            "输出要求：\n"
+            "1. 使用 Markdown 标题语法（# ## ### ####）表示层级\n"
+            "2. 第一行用 # 作为根节点，内容为主题名称\n"
+            "3. 二级节点（##）对应主要分支\n"
+            "4. 三级节点（###）对应核心概念\n"
+            "5. 四级节点（####）对应具体细节，最多四级\n"
+            "6. 每个节点简洁，不超过 15 个字\n"
+            "7. 只输出 Markdown 内容，不要有任何代码块标记或说明文字\n\n"
+            f"主题/内容：\n{topic}"
+        )
 
     try:
         content = LLMService().chat([{"role": "user", "content": prompt}])

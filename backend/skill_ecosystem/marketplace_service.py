@@ -30,98 +30,48 @@ def _is_valid_skill(skill: MarketplaceSkillSchema) -> bool:
     return True
 
 
-# ── 预置内置 Skill（5 个）─────────────────────────────────────────────────────
+# ── 预置内置 Skill（从 SkillRegistry 加载，避免维护两份）────────────────────
 
 def _make_builtin_skills() -> dict[str, MarketplaceSkillSchema]:
+    """从 SkillRegistry 加载内置 Skill，转换为 MarketplaceSkillSchema 格式。"""
+    from skill_registry import get_registry
+
     skills: dict[str, MarketplaceSkillSchema] = {}
-
-    entries = [
-        {
-            "id": "mkt_feynman",
-            "name": "费曼学习法",
-            "description": "用自己的话解释知识点，暴露理解盲区，强化记忆",
-            "tags": ["通用", "理解", "记忆"],
-            "prompt_chain": [
-                PromptNodeSchema(id="n1", prompt="请用最简单的语言解释「{topic}」。"),
-                PromptNodeSchema(id="n2", prompt="找出解释中的逻辑漏洞，列出需要深入学习的点。",
-                                 input_mapping={"explanation": "n1.content"}),
-            ],
-            "download_count": 1280,
-            "type": "builtin",
-            "source": SkillSourceEnum.builtin,
-        },
-        {
-            "id": "mkt_spaced_rep",
-            "name": "间隔重复复习",
-            "description": "按艾宾浩斯遗忘曲线安排复习时间，最大化长期记忆效果",
-            "tags": ["通用", "记忆", "复习"],
-            "prompt_chain": [
-                PromptNodeSchema(id="n1", prompt="从「{content}」中提取 5-10 个核心知识点。"),
-                PromptNodeSchema(id="n2", prompt="为每个知识点生成一个测试问题。",
-                                 input_mapping={"points": "n1.content"}),
-            ],
-            "download_count": 980,
-            "type": "builtin",
-            "source": SkillSourceEnum.builtin,
-        },
-        {
-            "id": "mkt_problem_solving",
-            "name": "结构化解题",
-            "description": "按「考点→思路→步骤→踩分点→易错点」结构化拆解题目",
-            "tags": ["解题", "理工科", "考试"],
-            "prompt_chain": [
-                PromptNodeSchema(id="n1", prompt="分析题目「{problem}」，识别考查的核心知识点。"),
-                PromptNodeSchema(id="n2", prompt="给出完整解答，包含解题思路、步骤、踩分点、易错点。",
-                                 input_mapping={"analysis": "n1.content"}),
-            ],
-            "download_count": 756,
-            "type": "builtin",
-            "source": SkillSourceEnum.builtin,
-        },
-        {
-            "id": "mkt_mindmap",
-            "name": "思维导图学习",
-            "description": "将知识点可视化为思维导图，建立知识网络",
-            "tags": ["通用", "理解", "可视化"],
-            "prompt_chain": [
-                PromptNodeSchema(id="n1", prompt="将「{topic}」的知识体系整理为层级结构。"),
-                PromptNodeSchema(id="n2", prompt="生成 Markdown 格式的思维导图。",
-                                 input_mapping={"structure": "n1.content"}),
-            ],
-            "download_count": 612,
-            "type": "builtin",
-            "source": SkillSourceEnum.builtin,
-        },
-        {
-            "id": "mkt_exam_prep",
-            "name": "考前冲刺",
-            "description": "快速梳理高频考点，生成模拟题，针对性强化训练",
-            "tags": ["考试", "复习", "出题"],
-            "prompt_chain": [
-                PromptNodeSchema(id="n1", prompt="针对「{subject}」，列出最近三年高频考点。"),
-                PromptNodeSchema(id="n2", prompt="根据高频考点，生成 10 道模拟题。",
-                                 input_mapping={"hotspots": "n1.content"}),
-            ],
-            "download_count": 445,
-            "type": "builtin",
-            "source": SkillSourceEnum.builtin,
-        },
-    ]
-
     now = datetime.utcnow()
-    for entry in entries:
+
+    # 市场展示用的下载量（静态初始值）
+    _download_counts = {
+        "skill_feynman": 1280,
+        "skill_spaced_repetition": 980,
+        "skill_problem_solving": 756,
+        "skill_mindmap_learning": 612,
+        "skill_exam_prep": 445,
+    }
+
+    for raw in get_registry().list_skills():
+        skill_id = raw["id"]
+        # 市场 ID 用 mkt_ 前缀，与执行 ID 区分
+        mkt_id = "mkt_" + skill_id.replace("skill_", "")
+        prompt_chain = [
+            PromptNodeSchema(
+                id=node["id"],
+                prompt=node["prompt"],
+                input_mapping=node.get("inputMapping") or {},
+            )
+            for node in raw.get("promptChain", [])
+        ]
         skill = MarketplaceSkillSchema(
-            id=entry["id"],
-            name=entry["name"],
-            description=entry["description"],
-            tags=entry["tags"],
-            prompt_chain=entry["prompt_chain"],
-            required_components=[],
-            version="1.0.0",
+            id=mkt_id,
+            name=raw["name"],
+            description=raw["description"],
+            tags=raw.get("tags", []),
+            prompt_chain=prompt_chain,
+            required_components=raw.get("requiredComponents", []),
+            version=raw.get("version", "1.0.0"),
             created_at=now,
-            type=entry["type"],
-            source=entry["source"],
-            download_count=entry["download_count"],
+            type=raw.get("type", "builtin"),
+            source=SkillSourceEnum.builtin,
+            download_count=_download_counts.get(skill_id, 0),
             submitted_at=now,
         )
         skills[skill.id] = skill

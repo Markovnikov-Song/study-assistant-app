@@ -471,7 +471,8 @@ def create_lecture(body: LectureCreateIn, user=Depends(get_current_user)):
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(_generate)
-            result = future.result(timeout=120)
+            from backend_config import get_config
+            result = future.result(timeout=get_config().LIBRARY_LECTURE_GENERATE_TIMEOUT_SECONDS)
         return {"id": result["id"], "ok": True}
     except concurrent.futures.TimeoutError:
         raise HTTPException(504, "讲义生成超时，请重试")
@@ -590,7 +591,7 @@ def export_lecture(lecture_id: int, format: str = "docx", user=Depends(get_curre
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(_build_pdf)
-                pdf_bytes = future.result(timeout=90)
+                pdf_bytes = future.result(timeout=get_config().LIBRARY_PDF_EXPORT_TIMEOUT_SECONDS)
         except concurrent.futures.TimeoutError:
             raise HTTPException(504, "PDF 生成超时，请稍后重试")
         except Exception as e:

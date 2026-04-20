@@ -6,10 +6,13 @@ from pydantic import BaseModel
 from deps import get_current_user
 from services.exam_service import ExamService
 from database import get_session as db_session, PastExamQuestion
+from backend_config import get_config
 
 router = APIRouter()
 _svc = ExamService()
-_ALLOWED = {".pdf", ".jpg", ".jpeg", ".png", ".docx"}
+
+def _get_allowed() -> set[str]:
+    return get_config().past_exam_allowed_extensions_set
 
 
 class ExamFileOut(BaseModel):
@@ -42,7 +45,8 @@ def list_exams(subject_id: int, user=Depends(get_current_user)):
 @router.post("", status_code=202)
 async def upload(file: UploadFile = File(...), subject_id: int = Form(...), user=Depends(get_current_user)):
     ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in _ALLOWED:
+    allowed = _get_allowed()
+    if ext not in allowed:
         raise HTTPException(400, f"不支持的文件格式：{ext}")
     # 重复文件名检测
     existing = _svc.list_past_exam_files(subject_id=subject_id, user_id=user["id"])

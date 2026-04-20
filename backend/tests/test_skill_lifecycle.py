@@ -350,9 +350,11 @@ class TestSkillIOChain:
     def test_export_import_all_builtin_skills(self):
         """所有内置 Skill 均可导出并导入，字段一致（属性 13）。"""
         from skill_ecosystem.skill_io import export_skill, import_skill
-        from routers.agent import _SKILL_INDEX
+        from skill_registry import get_registry
 
-        for skill_id, original in _SKILL_INDEX.items():
+        for skill in get_registry().list_skills():
+            skill_id = skill["id"]
+            original = skill
             # 导出
             json_str = export_skill(skill_id)
             data = json.loads(json_str)

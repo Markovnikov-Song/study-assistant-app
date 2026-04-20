@@ -1,0 +1,228 @@
+# 内置 Skill 定义库
+# 每个 Skill 包含元数据 + promptChain（每个节点的 prompt 模板）
+# 变量用 {variable_name} 格式，由 AgentKernel 在运行时填充
+# version: "2.0" — 优化了所有节点的提示词，加入公式支持和结构化输出
+
+skills:
+
+  # ── 费曼学习法 ──────────────────────────────────────────────────────────────
+  - id: skill_feynman
+    name: 费曼学习法
+    description: 用自己的话解释知识点，暴露理解盲区，强化记忆
+    tags: [通用, 理解, 记忆]
+    requiredComponents: [chat]
+    version: "2.0"
+    type: builtin
+    promptChain:
+      - id: node_explain
+        prompt: |
+          请用最简单的语言解释「{topic}」，假设你在向一个完全不懂的人讲解。
+
+          要求：
+          - 不使用专业术语，用日常语言类比
+          - 如果涉及公式，先用文字说明含义，再写出公式（LaTeX 格式：行内 $...$）
+          - 长度控制在 200 字以内
+        inputMapping: {}
+
+      - id: node_identify_gaps
+        prompt: |
+          根据上面的解释，找出哪些地方解释得不够清楚或有逻辑漏洞。
+
+          请列出：
+          1. ⭐ 最关键的理解盲区（1-3个）
+          2. 每个盲区具体是什么概念没说清楚
+          3. 为什么这个盲区会导致理解偏差
+        inputMapping:
+          explanation: node_explain.content
+
+      - id: node_simplify
+        prompt: |
+          针对上面找出的理解盲区，用类比或具体例子重新解释，让解释更完整、更易懂。
+
+          要求：
+          - 每个盲区对应一个类比或例子
+          - 如有公式，用 LaTeX 写出并解释每个符号的含义
+          - ⭐ 最后用一句话总结「{topic}」的核心本质
+        inputMapping:
+          gaps: node_identify_gaps.content
+
+  # ── 间隔重复复习 ────────────────────────────────────────────────────────────
+  - id: skill_spaced_repetition
+    name: 间隔重复复习
+    description: 按艾宾浩斯遗忘曲线安排复习时间，最大化长期记忆效果
+    tags: [通用, 记忆, 复习]
+    requiredComponents: [chat, calendar]
+    version: "2.0"
+    type: builtin
+    promptChain:
+      - id: node_extract_points
+        prompt: |
+          从以下内容中提取 5-10 个核心知识点：
+          「{content}」
+
+          输出格式（每行一个）：
+          - **知识点名称**：一句话说明（如有公式用 LaTeX：$...$）
+
+          ⭐ 标记其中最重要的 2-3 个知识点。
+        inputMapping: {}
+
+      - id: node_create_questions
+        prompt: |
+          针对上面的知识点，为每个点生成一个测试问题。
+
+          题型选择：
+          - 概念类 → 问答题（"请解释...是什么"）
+          - 公式类 → 计算填空题（"已知...，求..."）
+          - 应用类 → 判断题或简答题
+
+          格式：
+          **Q{n}**（知识点名称）：题目内容
+          **参考答案**：答案（含公式用 LaTeX）
+        inputMapping:
+          points: node_extract_points.content
+
+      - id: node_schedule
+        prompt: |
+          根据艾宾浩斯遗忘曲线，为上面的知识点制定复习计划。
+
+          复习时间节点：今天、明天、3天后、7天后、14天后
+
+          输出格式：
+          | 时间 | 复习内容 | 预计时长 | 复习方式 |
+          |------|---------|---------|---------|
+          | 今天 | ... | ... | 精读+做题 |
+          | 明天 | ... | ... | 回忆+自测 |
+
+          ⭐ 标注哪些知识点遗忘风险最高，需要优先复习。
+        inputMapping:
+          questions: node_create_questions.content
+
+  # ── 结构化解题 ──────────────────────────────────────────────────────────────
+  - id: skill_problem_solving
+    name: 结构化解题
+    description: 按「考点→思路→步骤→踩分点→易错点」结构化拆解题目
+    tags: [解题, 理工科, 考试]
+    requiredComponents: [solve, mistake_book]
+    version: "2.0"
+    type: builtin
+    promptChain:
+      - id: node_analyze
+        prompt: |
+          分析以下题目，识别考查的核心知识点和题型：
+          「{problem}」
+
+          请输出：
+          ## 题型识别
+          ## ⭐ 核心考点（1-3个）
+          ## 涉及公式（用 LaTeX 列出，如 $\sigma = F/A$）
+          ## 解题方向（一句话）
+        inputMapping: {}
+
+      - id: node_solve
+        prompt: |
+          根据上面的分析，给出完整解答。
+
+          ## 解题思路
+          （简述思路，不超过3句）
+
+          ## 解题步骤
+          （逐步编号，每步写出完整推导，公式用 LaTeX：行内 $...$，块级 \[...\]）
+
+          ## ⭐ 踩分点
+          （列出最容易丢分的地方，加粗关键词）
+
+          ## 易错点
+          （列出常见错误及原因）
+        inputMapping:
+          analysis: node_analyze.content
+
+  # ── 思维导图学习 ────────────────────────────────────────────────────────────
+  - id: skill_mindmap_learning
+    name: 思维导图学习
+    description: 将知识点可视化为思维导图，建立知识网络
+    tags: [通用, 理解, 可视化]
+    requiredComponents: [mindmap]
+    version: "2.0"
+    type: builtin
+    promptChain:
+      - id: node_structure
+        prompt: |
+          将「{topic}」的知识体系整理为层级结构。
+
+          请识别：
+          1. **主干概念**（最核心的 3-5 个）
+          2. **分支概念**（每个主干下的 2-4 个子概念）
+          3. **概念间的关系**（并列/递进/因果）
+          4. ⭐ 标注哪些概念是理解其他概念的前提
+
+          如有关键公式，在对应概念旁标注（LaTeX 格式）。
+        inputMapping: {}
+
+      - id: node_mindmap
+        prompt: |
+          根据上面的知识结构，生成 Markdown 格式的思维导图（markmap 格式）。
+
+          规则：
+          - 使用 # ## ### #### 表示层级，最多四级
+          - 第一行 # 为根节点，内容为「{topic}」
+          - 关键公式用 LaTeX 内联：$...$
+          - ⭐ 标记重点/难点节点（每章最多 2 个）
+          - 只输出 Markdown，不要代码块标记
+        inputMapping:
+          structure: node_structure.content
+
+  # ── 考前冲刺 ────────────────────────────────────────────────────────────────
+  - id: skill_exam_prep
+    name: 考前冲刺
+    description: 快速梳理高频考点，生成模拟题，针对性强化训练
+    tags: [考试, 复习, 出题]
+    requiredComponents: [quiz, chat]
+    version: "2.0"
+    type: builtin
+    promptChain:
+      - id: node_hotspots
+        prompt: |
+          针对「{subject}」，列出最近三年高频考点，按重要性排序。
+
+          输出格式：
+          | 考点 | 频率 | 重要性 | 常考题型 |
+          |------|------|--------|---------|
+          | ⭐ 考点名称 | 高/中/低 | ★★★ | 计算题 |
+
+          同时列出每个考点的核心公式（LaTeX 格式）。
+        inputMapping: {}
+
+      - id: node_quiz
+        prompt: |
+          根据上面的高频考点，生成 10 道模拟题。
+
+          题型分布：
+          - 选择题 5 道（每题 4 个选项，标注正确答案）
+          - 简答题 3 道（附参考答案要点）
+          - ⭐ 计算题 2 道（附完整解题步骤，公式用 LaTeX）
+
+          难度分布：简单 3 道、中等 5 道、困难 2 道。
+        inputMapping:
+          hotspots: node_hotspots.content
+
+      - id: node_strategy
+        prompt: |
+          根据上面的考点分析和模拟题，给出考前 3 天的复习策略。
+
+          输出格式：
+          ## 第1天（考前3天）：夯实基础
+          - 重点复习：...
+          - 时间分配：...
+
+          ## 第2天（考前2天）：强化重点
+          - 重点复习：...
+          - 时间分配：...
+
+          ## 第3天（考前1天）：查漏补缺
+          - 重点复习：...
+          - 时间分配：...
+
+          ## ⭐ 最后提醒
+          （3条最重要的注意事项）
+        inputMapping:
+          quiz: node_quiz.content

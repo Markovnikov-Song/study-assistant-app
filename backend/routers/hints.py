@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from database import ConversationHistory, ConversationSession, HintSuggestion, Subject, get_session
 from deps import get_current_user
+from backend_config import get_config
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -106,12 +107,22 @@ def _call_llm(user_id: int, subject_id: int, hint_type: str) -> Optional[List[st
 
     if hint_type == "qa":
         task_desc = "问答（理解概念、总结知识点、解释原理）"
-        example = "帮我理解{subject}中的XXX概念"
+        example = f"帮我理解{subject_name}中的XXX概念"
     else:
         task_desc = "解题（计算、证明、分析题目）"
-        example = "求解这道{subject}题：XXX"
+        example = f"求解这道{subject_name}题：XXX"
 
-    prompt = f"""你是一个学习助手。用户正在学习「{subject_name}」，以下是他最近的{task_desc}历史提问：
+    try:
+        from prompt_manager import PromptManager
+        prompt = PromptManager().get(
+            "hints/suggest.yaml", "suggest", field="user",
+            subject_name=subject_name,
+            task_desc=task_desc,
+            history_text=history_text,
+            example=example,
+        )
+    except Exception:
+        prompt = f"""你是一个学习助手。用户正在学习「{subject_name}」，以下是他最近的{task_desc}历史提问：
 
 {history_text}
 
@@ -123,16 +134,17 @@ def _call_llm(user_id: int, subject_id: int, hint_type: str) -> Optional[List[st
 4. 直接输出 3 行，每行一条，不要编号、不要解释
 
 示例格式（仅供参考，请替换为真实内容）：
-{example.format(subject=subject_name)}
+{example}
 """
 
     result = LLMService().chat(
         [{"role": "user", "content": prompt}],
-        max_tokens=200,
-        temperature=0.8,
+        max_tokens=get_config().LLM_HINTS_MAX_TOKENS,
+        temperature=get_config().LLM_HINTS_TEMPERATURE,
     )
 
     lines = [l.strip() for l in result.strip().splitlines() if l.strip()]
-    # 最多取 3 条，过滤掉太长的
-    hints = [l for l in lines if len(l) <= 40][:3]
+    # 最多取 N 条，过滤掉太长的
+    cfg = get_config()
+    hints = [l for l in lines if len(l) <= cfg.HINTS_MAX_CHARS][:cfg.HINTS_COUNT]
     return hints if hints else None

@@ -59,7 +59,7 @@ class StrategyIn(BaseModel):
     user_profile: str
     agenda: str
     other_opinions: str = ""
-    deviation_threshold: int = 20
+    deviation_threshold: int = -1  # -1 表示使用配置默认值
 
 
 class ScheduleIn(BaseModel):
@@ -271,6 +271,9 @@ def advisor_schedule(body: ScheduleIn, user=Depends(get_current_user)):
 def subject_execute(body: SubjectExecuteIn, user=Depends(get_current_user)):
     """各科老师执行 Skill：按 Skill 的 PromptChain 教学。"""
     from services.llm_service import LLMService
+    from backend_config import get_config
+
+    cfg = get_config()
 
     _SUBJECT_TEACHER_PROMPT = """你是{subject_name}老师，负责辅导学生学习{subject_name}。
 
@@ -290,13 +293,24 @@ def subject_execute(body: SubjectExecuteIn, user=Depends(get_current_user)):
 本节课目标：{lesson_goal}
 学生薄弱点：{weak_points}"""
 
-    system_prompt = _SUBJECT_TEACHER_PROMPT.format(
-        subject_name=body.subject_name,
-        skill_name=body.skill_name,
-        error_rate=body.error_rate,
-        lesson_goal=body.lesson_goal,
-        weak_points=body.weak_points,
-    )
+    try:
+        from prompt_manager import PromptManager
+        system_prompt = PromptManager().get(
+            "council/agents.yaml", "subject_teacher",
+            subject_name=body.subject_name,
+            skill_name=body.skill_name,
+            error_rate=body.error_rate,
+            lesson_goal=body.lesson_goal,
+            weak_points=body.weak_points,
+        )
+    except Exception:
+        system_prompt = _SUBJECT_TEACHER_PROMPT.format(
+            subject_name=body.subject_name,
+            skill_name=body.skill_name,
+            error_rate=body.error_rate,
+            lesson_goal=body.lesson_goal,
+            weak_points=body.weak_points,
+        )
 
     try:
         llm = LLMService()
@@ -307,7 +321,7 @@ def subject_execute(body: SubjectExecuteIn, user=Depends(get_current_user)):
                 {"role": "user", "content": f"请开始今天的{body.subject_name}课，目标：{body.lesson_goal}"},
             ],
             model=model,
-            max_tokens=1500,
+            max_tokens=cfg.LLM_COUNCIL_SUBJECT_TEACHER_MAX_TOKENS,
         )
         return {
             "subject_name": body.subject_name,
@@ -329,6 +343,9 @@ def companion_observe(body: CompanionObserveIn, user=Depends(get_current_user)):
     返回：用户可见的同桌消息 + 内部 FeedbackSignal 列表。
     """
     from services.llm_service import LLMService
+    from backend_config import get_config
+
+    cfg = get_config()
 
     _COMPANION_PROMPT = """你是用户的同桌，陪伴他一起学习。
 
@@ -352,17 +369,27 @@ def companion_observe(body: CompanionObserveIn, user=Depends(get_current_user)):
 请用轻松的口吻给用户一句话反馈，同时以 JSON 格式输出 feedback_signals 列表：
 {{"message": "...", "feedback_signals": [{{"level": "fast|medium|slow", "subject_id": "...", "message": "..."}}]}}"""
 
-    prompt = _COMPANION_PROMPT.format(
-        focus_minutes=body.focus_minutes,
-        mistake_count=body.mistake_count,
-        emotion_keywords=body.emotion_keywords or "无",
-        declining_subjects=body.declining_subjects or "无",
-    )
+    try:
+        from prompt_manager import PromptManager
+        prompt = PromptManager().get(
+            "council/agents.yaml", "companion", field="user",
+            focus_minutes=body.focus_minutes,
+            mistake_count=body.mistake_count,
+            emotion_keywords=body.emotion_keywords or "无",
+            declining_subjects=body.declining_subjects or "无",
+        )
+    except Exception:
+        prompt = _COMPANION_PROMPT.format(
+            focus_minutes=body.focus_minutes,
+            mistake_count=body.mistake_count,
+            emotion_keywords=body.emotion_keywords or "无",
+            declining_subjects=body.declining_subjects or "无",
+        )
 
     try:
         llm = LLMService()
         model = llm.get_model_for_scene("fast")
-        raw = llm.chat([{"role": "user", "content": prompt}], model=model, max_tokens=500)
+        raw = llm.chat([{"role": "user", "content": prompt}], model=model, max_tokens=cfg.LLM_COUNCIL_FEEDBACK_MAX_TOKENS)
 
         # 解析 JSON
         raw = raw.strip()
@@ -380,8 +407,8 @@ def companion_observe(body: CompanionObserveIn, user=Depends(get_current_user)):
         logger.warning("同桌观察 AI 失败，返回默认消息: %s", e)
         # 硬编码兜底：AI 不可用时返回默认消息
         return {
-            "message": _default_companion_message(body),
-            "feedback_signals": _default_feedback_signals(body),
+            "message": _default_companion_message(body, cfg),
+            "feedback_signals": _default_feedback_signals(body, cfg),
             "agent_role": "companion",
             "degraded": True,
         }
@@ -398,6 +425,12 @@ def _call_principal(
     context: dict,
 ) -> AgentOpinionOut:
     """调用校长 Agent，返回 AgentOpinion。"""
+    from backend_config import get_config
+    cfg = get_config()
+    deviation_threshold = context.get("deviation_threshold", -1)
+    if deviation_threshold == -1:
+        deviation_threshold = cfg.COUNCIL_DEVIATION_THRESHOLD_PERCENT
+
     _PRINCIPAL_PROMPT = """你是一个学习系统的校长，负责制定长期学习目标和整体策略。
 
 【身份与风格】
@@ -420,18 +453,28 @@ def _call_principal(
 
 请以 JSON 格式输出：{{"summary": "...", "action_items": {{}}}}"""
 
-    prompt = _PRINCIPAL_PROMPT.format(
-        deviation_threshold=context.get("deviation_threshold", 20),
-        user_profile=user_profile,
-        agenda=agenda,
-        other_opinions=other_opinions or "暂无",
-    )
+    try:
+        from prompt_manager import PromptManager
+        prompt = PromptManager().get(
+            "council/agents.yaml", "principal",
+            deviation_threshold=deviation_threshold,
+            user_profile=user_profile,
+            agenda=agenda,
+            other_opinions=other_opinions or "暂无",
+        )
+    except Exception:
+        prompt = _PRINCIPAL_PROMPT.format(
+            deviation_threshold=deviation_threshold,
+            user_profile=user_profile,
+            agenda=agenda,
+            other_opinions=other_opinions or "暂无",
+        )
 
     model = llm.get_model_for_scene("heavy")
     content = llm.chat(
         [{"role": "system", "content": "你是学习系统的校长。"}, {"role": "user", "content": prompt}],
         model=model,
-        max_tokens=800,
+        max_tokens=cfg.LLM_COUNCIL_PRINCIPAL_MAX_TOKENS,
     )
     return AgentOpinionOut(agent_id="principal", role="principal", content=content)
 
@@ -444,6 +487,9 @@ def _call_advisor(
     context: dict,
 ) -> AgentOpinionOut:
     """调用班主任 Agent，返回 AgentOpinion。"""
+    from backend_config import get_config
+    cfg = get_config()
+
     _ADVISOR_PROMPT = """你是学生的班主任，负责将战略目标转化为具体的学习计划。
 
 【职责边界】
@@ -462,23 +508,34 @@ def _call_advisor(
 
 请以 JSON 格式输出调整后的计划建议：{{"summary": "...", "action_items": {{}}}}"""
 
-    prompt = _ADVISOR_PROMPT.format(
-        current_plan=current_plan,
-        subject_progress=subject_progress,
-        companion_feedback=companion_feedback or "暂无",
-    )
+    try:
+        from prompt_manager import PromptManager
+        prompt = PromptManager().get(
+            "council/agents.yaml", "advisor",
+            current_plan=current_plan,
+            subject_progress=subject_progress,
+            companion_feedback=companion_feedback or "暂无",
+        )
+    except Exception:
+        prompt = _ADVISOR_PROMPT.format(
+            current_plan=current_plan,
+            subject_progress=subject_progress,
+            companion_feedback=companion_feedback or "暂无",
+        )
 
     model = llm.get_model_for_scene("heavy")
     content = llm.chat(
         [{"role": "system", "content": "你是学生的班主任。"}, {"role": "user", "content": prompt}],
         model=model,
-        max_tokens=800,
+        max_tokens=cfg.LLM_COUNCIL_ADVISOR_MAX_TOKENS,
     )
     return AgentOpinionOut(agent_id="class_advisor", role="class_advisor", content=content)
 
 
 def _synthesize_decision(llm: Any, topic: str, opinions: list[AgentOpinionOut]) -> str:
     """合成多个 Agent 意见为最终决策摘要。"""
+    from backend_config import get_config
+    cfg = get_config()
     if not opinions:
         return f"议题「{topic}」已记录，暂无 Agent 意见。"
 
@@ -493,30 +550,36 @@ def _synthesize_decision(llm: Any, topic: str, opinions: list[AgentOpinionOut]) 
 
     try:
         model = llm.get_model_for_scene("fast")
-        return llm.chat([{"role": "user", "content": prompt}], model=model, max_tokens=200)
+        return llm.chat([{"role": "user", "content": prompt}], model=model, max_tokens=cfg.LLM_COUNCIL_DECISION_MAX_TOKENS)
     except Exception:
         return opinions[0].content[:200] if opinions else f"议题「{topic}」已处理。"
 
 
 def _fast_feedback_to_subject(llm: Any, signal: FeedbackSignalIn) -> str:
+    from backend_config import get_config
+    cfg = get_config()
     prompt = f"""作为{signal.subject_id}老师，收到同桌的快速反馈：{signal.message}
 请用一句话说明你会如何立即调整教学方式。"""
     model = llm.get_model_for_scene("fast")
-    return llm.chat([{"role": "user", "content": prompt}], model=model, max_tokens=100)
+    return llm.chat([{"role": "user", "content": prompt}], model=model, max_tokens=cfg.LLM_COUNCIL_FEEDBACK_MAX_TOKENS)
 
 
 def _medium_feedback_to_advisor(llm: Any, signal: FeedbackSignalIn) -> str:
+    from backend_config import get_config
+    cfg = get_config()
     prompt = f"""作为班主任，收到同桌的每日反馈：{signal.message}（学科：{signal.subject_id}）
 请用一句话说明是否需要调整今日计划。"""
     model = llm.get_model_for_scene("fast")
-    return llm.chat([{"role": "user", "content": prompt}], model=model, max_tokens=100)
+    return llm.chat([{"role": "user", "content": prompt}], model=model, max_tokens=cfg.LLM_COUNCIL_FEEDBACK_MAX_TOKENS)
 
 
 def _slow_feedback_to_principal(llm: Any, signal: FeedbackSignalIn) -> str:
+    from backend_config import get_config
+    cfg = get_config()
     prompt = f"""作为校长，收到同桌的每周反馈：{signal.message}（学科：{signal.subject_id}）
 请用一句话说明是否需要调整整体战略。"""
     model = llm.get_model_for_scene("fast")
-    return llm.chat([{"role": "user", "content": prompt}], model=model, max_tokens=100)
+    return llm.chat([{"role": "user", "content": prompt}], model=model, max_tokens=cfg.LLM_COUNCIL_FEEDBACK_MAX_TOKENS)
 
 
 def _feedback_target(level: str) -> str:
@@ -536,25 +599,31 @@ def _parse_action_items(content: str) -> dict:
         return {}
 
 
-def _default_companion_message(body: CompanionObserveIn) -> str:
+def _default_companion_message(body: CompanionObserveIn, cfg=None) -> str:
     """AI 不可用时的硬编码同桌消息。"""
-    if body.mistake_count > 5:
+    if cfg is None:
+        from backend_config import get_config
+        cfg = get_config()
+    if body.mistake_count > cfg.COMPANION_MISTAKE_THRESHOLD:
         return f"今天错了 {body.mistake_count} 道题，要不要休息一下再继续？"
-    if body.focus_minutes < 30:
+    if body.focus_minutes < cfg.COMPANION_FOCUS_MINUTES_CRITICAL:
         return "今天专注时间有点短，明天加油！"
     return f"今天专注了 {body.focus_minutes} 分钟，不错！"
 
 
-def _default_feedback_signals(body: CompanionObserveIn) -> list[dict]:
+def _default_feedback_signals(body: CompanionObserveIn, cfg=None) -> list[dict]:
     """AI 不可用时的硬编码反馈信号。"""
+    if cfg is None:
+        from backend_config import get_config
+        cfg = get_config()
     signals = []
-    if body.mistake_count > 5:
+    if body.mistake_count > cfg.COMPANION_MISTAKE_THRESHOLD:
         signals.append({
             "level": "fast",
             "subject_id": "unknown",
             "message": f"错题数较多（{body.mistake_count}），建议调整讲解方式",
         })
-    if body.focus_minutes < 20:
+    if body.focus_minutes < cfg.COMPANION_FOCUS_MINUTES_WARN:
         signals.append({
             "level": "medium",
             "subject_id": "unknown",

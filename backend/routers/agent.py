@@ -16,138 +16,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from deps import get_current_user
+from skill_registry import get_registry as get_skill_registry
 
 router = APIRouter()
-
-# ── 内置 Skill 定义 ────────────────────────────────────────────────────────────
-# 当前阶段：Skill 库硬编码在后端，后续迁移到数据库。
-# 每个 Skill 包含 id、name、description、tags、promptChain、requiredComponents。
-
-_BUILTIN_SKILLS: list[dict] = [
-    {
-        "id": "skill_feynman",
-        "name": "费曼学习法",
-        "description": "用自己的话解释知识点，暴露理解盲区，强化记忆",
-        "tags": ["通用", "理解", "记忆"],
-        "promptChain": [
-            {
-                "id": "node_explain",
-                "prompt": "请用最简单的语言解释「{topic}」，假设你在向一个完全不懂的人讲解。",
-                "inputMapping": {},
-            },
-            {
-                "id": "node_identify_gaps",
-                "prompt": "根据上面的解释，找出哪些地方解释得不够清楚或有逻辑漏洞，列出需要深入学习的点。",
-                "inputMapping": {"explanation": "node_explain.content"},
-            },
-            {
-                "id": "node_simplify",
-                "prompt": "针对上面找出的薄弱点，用类比或例子重新解释，让解释更完整、更易懂。",
-                "inputMapping": {"gaps": "node_identify_gaps.content"},
-            },
-        ],
-        "requiredComponents": ["chat"],
-        "version": "1.0.0",
-        "type": "builtin",
-    },
-    {
-        "id": "skill_spaced_repetition",
-        "name": "间隔重复复习",
-        "description": "按艾宾浩斯遗忘曲线安排复习时间，最大化长期记忆效果",
-        "tags": ["通用", "记忆", "复习"],
-        "promptChain": [
-            {
-                "id": "node_extract_points",
-                "prompt": "从「{content}」中提取 5-10 个核心知识点，每个知识点用一句话概括。",
-                "inputMapping": {},
-            },
-            {
-                "id": "node_create_questions",
-                "prompt": "针对上面的知识点，为每个点生成一个测试问题（问答题或填空题）。",
-                "inputMapping": {"points": "node_extract_points.content"},
-            },
-            {
-                "id": "node_schedule",
-                "prompt": "根据间隔重复原理，建议今天、明天、3天后、7天后、14天后各复习哪些知识点。",
-                "inputMapping": {"questions": "node_create_questions.content"},
-            },
-        ],
-        "requiredComponents": ["chat", "calendar"],
-        "version": "1.0.0",
-        "type": "builtin",
-    },
-    {
-        "id": "skill_problem_solving",
-        "name": "结构化解题",
-        "description": "按「考点→思路→步骤→踩分点→易错点」结构化拆解题目",
-        "tags": ["解题", "理工科", "考试"],
-        "promptChain": [
-            {
-                "id": "node_analyze",
-                "prompt": "分析题目「{problem}」，识别考查的核心知识点和题型。",
-                "inputMapping": {},
-            },
-            {
-                "id": "node_solve",
-                "prompt": "按「解题思路 → 详细步骤 → 踩分点 → 易错点」格式给出完整解答。",
-                "inputMapping": {"analysis": "node_analyze.content"},
-            },
-        ],
-        "requiredComponents": ["solve", "mistake_book"],
-        "version": "1.0.0",
-        "type": "builtin",
-    },
-    {
-        "id": "skill_mindmap_learning",
-        "name": "思维导图学习",
-        "description": "将知识点可视化为思维导图，建立知识网络",
-        "tags": ["通用", "理解", "可视化"],
-        "promptChain": [
-            {
-                "id": "node_structure",
-                "prompt": "将「{topic}」的知识体系整理为层级结构，识别主干概念和分支概念。",
-                "inputMapping": {},
-            },
-            {
-                "id": "node_mindmap",
-                "prompt": "根据上面的结构，生成 Markdown 格式的思维导图（用 # ## ### 表示层级）。",
-                "inputMapping": {"structure": "node_structure.content"},
-            },
-        ],
-        "requiredComponents": ["mindmap"],
-        "version": "1.0.0",
-        "type": "builtin",
-    },
-    {
-        "id": "skill_exam_prep",
-        "name": "考前冲刺",
-        "description": "快速梳理高频考点，生成模拟题，针对性强化训练",
-        "tags": ["考试", "复习", "出题"],
-        "promptChain": [
-            {
-                "id": "node_hotspots",
-                "prompt": "针对「{subject}」，列出最近三年高频考点，按重要性排序。",
-                "inputMapping": {},
-            },
-            {
-                "id": "node_quiz",
-                "prompt": "根据上面的高频考点，生成 10 道模拟题（选择题 5 道 + 简答题 5 道）。",
-                "inputMapping": {"hotspots": "node_hotspots.content"},
-            },
-            {
-                "id": "node_strategy",
-                "prompt": "给出考前 3 天的复习策略，包括时间分配和重点攻克顺序。",
-                "inputMapping": {"quiz": "node_quiz.content"},
-            },
-        ],
-        "requiredComponents": ["quiz", "chat"],
-        "version": "1.0.0",
-        "type": "builtin",
-    },
-]
-
-# 快速查找索引
-_SKILL_INDEX: dict[str, dict] = {s["id"]: s for s in _BUILTIN_SKILLS}
 
 
 # ── Pydantic 模型 ──────────────────────────────────────────────────────────────
@@ -212,12 +83,17 @@ def resolve_intent(body: ResolveIntentIn, user=Depends(get_current_user)):
         raise HTTPException(400, "意图文本不能为空")
 
     # 构建 Skill 摘要供 LLM 参考
-    skill_summaries = "\n".join(
-        f"- {s['id']}：{s['name']}（{s['description']}）[标签: {', '.join(s['tags'])}]"
-        for s in _BUILTIN_SKILLS
-    )
+    skill_summaries = get_skill_registry().summaries()
 
-    prompt = f"""你是一个学习助手，根据用户的学习需求，从以下 Skill 列表中推荐最合适的 1-3 个 Skill。
+    try:
+        from prompt_manager import PromptManager
+        prompt = PromptManager().get(
+            "agent/skill.yaml", "recommend_skill", field="user",
+            skill_summaries=skill_summaries,
+            user_text=text,
+        )
+    except Exception:
+        prompt = f"""你是一个学习助手，根据用户的学习需求，从以下 Skill 列表中推荐最合适的 1-3 个 Skill。
 
 可用 Skill 列表：
 {skill_summaries}
@@ -247,10 +123,11 @@ def resolve_intent(body: ResolveIntentIn, user=Depends(get_current_user)):
     try:
         llm = LLMService()
         model = llm.get_model_for_scene("fast")
+        from backend_config import get_config
         raw = llm.chat(
             [{"role": "user", "content": prompt}],
             model=model,
-            max_tokens=500,
+            max_tokens=get_config().LLM_SKILL_RECOMMEND_MAX_TOKENS,
         )
     except RuntimeError as e:
         raise HTTPException(502, f"AI 服务暂时不可用：{e}")
@@ -273,9 +150,10 @@ def resolve_intent(body: ResolveIntentIn, user=Depends(get_current_user)):
 
     # 构建推荐列表，只返回 Skill 库中存在的 Skill
     recommendations: list[SkillRecommendation] = []
+    registry = get_skill_registry()
     for rec in (data.get("recommendations") or [])[:3]:
         skill_id = rec.get("skill_id", "")
-        skill = _SKILL_INDEX.get(skill_id)
+        skill = registry.get_skill(skill_id)
         if not skill:
             continue
         rationale = str(rec.get("rationale", ""))[:50]  # 强制截断到 50 字
@@ -329,7 +207,7 @@ def execute_node(body: ExecuteNodeIn, user=Depends(get_current_user)):
         result = registry.call_tool(
             tool_ref=tool_ref,
             arguments=tool_args,
-            timeout_seconds=10.0,
+            timeout_seconds=get_config().AGENT_EXECUTE_NODE_TIMEOUT_SECONDS,
         )
 
         if not result.success or result.degraded:
@@ -365,7 +243,12 @@ def execute_node(body: ExecuteNodeIn, user=Depends(get_current_user)):
             rendered_prompt = rendered_prompt.replace(placeholder, str(value))
 
     # ── 阶段三：调用 LLM 执行 PromptNode ─────────────────────────────────────
-    system_parts = ["你是一个专业的学习助手，帮助学生高效学习。"]
+    system_parts = []
+    try:
+        from prompt_manager import PromptManager
+        system_parts.append(PromptManager().get("agent/skill.yaml", "execute_node"))
+    except Exception:
+        system_parts.append("你是一个专业的学习助手，帮助学生高效学习。")
     if body.subject_id:
         try:
             from database import Subject, get_session as db_session
@@ -381,13 +264,14 @@ def execute_node(body: ExecuteNodeIn, user=Depends(get_current_user)):
     try:
         llm = LLMService()
         model = llm.get_model_for_scene("heavy")
+        from backend_config import get_config
         content = llm.chat(
             [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": rendered_prompt},
             ],
             model=model,
-            max_tokens=2000,
+            max_tokens=get_config().LLM_EXECUTE_NODE_MAX_TOKENS,
         )
     except RuntimeError as e:
         # 需求 2.6：节点失败返回 500，Flutter 端会捕获并抛出 SkillExecutionError
@@ -418,25 +302,14 @@ def list_skills(
     查询 Skill 列表，支持按标签和关键词过滤。
     需求 1.6：支持按学科标签、名称关键词过滤。
     """
-    skills = list(_BUILTIN_SKILLS)
-
-    if tag:
-        skills = [s for s in skills if tag in s["tags"]]
-
-    if keyword:
-        kw = keyword.lower()
-        skills = [
-            s for s in skills
-            if kw in s["name"].lower() or kw in s["description"].lower()
-        ]
-
+    skills = get_skill_registry().filter(tag=tag, keyword=keyword)
     return {"skills": skills, "total": len(skills)}
 
 
 @router.get("/skills/{skill_id}")
 def get_skill(skill_id: str, user=Depends(get_current_user)):
     """获取单个 Skill 详情。"""
-    skill = _SKILL_INDEX.get(skill_id)
+    skill = get_skill_registry().get_skill(skill_id)
     if not skill:
         raise HTTPException(404, f"Skill '{skill_id}' 不存在")
     return skill

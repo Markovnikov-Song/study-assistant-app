@@ -77,8 +77,13 @@ class AIModelAdapter:
         记录：模型名称、耗时、输入字符数、输出节点数。
         """
         from services.llm_service import LLMService
+        from backend_config import get_config
 
-        prompt = self.PARSE_PROMPT_TEMPLATE.replace("{text}", text)
+        try:
+            from prompt_manager import PromptManager
+            prompt = PromptManager().get("skill/parse.yaml", "parse", field="user", text=text)
+        except Exception:
+            prompt = self.PARSE_PROMPT_TEMPLATE.replace("{text}", text)
         model_name = "unknown"
         start = time.time()
 
@@ -88,7 +93,7 @@ class AIModelAdapter:
             raw = llm.chat(
                 [{"role": "user", "content": prompt}],
                 model=model_name,
-                max_tokens=1000,
+                max_tokens=get_config().LLM_SKILL_PARSE_MAX_TOKENS,
             )
 
             # 去掉可能的 markdown 代码块包裹

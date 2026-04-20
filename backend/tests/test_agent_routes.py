@@ -21,9 +21,9 @@ import pytest
 
 class TestBuiltinSkills:
     def setup_method(self):
-        from routers.agent import _BUILTIN_SKILLS, _SKILL_INDEX
-        self.skills = _BUILTIN_SKILLS
-        self.index = _SKILL_INDEX
+        from skill_registry import get_registry
+        self.registry = get_registry()
+        self.skills = self.registry.list_skills()
 
     def test_five_builtin_skills_exist(self):
         assert len(self.skills) == 5
@@ -39,24 +39,23 @@ class TestBuiltinSkills:
             assert len(skill["promptChain"]) > 0, f"Skill {skill['id']} 的 promptChain 为空"
 
     def test_skill_index_matches_list(self):
-        assert len(self.index) == len(self.skills)
         for skill in self.skills:
-            assert skill["id"] in self.index
+            indexed = self.registry.get_skill(skill["id"])
+            assert indexed is not None
 
     def test_feynman_skill_exists(self):
-        assert "skill_feynman" in self.index
-        assert self.index["skill_feynman"]["name"] == "费曼学习法"
+        skill = self.registry.get_skill("skill_feynman")
+        assert skill is not None
+        assert skill["name"] == "费曼学习法"
 
     def test_filter_by_tag(self):
-        from routers.agent import _BUILTIN_SKILLS
         tag = "通用"
-        filtered = [s for s in _BUILTIN_SKILLS if tag in s["tags"]]
+        filtered = self.registry.filter(tag=tag)
         assert len(filtered) >= 2
 
     def test_filter_by_keyword(self):
-        from routers.agent import _BUILTIN_SKILLS
         kw = "费曼"
-        filtered = [s for s in _BUILTIN_SKILLS if kw in s["name"].lower() or kw in s["description"].lower()]
+        filtered = self.registry.filter(keyword=kw)
         assert len(filtered) >= 1
 
 
@@ -116,11 +115,11 @@ class TestSkillIOEndpoints:
 
     def test_all_builtin_skills_exportable(self):
         from skill_ecosystem.skill_io import export_skill
-        from routers.agent import _SKILL_INDEX
-        for skill_id in _SKILL_INDEX:
-            json_str = export_skill(skill_id)
+        from skill_registry import get_registry
+        for skill in get_registry().list_skills():
+            json_str = export_skill(skill["id"])
             data = json.loads(json_str)
-            assert data["id"] == skill_id
+            assert data["id"] == skill["id"]
 
 
 # ── MCP 工具引用格式测试 ───────────────────────────────────────────────────────

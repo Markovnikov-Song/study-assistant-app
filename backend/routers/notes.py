@@ -188,7 +188,13 @@ def generate_title(note_id: int, user=Depends(get_current_user)):
         if not content or not content.strip():
             raise HTTPException(400, "笔记内容为空，无法生成标题")
 
-        prompt = f"""请根据以下笔记内容，生成一个不超过30字的标题和不超过5条提纲要点。
+        try:
+            from prompt_manager import PromptManager
+            prompt = PromptManager().get(
+                "notes/manage.yaml", "generate_title", field="user", content=content
+            )
+        except Exception:
+            prompt = f"""请根据以下笔记内容，生成一个不超过30字的标题和不超过5条提纲要点。
 
 笔记内容：
 {content}
@@ -297,7 +303,13 @@ def polish_note(note_id: int, user=Depends(get_current_user)):
         if not content:
             raise HTTPException(400, "笔记内容为空，无法润色")
 
-    prompt = f"""请对以下学习笔记进行润色和优化，要求：
+    try:
+        from prompt_manager import PromptManager
+        prompt = PromptManager().get(
+            "notes/manage.yaml", "polish", field="user", content=content
+        )
+    except Exception:
+        prompt = f"""请对以下学习笔记进行润色和优化，要求：
 1. 保持原意不变，不添加新内容
 2. 改善语言表达，使其更清晰流畅
 3. 修正语法错误和不通顺的句子
@@ -309,10 +321,12 @@ def polish_note(note_id: int, user=Depends(get_current_user)):
 
     try:
         from services.llm_service import LLMService
+        from backend_config import get_config
+        cfg = get_config()
         result = LLMService().chat(
             [{"role": "user", "content": prompt}],
-            max_tokens=2000,
-            temperature=0.3,
+            max_tokens=cfg.LLM_NOTES_POLISH_MAX_TOKENS,
+            temperature=cfg.LLM_NOTES_POLISH_TEMPERATURE,
         )
         return PolishNoteOut(polished_content=result.strip())
     except Exception as e:
