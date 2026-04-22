@@ -10,7 +10,6 @@ import '../../providers/history_provider.dart';
 import '../../providers/subject_provider.dart';
 import '../../routes/app_router.dart';
 import '../../services/history_service.dart';
-import '../../features/classroom/classroom_page.dart';
 import '../../widgets/message_search_delegate.dart';
 
 class HistoryPage extends ConsumerStatefulWidget {
@@ -52,19 +51,19 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       final subjects = ref.read(subjectsProvider).valueOrNull ?? [];
       final subject = subjects.where((sub) => sub.id == s.subjectId).firstOrNull;
       if (subject != null) ref.read(currentSubjectProvider.notifier).state = subject;
-      final key = (s.subjectId!, s.sessionType.name);
+      final key = (s.subjectId!.toString(), s.sessionType.name);
       await ref.read(chatProvider(key).notifier).loadSession(s.id);
     }
     if (!mounted) return;
-    // 设置答疑室应跳转到的 tab（0=问答,1=解题,2=导图,3=出题）
-    final tabIndex = switch (s.sessionType) {
-      SessionType.solve   => 1,
-      SessionType.mindmap => 2,
-      SessionType.exam    => 3,
-      _                   => 0,
-    };
-    ref.read(classroomInitialTabProvider.notifier).state = tabIndex;
-    context.go(AppRoutes.classroom);
+    // 根据会话类型跳转到对应工具页
+    switch (s.sessionType) {
+      case SessionType.solve:
+        context.push(AppRoutes.toolkitSolve);
+      case SessionType.exam:
+        context.push(AppRoutes.toolkitQuiz);
+      default:
+        context.go(AppRoutes.chat);
+    }
   }
 
   @override

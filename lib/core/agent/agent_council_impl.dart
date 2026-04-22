@@ -4,6 +4,7 @@
 
 import 'package:dio/dio.dart';
 import 'package:study_assistant_app/core/agent/agent_council.dart';
+import 'package:study_assistant_app/core/agent/agent_kernel.dart';
 import 'package:study_assistant_app/core/agent/agent_role.dart';
 import 'package:study_assistant_app/core/network/dio_client.dart';
 import 'package:study_assistant_app/core/skill/skill_model.dart';

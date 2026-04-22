@@ -45,26 +45,29 @@ class EditableMindMapPage extends ConsumerStatefulWidget {
       _EditableMindMapPageState();
 }
 
-class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage> {
+class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
+    with SingleTickerProviderStateMixin {
   final _undoStack = _UndoStack();
   void Function(double)? _zoomFn;
   List<TreeNode> _roots = [];
   bool _initialized = false;
   bool _wasComplete = false;
   late final ConfettiController _confettiController;
+  late final TabController _tabController;
 
-  // Current markdown (source of truth for undo)
   String _currentMarkdown = '';
 
   @override
   void initState() {
     super.initState();
     _confettiController = ConfettiController(duration: const Duration(seconds: 3));
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
   void dispose() {
     _confettiController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -98,59 +101,68 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage> {
         title: const Text('思维导图'),
         centerTitle: false,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: '放大',
-            onPressed: () => _zoomFn?.call(1.25),
-          ),
-          IconButton(
-            icon: const Icon(Icons.remove),
-            tooltip: '缩小',
-            onPressed: () => _zoomFn?.call(0.8),
-          ),
-          IconButton(
-            icon: const Icon(Icons.undo),
-            tooltip: '撤销',
-            onPressed: _undoStack.canUndo ? _handleUndo : null,
+          // 缩放和撤销只在知识树 Tab 显示
+          AnimatedBuilder(
+            animation: _tabController,
+            builder: (_, __) => _tabController.index == 0
+                ? Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(icon: const Icon(Icons.add), tooltip: '放大', onPressed: () => _zoomFn?.call(1.25)),
+                    IconButton(icon: const Icon(Icons.remove), tooltip: '缩小', onPressed: () => _zoomFn?.call(0.8)),
+                    IconButton(icon: const Icon(Icons.undo), tooltip: '撤销', onPressed: _undoStack.canUndo ? _handleUndo : null),
+                  ])
+                : const SizedBox.shrink(),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.account_tree_outlined), text: '知识树'),
+            Tab(icon: Icon(Icons.hub_outlined), text: '知识关联图'),
+          ],
+        ),
       ),
-      body: Stack(
+      body: TabBarView(
+        controller: _tabController,
+        physics: const NeverScrollableScrollPhysics(),
         children: [
-          Column(
+          // ── Tab 0: 知识树 ─────────────────────────────────────────
+          Stack(
             children: [
-              // Progress bar
-              _ProgressBar(progress: progress),
-              // Mind map canvas
-              Expanded(
-                child: nodesAsync.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('加载失败：$e')),
-                  data: (_) => _MindMapCanvas(
-                    onZoomReady: (fn) => _zoomFn = fn,
-                    roots: _roots.isEmpty ? nodesAsync.value ?? [] : _roots,
-                    nodeStates: nodeStates,
-                    sessionId: widget.sessionId,
-                    subjectId: widget.subjectId,
-                    onNodeTap: _handleNodeTap,
-                    onNodeLongPress: _handleNodeLongPress,
+              Column(
+                children: [
+                  _ProgressBar(progress: progress),
+                  Expanded(
+                    child: nodesAsync.when(
+                      loading: () => const Center(child: CircularProgressIndicator()),
+                      error: (e, _) => Center(child: Text('加载失败：$e')),
+                      data: (_) => _MindMapCanvas(
+                        onZoomReady: (fn) => _zoomFn = fn,
+                        roots: _roots.isEmpty ? nodesAsync.value ?? [] : _roots,
+                        nodeStates: nodeStates,
+                        sessionId: widget.sessionId,
+                        subjectId: widget.subjectId,
+                        onNodeTap: _handleNodeTap,
+                        onNodeLongPress: _handleNodeLongPress,
+                      ),
+                    ),
                   ),
+                ],
+              ),
+              Align(
+                alignment: Alignment.topCenter,
+                child: ConfettiWidget(
+                  confettiController: _confettiController,
+                  blastDirectionality: BlastDirectionality.explosive,
+                  numberOfParticles: 30,
+                  gravity: 0.2,
+                  emissionFrequency: 0.05,
                 ),
               ),
             ],
           ),
-          // Confetti overlay
-          Align(
-            alignment: Alignment.topCenter,
-            child: ConfettiWidget(
-              confettiController: _confettiController,
-              blastDirectionality: BlastDirectionality.explosive,
-              numberOfParticles: 30,
-              gravity: 0.2,
-              emissionFrequency: 0.05,
-            ),
-          ),
+
+          // ── Tab 1: 知识关联图 ─────────────────────────────────────
+          _KnowledgeGraphPlaceholder(sessionId: widget.sessionId),
         ],
       ),
     );
@@ -847,6 +859,53 @@ class _GeneratingDialogState extends State<_GeneratingDialog> {
             Text(
               '${(_progress * 100).toInt()}%',
               style: TextStyle(fontSize: 12, color: cs.outline),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 知识关联图占位 ─────────────────────────────────────────────────────────────
+
+class _KnowledgeGraphPlaceholder extends StatelessWidget {
+  final int sessionId;
+  const _KnowledgeGraphPlaceholder({required this.sessionId});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.hub_outlined, size: 64, color: cs.outlineVariant),
+            const SizedBox(height: 16),
+            Text('知识关联图',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(color: cs.onSurface)),
+            const SizedBox(height: 8),
+            Text(
+              '展示跨章节概念的因果、依赖、对比关系\n与思维导图一同生成后在此显示',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: cs.outline),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: cs.tertiaryContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text('即将推出',
+                  style: TextStyle(
+                      fontSize: 12, color: cs.onTertiaryContainer)),
             ),
           ],
         ),

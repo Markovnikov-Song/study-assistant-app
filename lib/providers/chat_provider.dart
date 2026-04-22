@@ -32,26 +32,33 @@ final chatServiceProvider = Provider<ChatService>((ref) => ChatService());
 // 类型参数解释：
 //   ChatNotifier                    — 管理状态的 Notifier 类
 //   AsyncValue<List<ChatMessage>>   — 状态类型（异步的消息列表）
-//   (int, String)                   — 参数类型（学科ID, 会话类型名）
+//   (String, String)                — 参数类型（chatKey, 会话类型名）
 //
 // AsyncValue<T> 是 Riverpod 的异步状态包装器，有三种状态：
 //   AsyncValue.loading()    — 加载中
 //   AsyncValue.data(value)  — 有数据
 //   AsyncValue.error(e, st) — 出错了
 //
-// key.$1 是取元组第一个元素（subjectId），$2 是第二个（类型名）
+// key.$1 是 chatKey（字符串），通用对话为 'general'，学科对话为 subjectId 字符串
+// key.$2 是会话类型名（如 'qa', 'solve'）
 // 类比 Python：key[0]
-final chatProvider = StateNotifierProviderFamily<ChatNotifier, AsyncValue<List<ChatMessage>>, (int, String)>(
-  (ref, key) => ChatNotifier(ref.watch(chatServiceProvider), key.$1),
-  // ref.watch(chatServiceProvider)：获取 ChatService 实例，并订阅它的变化
+final chatProvider = StateNotifierProviderFamily<ChatNotifier, AsyncValue<List<ChatMessage>>, (String, String)>(
+  (ref, key) {
+    ref.keepAlive(); // 防止切换 Tab 时被 dispose
+    return ChatNotifier(
+      ref.watch(chatServiceProvider),
+      chatKey: key.$1,
+      subjectId: int.tryParse(key.$1) ?? 0,
+    );
+  },
 );
 
 // ─── Provider 3：发送中状态 ───────────────────────────────────
-// StateProviderFamily<bool, (int, String)>：
-//   每个 (subjectId, type) 组合有独立的 bool 状态
+// StateProviderFamily<bool, (String, String)>：
+//   每个 (chatKey, type) 组合有独立的 bool 状态
 // (ref, _) => false：初始值是 false（没在发送）
 // _ 表示参数不用（Dart 惯例，类似 Python 的 _）
-final chatSendingProvider = StateProviderFamily<bool, (int, String)>((ref, _) => false);
+final chatSendingProvider = StateProviderFamily<bool, (String, String)>((ref, _) => false);
 
 // ─── Provider 4：会话列表 ─────────────────────────────────────
 // FutureProviderFamily：异步加载数据的 Provider
@@ -72,7 +79,8 @@ class DioCancel implements Exception {}
 // super(...)：调用父类构造函数，类似 Python 的 super().__init__(...)
 class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   final ChatService _service;  // HTTP 服务，用于发请求
-  final int _subjectId;        // 这个 Notifier 对应哪个学科
+  final String _chatKey;       // 对话 key：通用对话为 'general'，学科对话为 subjectId 字符串
+  final int _subjectId;        // 学科 ID（从 chatKey 解析，通用对话时为 0）
   int? _currentSessionId;      // 当前会话 ID，null 表示还没开始对话
   CancelToken? _cancelToken;   // Dio 的取消令牌，null 表示没有进行中的请求
 
@@ -82,9 +90,13 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   void Function(bool)? onSendingChanged;
 
   // 构造函数
-  ChatNotifier(this._service, this._subjectId) : super(const AsyncValue.data([]));
+  ChatNotifier(this._service, {required String chatKey, required int subjectId})
+      : _chatKey = chatKey,
+        _subjectId = subjectId,
+        super(const AsyncValue.data([]));
 
   int? get currentSessionId => _currentSessionId;
+  String get chatKey => _chatKey;
 
   // ─── 发送消息（流式打字机效果）──────────────────────────
   Future<void> sendMessage(
@@ -92,6 +104,7 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
     required SessionType mode,
     bool useBroad = false,
     bool useHybrid = false,
+    int? overrideSubjectId, // 通用对话自动归类时传入
   }) async {
     if (_cancelToken != null) return;
 
@@ -111,7 +124,7 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
     try {
       final stream = _service.sendMessageStream(
         text,
-        subjectId: _subjectId,
+        subjectId: overrideSubjectId ?? _subjectId,
         sessionId: _currentSessionId,
         mode: mode,
         useHybrid: useHybrid || useBroad,
@@ -261,5 +274,17 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   void newSession() {
     _currentSessionId = null;           // 下次发消息时服务器会创建新会话
     state = const AsyncValue.data([]); // 清空消息列表
+  }
+
+  // ─── 追加一条本地消息（用于 SceneCard 等本地状态）─────────
+  void appendMessage(ChatMessage message) {
+    final current = state.value ?? [];
+    state = AsyncValue.data([...current, message]);
+  }
+
+  // ─── 刷新状态（触发 UI 重建，用于本地字段变更后同步）──────
+  void refreshState() {
+    final current = state.value ?? [];
+    state = AsyncValue.data(List.from(current));
   }
 }

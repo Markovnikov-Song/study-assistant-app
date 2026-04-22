@@ -1,21 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../models/document.dart';
 import '../../models/mindmap_library.dart';
+import '../../providers/chat_provider.dart';
+import '../../providers/document_provider.dart';
 import '../../providers/library_provider.dart';
 import '../../routes/app_router.dart';
-/// CourseSpacePage — 课程空间，展示某学科下所有思维导图大纲列表
+
+/// CourseSpacePage — 学科详情页
+///
+/// 布局：
+///   AppBar：学科名 + [生成] 按钮
+///   ① 知识树区块   — 该学科下所有导图列表，点击进入 EditableMindMapPage
+///   ② 知识关联图   — 占位（后续扩展）
+///   ③ 学习进度     — 聚合所有 session 的节点点亮进度
 class CourseSpacePage extends ConsumerWidget {
   final int subjectId;
   const CourseSpacePage({super.key, required this.subjectId});
+
+  void _showGenerateSheet(BuildContext context, WidgetRef ref, int subjectId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _GenerateMindmapSheet(subjectId: subjectId),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionsAsync = ref.watch(courseSessionsProvider(subjectId));
 
+    // 从 schoolSubjectsProvider 取学科名
+    final subjectName = ref.watch(schoolSubjectsProvider).maybeWhen(
+          data: (list) =>
+              list
+                  .where((s) => s.subject.id == subjectId)
+                  .firstOrNull
+                  ?.subject
+                  .name ??
+              '学科详情',
+          orElse: () => '学科详情',
+        );
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('课程空间'),
+        title: Text(subjectName),
         centerTitle: false,
         actions: [
           IconButton(
@@ -23,184 +54,124 @@ class CourseSpacePage extends ConsumerWidget {
             tooltip: '资料库',
             onPressed: () => context.push(AppRoutes.subjectDetailPath(subjectId)),
           ),
+          FilledButton.tonal(
+            onPressed: () => _showGenerateSheet(context, ref, subjectId),
+            child: const Text('生成'),
+          ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: Column(
-        children: [
-          // 整体进度条（从 sessions 聚合）
-          sessionsAsync.when(
-            data: (sessions) {
-              // 进度只基于当前大纲（置顶优先，否则最新）
-              final active = sessions.isNotEmpty ? sessions.first : null;
-              final total = active?.totalNodes ?? 0;
-              final lit = active?.litNodes ?? 0;
-              return _ProgressHeader(
-                progress: MindMapProgress(total: total, lit: lit),
-              );
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, _) => const SizedBox.shrink(),
-          ),
-          Expanded(
-            child: sessionsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('加载失败：$e')),
-              data: (sessions) {
-                if (sessions.isEmpty) {
-                  return _EmptyState(subjectId: subjectId);
-                }
-                return RefreshIndicator(
-                  onRefresh: () =>
-                      ref.read(courseSessionsProvider(subjectId).notifier).refresh(),
-                  child: _SessionList(
-                    sessions: sessions,
-                    subjectId: subjectId,
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go(AppRoutes.classroom),
-        icon: const Icon(Icons.auto_awesome),
-        label: const Text('去生成大纲'),
-      ),
-    );
-  }
-}
-
-// ── 可排序列表 ────────────────────────────────────────────────────────────────
-
-class _SessionList extends ConsumerWidget {
-  final List<MindMapSession> sessions;
-  final int subjectId;
-
-  const _SessionList({required this.sessions, required this.subjectId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // 置顶卡片排前面，非置顶卡片可拖拽排序
-    final pinned = sessions.where((s) => s.isPinned).toList();
-    final unpinned = sessions.where((s) => !s.isPinned).toList();
-
-    return ReorderableListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-      // 置顶卡片 + 非置顶卡片
-      itemCount: sessions.length,
-      buildDefaultDragHandles: false,
-      onReorder: (oldIndex, newIndex) async {
-        // 只对非置顶部分重排
-        final pinnedCount = pinned.length;
-
-        // 如果拖拽涉及置顶区域，忽略
-        if (oldIndex < pinnedCount || newIndex <= pinnedCount) return;
-
-        // 调整 newIndex（ReorderableListView 的惯例）
-        final adjustedNew = newIndex > oldIndex ? newIndex - 1 : newIndex;
-
-        // 在非置顶列表中的相对索引
-        final relOld = oldIndex - pinnedCount;
-        final relNew = adjustedNew - pinnedCount;
-
-        if (relOld == relNew) return;
-
-        // 重新排列非置顶列表
-        final reordered = List<MindMapSession>.from(unpinned);
-        final item = reordered.removeAt(relOld);
-        reordered.insert(relNew, item);
-
-        // 批量更新 sort_order
-        final notifier = ref.read(courseSessionsProvider(subjectId).notifier);
-        for (var i = 0; i < reordered.length; i++) {
-          await notifier.updateMeta(reordered[i].id, sortOrder: i);
-        }
-      },
-      itemBuilder: (context, index) {
-        final session = sessions[index];
-        final isPinnedItem = session.isPinned;
-        return _SessionCard(
-          key: ValueKey(session.id),
-          session: session,
-          subjectId: subjectId,
-          // 只有非置顶卡片显示拖拽手柄
-          showDragHandle: !isPinnedItem,
-          dragIndex: index,
-        );
-      },
-    );
-  }
-}
-
-// ── 进度头部 ──────────────────────────────────────────────────────────────────
-
-class _ProgressHeader extends StatelessWidget {
-  final MindMapProgress progress;
-  const _ProgressHeader({required this.progress});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final pct = progress.percent;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: cs.surfaceContainerLow,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: sessionsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('加载失败：$e')),
+        data: (sessions) => RefreshIndicator(
+          onRefresh: () =>
+              ref.read(courseSessionsProvider(subjectId).notifier).refresh(),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
-              Text('整体进度', style: TextStyle(fontSize: 13, color: cs.outline)),
-              Text(
-                '$pct%  (${progress.lit}/${progress.total})',
-                style: TextStyle(fontSize: 13, color: cs.outline),
+              // ── ① 知识树 ──────────────────────────────────────────────
+              _SectionHeader(
+                icon: Icons.account_tree_outlined,
+                title: '知识树',
+                subtitle: '${sessions.length} 份思维导图',
               ),
+              const SizedBox(height: 8),
+              if (sessions.isEmpty)
+                _EmptyMindmapCard(subjectId: subjectId)
+              else
+                ...sessions.map((s) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _MindmapSessionCard(
+                        session: s,
+                        subjectId: subjectId,
+                        ref: ref,
+                      ),
+                    )),
+
+              const SizedBox(height: 24),
+
+              // ── ③ 学习进度 ────────────────────────────────────────────
+              _SectionHeader(
+                icon: Icons.bar_chart_outlined,
+                title: '学习进度',
+              ),
+              const SizedBox(height: 8),
+              _ProgressSection(sessions: sessions),
             ],
           ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress.total == 0 ? 0 : progress.lit / progress.total,
-              minHeight: 8,
-              backgroundColor: cs.surfaceContainerHighest,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-// ── 大纲卡片（StatefulWidget，支持折叠）────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Section Header
+// ─────────────────────────────────────────────────────────────────────────────
 
-class _SessionCard extends ConsumerStatefulWidget {
-  final MindMapSession session;
-  final int subjectId;
-  final bool showDragHandle;
-  final int dragIndex;
+class _SectionHeader extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final String? badge;
 
-  const _SessionCard({
-    super.key,
-    required this.session,
-    required this.subjectId,
-    required this.showDragHandle,
-    required this.dragIndex,
+  const _SectionHeader({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.badge,
   });
 
   @override
-  ConsumerState<_SessionCard> createState() => _SessionCardState();
-}
-
-class _SessionCardState extends ConsumerState<_SessionCard> {
-  bool _expanded = true;
-
-  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final session = widget.session;
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: cs.primary),
+        const SizedBox(width: 6),
+        Text(title,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        if (subtitle != null) ...[
+          const SizedBox(width: 6),
+          Text(subtitle!,
+              style: TextStyle(fontSize: 12, color: cs.outline)),
+        ],
+        if (badge != null) ...[
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: cs.tertiaryContainer,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(badge!,
+                style: TextStyle(fontSize: 10, color: cs.onTertiaryContainer)),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ① 知识树 — 导图 Session 卡片
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MindmapSessionCard extends ConsumerWidget {
+  final MindMapSession session;
+  final int subjectId;
+  final WidgetRef ref;
+
+  const _MindmapSessionCard({
+    required this.session,
+    required this.subjectId,
+    required this.ref,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef widgetRef) {
+    final cs = Theme.of(context).colorScheme;
     final title = session.title?.isNotEmpty == true ? session.title! : '未命名大纲';
     final pct = session.totalNodes == 0
         ? 0
@@ -214,86 +185,87 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => context.push(
-          AppRoutes.editableMindMap(widget.subjectId, session.id),
-        ),
+        onTap: () => context.push(AppRoutes.editableMindMap(subjectId, session.id)),
         child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+          child: Row(
             children: [
-              // ── 标题行 ──────────────────────────────────────────────────
-              Row(
-                children: [
-                  // 图钉图标（置顶时显示）
-                  if (session.isPinned) ...[
-                    Icon(Icons.push_pin, size: 14, color: cs.primary),
-                    const SizedBox(width: 4),
-                  ],
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  // 拖拽手柄（非置顶卡片）
-                  if (widget.showDragHandle)
-                    ReorderableDragStartListener(
-                      index: widget.dragIndex,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Icon(Icons.drag_handle,
-                            size: 20, color: cs.outlineVariant),
-                      ),
-                    ),
-                  _MoreMenu(session: session, subjectId: widget.subjectId),
-                ],
+              // 图标
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.account_tree_outlined,
+                    color: cs.onPrimaryContainer, size: 20),
               ),
-              // ── 展开内容（进度、标签、日期）──────────────────────────────
-              if (_expanded) ...[
-                const SizedBox(height: 4),
-                Row(
+              const SizedBox(width: 12),
+              // 内容
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (session.resourceScopeLabel != null) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: cs.secondaryContainer,
-                          borderRadius: BorderRadius.circular(4),
+                    Row(
+                      children: [
+                        if (session.isPinned) ...[
+                          Icon(Icons.push_pin, size: 12, color: cs.primary),
+                          const SizedBox(width: 4),
+                        ],
+                        Expanded(
+                          child: Text(title,
+                              style: const TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w600),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
                         ),
-                        child: Text(
-                          session.resourceScopeLabel!,
-                          style: TextStyle(
-                              fontSize: 11, color: cs.onSecondaryContainer),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: LinearProgressIndicator(
+                              value: session.totalNodes == 0
+                                  ? 0
+                                  : session.litNodes / session.totalNodes,
+                              minHeight: 4,
+                              backgroundColor: cs.surfaceContainerHighest,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                    ],
+                        const SizedBox(width: 8),
+                        Text('$pct%',
+                            style: TextStyle(fontSize: 11, color: cs.outline)),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
                     Text(
-                      _formatDate(session.createdAt),
-                      style: TextStyle(fontSize: 12, color: cs.outline),
+                      '${session.litNodes}/${session.totalNodes} 个知识点  ·  ${_formatDate(session.createdAt)}',
+                      style: TextStyle(fontSize: 11, color: cs.outline),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  '${session.litNodes}/${session.totalNodes}  $pct%',
-                  style: TextStyle(fontSize: 12, color: cs.primary),
-                ),
-              ],
-              // ── 展开/折叠按钮 ─────────────────────────────────────────
-              Align(
-                alignment: Alignment.centerRight,
-                child: GestureDetector(
-                  onTap: () => setState(() => _expanded = !_expanded),
-                  child: Icon(
-                    _expanded ? Icons.expand_less : Icons.expand_more,
-                    size: 20,
-                    color: cs.outline,
+              ),
+              // 菜单
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, size: 18, color: cs.outline),
+                onSelected: (v) {
+                  if (v == 'rename') _showRenameDialog(context, widgetRef);
+                  if (v == 'pin') _togglePin(context, widgetRef);
+                  if (v == 'delete') _showDeleteDialog(context, widgetRef);
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'rename', child: Text('重命名')),
+                  PopupMenuItem(
+                    value: 'pin',
+                    child: Text(session.isPinned ? '取消置顶' : '置顶'),
                   ),
-                ),
+                  const PopupMenuItem(value: 'delete', child: Text('删除')),
+                ],
               ),
             ],
           ),
@@ -304,38 +276,6 @@ class _SessionCardState extends ConsumerState<_SessionCard> {
 
   String _formatDate(DateTime dt) =>
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-}
-
-// ── ⋯ 菜单（重命名 / 置顶 / 删除）──────────────────────────────────────────────
-
-class _MoreMenu extends ConsumerWidget {
-  final MindMapSession session;
-  final int subjectId;
-  const _MoreMenu({required this.session, required this.subjectId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert),
-      onSelected: (value) {
-        if (value == 'rename') {
-          _showRenameDialog(context, ref);
-        } else if (value == 'pin') {
-          _togglePin(context, ref);
-        } else if (value == 'delete') {
-          _showDeleteDialog(context, ref);
-        }
-      },
-      itemBuilder: (_) => [
-        const PopupMenuItem(value: 'rename', child: Text('重命名')),
-        PopupMenuItem(
-          value: 'pin',
-          child: Text(session.isPinned ? '取消置顶' : '置顶'),
-        ),
-        const PopupMenuItem(value: 'delete', child: Text('删除')),
-      ],
-    );
-  }
 
   Future<void> _togglePin(BuildContext context, WidgetRef ref) async {
     try {
@@ -344,59 +284,36 @@ class _MoreMenu extends ConsumerWidget {
           .updateMeta(session.id, isPinned: !session.isPinned);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('操作失败：$e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('操作失败：$e')));
       }
     }
   }
 
   void _showRenameDialog(BuildContext context, WidgetRef ref) {
-    final controller = TextEditingController(
-      text: session.title?.isNotEmpty == true ? session.title : '',
-    );
+    final ctrl = TextEditingController(text: session.title ?? '');
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('重命名大纲'),
+        title: const Text('重命名'),
         content: TextField(
-          controller: controller,
+          controller: ctrl,
           autofocus: true,
           maxLength: 64,
-          decoration: const InputDecoration(hintText: '输入新名称'),
+          decoration: const InputDecoration(
+              hintText: '输入新名称', border: OutlineInputBorder()),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           FilledButton(
             onPressed: () async {
-              final title = controller.text.trim();
-              if (title.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('名称不能为空')),
-                );
-                return;
-              }
-              if (title.length > 64) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('名称不能超过 64 个字符')),
-                );
-                return;
-              }
+              final title = ctrl.text.trim();
+              if (title.isEmpty) return;
               Navigator.pop(ctx);
-              try {
-                await ref
-                    .read(courseSessionsProvider(subjectId).notifier)
-                    .renameSession(session.id, title);
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('重命名失败：$e')),
-                  );
-                }
-              }
+              await ref
+                  .read(courseSessionsProvider(subjectId).notifier)
+                  .renameSession(session.id, title);
             },
             child: const Text('确认'),
           ),
@@ -409,37 +326,20 @@ class _MoreMenu extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('删除大纲'),
+        title: const Text('删除导图'),
         content: Text(
-          '确认删除「${session.title?.isNotEmpty == true ? session.title : '未命名大纲'}」？\n此操作不可撤销，相关讲义和学习记录也将一并删除。',
-        ),
+            '确认删除「${session.title?.isNotEmpty == true ? session.title : '未命名大纲'}」？\n此操作不可撤销。'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
+                backgroundColor: Theme.of(context).colorScheme.error),
             onPressed: () async {
               Navigator.pop(ctx);
-              try {
-                await ref
-                    .read(courseSessionsProvider(subjectId).notifier)
-                    .deleteSession(session.id);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('已删除')),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('删除失败：$e')),
-                  );
-                }
-              }
+              await ref
+                  .read(courseSessionsProvider(subjectId).notifier)
+                  .deleteSession(session.id);
             },
             child: const Text('删除'),
           ),
@@ -449,40 +349,365 @@ class _MoreMenu extends ConsumerWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
+class _EmptyMindmapCard extends StatelessWidget {
   final int subjectId;
-  const _EmptyState({required this.subjectId});
+  const _EmptyMindmapCard({required this.subjectId});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.account_tree_outlined,
-                size: 64, color: Colors.grey.shade300),
-            const SizedBox(height: 16),
-            Text(
-              '还没有大纲',
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        border: Border.all(color: cs.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.account_tree_outlined, size: 40, color: cs.outlineVariant),
+          const SizedBox(height: 8),
+          Text('还没有思维导图',
+              style: TextStyle(fontSize: 14, color: cs.outline)),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: () => context.push(
+              '/chat/${DateTime.now().millisecondsSinceEpoch}/subject/$subjectId',
             ),
-            const SizedBox(height: 8),
-            Text(
-              '去「答疑室 → 导图」选择学科后生成思维导图，\n大纲就会出现在这里',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-            ),
-            const SizedBox(height: 20),
-            OutlinedButton.icon(
-              onPressed: () => context.go(AppRoutes.classroom),
-              icon: const Icon(Icons.auto_awesome, size: 16),
-              label: const Text('去生成思维导图'),
-            ),
-          ],
-        ),
+            icon: const Icon(Icons.auto_awesome, size: 16),
+            label: const Text('去生成'),
+          ),
+        ],
       ),
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ③ 学习进度
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ProgressSection extends StatelessWidget {
+  final List<MindMapSession> sessions;
+  const _ProgressSection({required this.sessions});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    if (sessions.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          border: Border.all(color: cs.outlineVariant),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text('暂无学习数据',
+            style: TextStyle(color: cs.outline, fontSize: 13)),
+      );
+    }
+
+    // 聚合所有 session 的进度
+    final totalNodes = sessions.fold(0, (s, e) => s + e.totalNodes);
+    final litNodes = sessions.fold(0, (s, e) => s + e.litNodes);
+    final pct = totalNodes == 0 ? 0 : (litNodes / totalNodes * 100).floor();
+    final progress = totalNodes == 0 ? 0.0 : litNodes / totalNodes;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('已掌握 $litNodes / $totalNodes 个知识点',
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w500)),
+              Text('$pct%',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: cs.primary)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 10,
+              backgroundColor: cs.surfaceContainerHighest,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // 各 session 小进度条
+          ...sessions.map((s) {
+            final sPct = s.totalNodes == 0
+                ? 0
+                : (s.litNodes / s.totalNodes * 100).floor();
+            final sTitle =
+                s.title?.isNotEmpty == true ? s.title! : '未命名大纲';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Text(sTitle,
+                        style: TextStyle(fontSize: 12, color: cs.onSurface),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 4,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: s.totalNodes == 0
+                            ? 0
+                            : s.litNodes / s.totalNodes,
+                        minHeight: 5,
+                        backgroundColor: cs.surfaceContainerHighest,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 32,
+                    child: Text('$sPct%',
+                        style:
+                            TextStyle(fontSize: 11, color: cs.outline),
+                        textAlign: TextAlign.right),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 生成思维导图 Sheet — 选资料 + 触发生成
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _GenerateMindmapSheet extends ConsumerStatefulWidget {
+  final int subjectId;
+  const _GenerateMindmapSheet({required this.subjectId});
+
+  @override
+  ConsumerState<_GenerateMindmapSheet> createState() =>
+      _GenerateMindmapSheetState();
+}
+
+class _GenerateMindmapSheetState
+    extends ConsumerState<_GenerateMindmapSheet> {
+  final Set<int> _selectedDocIds = {};
+  bool _generating = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final docsAsync = ref.watch(documentsProvider(widget.subjectId));
+    final cs = Theme.of(context).colorScheme;
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      builder: (ctx, scrollCtrl) => Column(
+        children: [
+          // 拖拽把手
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: cs.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('AI 生成思维导图',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text('选择资料范围，AI 自动提取知识点生成导图',
+                          style:
+                              TextStyle(fontSize: 12, color: cs.outline)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+
+          // 资料列表
+          Expanded(
+            child: docsAsync.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('加载失败：$e')),
+              data: (docs) {
+                final completed = docs
+                    .where((d) => d.status == DocumentStatus.completed)
+                    .toList();
+                if (completed.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.folder_open_outlined,
+                              size: 48, color: cs.outlineVariant),
+                          const SizedBox(height: 12),
+                          Text('暂无可用资料',
+                              style: TextStyle(color: cs.outline)),
+                          const SizedBox(height: 6),
+                          Text('请先在资料库上传并处理完成资料',
+                              style: TextStyle(
+                                  fontSize: 12, color: cs.outline)),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                return Column(
+                  children: [
+                    // 全选/清空
+                    Padding(
+                      padding:
+                          const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Row(
+                        children: [
+                          Text(
+                            _selectedDocIds.isEmpty
+                                ? '全部资料（默认）'
+                                : '已选 ${_selectedDocIds.length} 个资料',
+                            style: TextStyle(
+                                fontSize: 13, color: cs.outline),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () => setState(() {
+                              for (final d in completed) {
+                                _selectedDocIds.add(d.id);
+                              }
+                            }),
+                            child: const Text('全选'),
+                          ),
+                          TextButton(
+                            onPressed: () => setState(
+                                () => _selectedDocIds.clear()),
+                            child: const Text('清空'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollCtrl,
+                        itemCount: completed.length,
+                        itemBuilder: (_, i) {
+                          final doc = completed[i];
+                          final selected =
+                              _selectedDocIds.contains(doc.id);
+                          return CheckboxListTile(
+                            value: selected,
+                            title: Text(doc.filename,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis),
+                            controlAffinity:
+                                ListTileControlAffinity.trailing,
+                            onChanged: (v) => setState(() {
+                              if (v ?? false) {
+                                _selectedDocIds.add(doc.id);
+                              } else {
+                                _selectedDocIds.remove(doc.id);
+                              }
+                            }),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+
+          // 生成按钮
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: FilledButton.icon(
+              onPressed: _generating ? null : _generate,
+              style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48)),
+              icon: _generating
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.auto_awesome),
+              label: Text(_generating ? '生成中…' : '开始生成'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _generate() async {
+    setState(() => _generating = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final docId =
+          _selectedDocIds.length == 1 ? _selectedDocIds.first : null;
+      // 用 subjectId 作为 chatKey，mode = mindmap
+      await ref
+          .read(chatProvider(
+                  (widget.subjectId.toString(), 'mindmap'))
+              .notifier)
+          .generateMindMap(docId: docId);
+
+      // 生成完成后刷新 session 列表
+      ref.invalidate(courseSessionsProvider(widget.subjectId));
+      ref.invalidate(schoolSubjectsProvider);
+
+      if (mounted) {
+        Navigator.pop(context);
+        messenger.showSnackBar(
+          const SnackBar(content: Text('思维导图已生成，已添加到知识树')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _generating = false);
+        messenger.showSnackBar(
+          SnackBar(
+              content: Text('生成失败：$e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 }

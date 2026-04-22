@@ -14,7 +14,7 @@ _mindmap = MindMapService()
 
 
 class QueryIn(BaseModel):
-    subject_id: int
+    subject_id: Optional[int] = None
     message: str
     session_id: Optional[int] = None
     mode: str = "strict"   # strict | broad | hybrid | solve
@@ -62,13 +62,14 @@ class MindMapOut(BaseModel):
 @router.post("/query", response_model=QueryOut)
 def query(body: QueryIn, user=Depends(get_current_user)):
     session_id = body.session_id
+    subject_id = body.subject_id or None
     if not session_id:
         session_type = "solve" if body.mode == "solve" else "qa"
-        session_id = _rag.create_session(user_id=user["id"], subject_id=body.subject_id, session_type=session_type)
+        session_id = _rag.create_session(user_id=user["id"], subject_id=subject_id, session_type=session_type)
 
     result = _rag.query(
         question=body.message,
-        subject_id=body.subject_id,
+        subject_id=subject_id,
         session_id=session_id,
         mode=body.mode,
         user_id=user["id"],
@@ -107,7 +108,7 @@ def query_stream(body: QueryIn, user=Depends(get_current_user)):
     if not session_id:
         session_type = "solve" if body.mode == "solve" else "qa"
         session_id = _rag.create_session(
-            user_id=user["id"], subject_id=body.subject_id, session_type=session_type
+            user_id=user["id"], subject_id=body.subject_id or None, session_type=session_type
         )
 
     def event_generator():
@@ -116,7 +117,7 @@ def query_stream(body: QueryIn, user=Depends(get_current_user)):
         try:
             gen = _rag.query_stream(
                 question=body.message,
-                subject_id=body.subject_id,
+                subject_id=body.subject_id or None,
                 session_id=session_id,
                 mode=body.mode,
                 user_id=user["id"],

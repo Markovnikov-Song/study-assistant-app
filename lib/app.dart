@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'routes/app_router.dart'; // 路由配置（页面跳转规则）
+import 'routes/app_router.dart';
+import 'core/theme/app_theme.dart';
 
 // ConsumerWidget：能读取 Riverpod 状态的 Widget
 // 普通 Widget 用 StatelessWidget，需要读全局状态时用 ConsumerWidget
@@ -29,7 +30,7 @@ class App extends ConsumerWidget {
     // MaterialApp.router：使用路由配置的 Material Design 应用根组件
     // .router 版本支持 GoRouter 这类声明式路由库
     return MaterialApp.router(
-      title: '学科学习助手',
+      title: '伴学',
       routerConfig: router,
       localizationsDelegates: const [
         FlutterQuillLocalizations.delegate,
@@ -43,20 +44,21 @@ class App extends ConsumerWidget {
       ],
       locale: const Locale('zh', 'CN'),
 
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4A90D9)),
-        useMaterial3: true,
-        fontFamily: 'Noto Sans SC',
-      ),
+      // 使用全新的「静谧学习」设计系统主题
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
 
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4A90D9),
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-        fontFamily: 'Noto Sans SC',
-      ),
+      // 统一字体配置
+      builder: (context, child) {
+        return MediaQuery(
+          // 支持系统字体缩放
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.noScaling,
+          ),
+          child: child ?? const SizedBox(),
+        );
+      },
     );
   }
 }

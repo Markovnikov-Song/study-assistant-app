@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from deps import create_token, hash_password, verify_password
+from deps import create_token, hash_password, verify_password, get_current_user
 from database import User, Notebook, get_session
 
 router = APIRouter()
@@ -59,5 +59,5 @@ def login(body: LoginIn):
     return AuthOut(access_token=create_token(uid, uname), user_id=uid, username=uname)
 
 @router.post("/logout")
-def logout():
+def logout(current_user: dict = Depends(get_current_user)):
     return {"detail": "已登出"}  # JWT 无状态，客户端丢弃 token 即可

@@ -193,6 +193,8 @@ def execute_node(body: ExecuteNodeIn, user=Depends(get_current_user)):
     from services.llm_service import LLMService
     from mcp_layer.mcp_registry import get_registry
     from mcp_layer.fallback_handler import get_fallback_handler
+    from backend_config import get_config
+    cfg = get_config()
 
     # ── 阶段一：执行 MCP 工具调用（在 LLM 调用前，结果注入 prompt） ──────────
     mcp_results: dict[str, Any] = {}
@@ -207,7 +209,7 @@ def execute_node(body: ExecuteNodeIn, user=Depends(get_current_user)):
         result = registry.call_tool(
             tool_ref=tool_ref,
             arguments=tool_args,
-            timeout_seconds=get_config().AGENT_EXECUTE_NODE_TIMEOUT_SECONDS,
+            timeout_seconds=cfg.AGENT_EXECUTE_NODE_TIMEOUT_SECONDS,
         )
 
         if not result.success or result.degraded:
@@ -264,14 +266,13 @@ def execute_node(body: ExecuteNodeIn, user=Depends(get_current_user)):
     try:
         llm = LLMService()
         model = llm.get_model_for_scene("heavy")
-        from backend_config import get_config
         content = llm.chat(
             [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": rendered_prompt},
             ],
             model=model,
-            max_tokens=get_config().LLM_EXECUTE_NODE_MAX_TOKENS,
+            max_tokens=cfg.LLM_EXECUTE_NODE_MAX_TOKENS,
         )
     except RuntimeError as e:
         # 需求 2.6：节点失败返回 500，Flutter 端会捕获并抛出 SkillExecutionError

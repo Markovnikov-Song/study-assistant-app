@@ -1,6 +1,6 @@
 from typing import List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from deps import get_current_user
 from database import ConversationHistory, ConversationSession, Subject, get_session as db_session
 from utils import (
@@ -68,9 +68,13 @@ def delete(session_id: int, user=Depends(get_current_user)):
     if not r["success"]:
         raise HTTPException(400, r["error"])
 
+class RenameTitleIn(BaseModel):
+    title: str = Field(min_length=1, max_length=64)
+
+
 @router.patch("/{session_id}/title")
-def rename(session_id: int, body: dict, user=Depends(get_current_user)):
-    r = rename_session(session_id, user["id"], body.get("title", ""))
+def rename(session_id: int, body: RenameTitleIn, user=Depends(get_current_user)):
+    r = rename_session(session_id, user["id"], body.title)
     if not r["success"]:
         raise HTTPException(400, r["error"])
     return r

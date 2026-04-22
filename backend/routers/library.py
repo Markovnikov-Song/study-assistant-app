@@ -541,14 +541,17 @@ def create_lecture(body: LectureCreateIn, user=Depends(get_current_user)):
         session = _assert_session_owner(db, body.session_id, user["id"])
         subject_id: int = session.subject_id or 0
 
+    node_title = _parse_text_from_node_id(body.node_id)
     svc = LectureGeneratorService()
 
     def _generate():
         return svc.generate(
             session_id=body.session_id,
             node_id=body.node_id,
+            node_title=node_title,
             user_id=user["id"],
             subject_id=subject_id,
+            resource_scope=body.resource_scope,
         )
 
     try:
@@ -568,7 +571,6 @@ def create_lecture(body: LectureCreateIn, user=Depends(get_current_user)):
 @router.post("/lectures/stream")
 def create_lecture_stream(body: LectureCreateIn, user=Depends(get_current_user)):
     """流式生成讲义，返回 SSE。每个 token 以 data: <token>\\n\\n 发送，结束发 data: [DONE]\\n\\n。"""
-    import json as _json
     from fastapi.responses import StreamingResponse
     from services.lecture_generator_service import LectureGeneratorService
 
@@ -576,18 +578,36 @@ def create_lecture_stream(body: LectureCreateIn, user=Depends(get_current_user))
         session = _assert_session_owner(db, body.session_id, user["id"])
         subject_id: int = session.subject_id or 0
 
+    node_title = _parse_text_from_node_id(body.node_id)
     svc = LectureGeneratorService()
+    user_id: int = user["id"]
 
     def event_generator():
+        accumulated = []
         try:
             for token in svc.generate_stream(
-                session_id=body.session_id,
                 node_id=body.node_id,
-                user_id=user["id"],
+                node_title=node_title,
                 subject_id=subject_id,
+                session_id=body.session_id,
+                resource_scope=body.resource_scope,
             ):
-                yield f"data: {token}\n\n"
+                accumulated.append(token)
+                # 换行符转义，避免破坏 SSE 帧格式
+                safe_token = token.replace('\n', '\\n')
+                yield f"data: {safe_token}\n\n"
+            # 流结束后保存完整内容到数据库
+            full_markdown = "".join(accumulated)
+            if full_markdown.strip():
+                svc.save_stream_result(
+                    full_markdown=full_markdown,
+                    node_id=body.node_id,
+                    session_id=body.session_id,
+                    user_id=user_id,
+                    resource_scope=body.resource_scope,
+                )
         except Exception as e:
+            import traceback; traceback.print_exc()
             yield f"data: [ERROR]{e}\n\n"
         finally:
             yield "data: [DONE]\n\n"
@@ -628,6 +648,7 @@ def delete_lecture(session_id: int, node_id: str, user=Depends(get_current_user)
 @router.post("/lectures/{lecture_id}/export")
 def export_lecture(lecture_id: int, format: str = "docx", user=Depends(get_current_user)):
     """导出讲义为 PDF 或 Word 文件。"""
+    from backend_config import get_config
     if format not in ("pdf", "docx"):
         raise HTTPException(400, "不支持的格式，请使用 pdf 或 docx")
 

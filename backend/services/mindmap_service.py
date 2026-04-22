@@ -41,27 +41,53 @@ class MindMapService:
             selected = [chunks[i] for i in indices]
         context = "\n\n".join(selected)
 
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "你是一个专业的知识结构分析助手。请分析以下学习资料的全部内容，"
-                    "提炼所有章节的核心知识点，以 Markdown 标题层级格式输出完整思维导图（markmap 格式）。\n\n"
-                    "输出要求：\n"
-                    "1. 使用 Markdown 标题语法（# ## ### ####）表示层级\n"
-                    "2. 第一行用 # 作为根节点，内容为学科名称\n"
-                    "3. 二级节点（##）对应每个章节，必须覆盖资料中出现的所有章节\n"
-                    "4. 三级节点（###）对应章节内的核心概念\n"
-                    "5. 四级节点（####）对应具体知识点，最多四级\n"
-                    "6. 每个节点简洁，不超过 15 个字\n"
-                    "7. 只输出 Markdown 内容，不要有任何代码块标记或说明文字"
-                ),
-            },
-            {
-                "role": "user",
-                "content": f"学科名称：{subject_name}\n\n学习资料内容（已均匀采样覆盖全书）：\n{context}",
-            },
-        ]
+        # 从 SkillRegistry 取 node_mindmap 的 prompt 模板
+        try:
+            from skill_registry import get_registry
+            node = get_registry().get_node("skill_mindmap_learning", "node_mindmap")
+            node_prompt = node["prompt"] if node else None
+        except Exception:
+            node_prompt = None
+
+        if node_prompt:
+            # 用学科名替换 {topic}，追加资料内容
+            user_content = (
+                node_prompt.replace("{topic}", subject_name).replace("{structure}", "")
+                + f"\n\n请基于以下学习资料（已均匀采样覆盖全书）生成思维导图：\n{context}"
+            )
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "你是一个专业的知识结构分析助手。"
+                        "请严格按照用户指令的格式要求输出，只输出 Markdown 内容，不要代码块标记或说明文字。"
+                    ),
+                },
+                {"role": "user", "content": user_content},
+            ]
+        else:
+            # 降级：使用内联 prompt（SkillRegistry 不可用时）
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "你是一个专业的知识结构分析助手。请分析以下学习资料的全部内容，"
+                        "提炼所有章节的核心知识点，以 Markdown 标题层级格式输出完整思维导图（markmap 格式）。\n\n"
+                        "输出要求：\n"
+                        "1. 使用 Markdown 标题语法（# ## ### ####）表示层级\n"
+                        "2. 第一行用 # 作为根节点，内容为学科名称\n"
+                        "3. 二级节点（##）对应每个章节，必须覆盖资料中出现的所有章节\n"
+                        "4. 三级节点（###）对应章节内的核心概念，用 ⭐ ⚠️ 🎯 📌 标注性质\n"
+                        "5. 四级节点（####）对应具体知识点，最多四级\n"
+                        "6. 每个节点简洁，不超过 15 个字\n"
+                        "7. 只输出 Markdown 内容，不要有任何代码块标记或说明文字"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"学科名称：{subject_name}\n\n学习资料内容（已均匀采样覆盖全书）：\n{context}",
+                },
+            ]
 
         result = self._llm_service.chat(messages)
         result = result.strip()

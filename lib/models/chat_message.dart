@@ -7,6 +7,34 @@
 // 消息角色：用户 or AI 助手
 enum MessageRole { user, assistant }
 
+// 消息类型：普通文本 or 场景识别卡片
+enum MessageType { text, sceneCard }
+
+// 场景类型：学科 / 规划 / 工具 / Spec
+enum SceneType { subject, planning, tool, spec }
+
+// 场景卡片数据（纯本地状态，不来自服务器）
+// dismissed 需要可变，所以不用 const，也不用 final
+class SceneCardData {
+  final SceneType sceneType;
+  final String title;
+  final String? subtitle;
+  final String confirmLabel;
+  final String dismissLabel;
+  final Map<String, dynamic> payload;
+  bool dismissed;
+
+  SceneCardData({
+    required this.sceneType,
+    required this.title,
+    this.subtitle,
+    required this.confirmLabel,
+    required this.dismissLabel,
+    required this.payload,
+    this.dismissed = false,
+  });
+}
+
 // 会话类型：问答 / 解题 / 思维导图 / 出题
 // .name 属性会返回枚举值的字符串名，如 SessionType.qa.name == "qa"
 enum SessionType { qa, solve, mindmap, exam }
@@ -20,16 +48,19 @@ class ChatMessage {
   final String content;      // 消息文本内容
   final List<MessageSource>? sources; // RAG 参考来源列表，? 表示可以为 null
   final DateTime createdAt;  // 创建时间
+  final MessageType type;    // 消息类型，默认 text
+  SceneCardData? sceneCardData; // type == sceneCard 时非空（可变，dismissed 需要修改）
 
-  // const 构造函数：所有字段在编译时确定，性能更好
   // required 表示调用时必须传这个参数（类似 Python 函数的无默认值参数）
   // this.xxx 是 Dart 的简写，等价于 Python 的 self.xxx = xxx
-  const ChatMessage({
+  ChatMessage({
     required this.id,
     required this.role,
     required this.content,
     this.sources,       // 没有 required，所以可以不传（默认 null）
     required this.createdAt,
+    this.type = MessageType.text,  // 新增，默认 text
+    this.sceneCardData,            // 新增，默认 null
   });
 
   // get 是 Dart 的"计算属性"（getter），类似 Python 的 @property
@@ -65,13 +96,20 @@ class ChatMessage {
 
   // 另一个 factory 构造函数：创建本地临时消息（不来自服务器）
   // 用于"乐观更新"——用户发消息后立刻显示，不等服务器响应
-  factory ChatMessage.local({required MessageRole role, required String content}) =>
+  factory ChatMessage.local({
+    required MessageRole role,
+    required String content,
+    MessageType type = MessageType.text,
+    SceneCardData? sceneCardData,
+  }) =>
       ChatMessage(
         // 用当前时间戳作为临时 ID，保证唯一性
         id: DateTime.now().millisecondsSinceEpoch,
         role: role,
         content: content,
         createdAt: DateTime.now(),
+        type: type,
+        sceneCardData: sceneCardData,
       );
 }
 

@@ -87,17 +87,24 @@ class MessageSearchDelegate extends SearchDelegate<void> {
 
     if (result.subjectId != null &&
         (result.sessionType == SessionType.qa || result.sessionType == SessionType.solve)) {
-      final key = (result.subjectId!, result.sessionType.name);
+      final key = (result.subjectId!.toString(), result.sessionType.name);
       await _ref.read(chatProvider(key).notifier).loadSession(result.sessionId);
     }
 
     if (!context.mounted) return;
-    context.go(switch (result.sessionType) {
+    // solve/mindmap/exam 是顶层独立页，用 push 以便能返回
+    // qa 类型跳回主页根路由，用 go 清空栈
+    final route = switch (result.sessionType) {
       SessionType.solve   => AppRoutes.solve,
-      SessionType.mindmap => AppRoutes.mindmap,
+      SessionType.mindmap => AppRoutes.mindmapEntry,
       SessionType.exam    => AppRoutes.quiz,
       _                   => AppRoutes.chat,
-    });
+    };
+    if (route == AppRoutes.chat) {
+      context.go(route);
+    } else {
+      context.push(route);
+    }
   }
 }
 

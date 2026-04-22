@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../models/chat_message.dart';
 import '../providers/chat_provider.dart';
+import '../routes/app_router.dart';
 import '../widgets/message_search_delegate.dart';
-import '../features/classroom/classroom_page.dart';
 
 /// 通用历史记录底部弹窗，支持按 session 类型筛选
 /// [subjectId] 当前学科
@@ -69,18 +70,20 @@ class _SessionHistorySheetState extends ConsumerState<_SessionHistorySheet> {
 
   Future<void> _loadSession(ConversationSession s) async {
     final typeKey = s.sessionType.name;
-    final key = (widget.subjectId, typeKey);
+    final key = (widget.subjectId.toString(), typeKey);
     await ref.read(chatProvider(key).notifier).loadSession(s.id);
     if (!mounted) return;
-    // 设置答疑室应跳转到的 tab，让 ClassroomPage 在 initState 时读取
-    final tabIndex = switch (s.sessionType) {
-      SessionType.solve   => 1,
-      SessionType.mindmap => 2,
-      SessionType.exam    => 3,
-      _                   => 0,
-    };
-    ref.read(classroomInitialTabProvider.notifier).state = tabIndex;
-    Navigator.pop(context);
+    // 根据会话类型跳转到对应工具页
+    switch (s.sessionType) {
+      case SessionType.solve:
+        Navigator.pop(context);
+        context.push(AppRoutes.toolkitSolve);
+      case SessionType.exam:
+        Navigator.pop(context);
+        context.push(AppRoutes.toolkitQuiz);
+      default:
+        Navigator.pop(context);
+    }
   }
 
   Future<void> _deleteSession(ConversationSession s) async {

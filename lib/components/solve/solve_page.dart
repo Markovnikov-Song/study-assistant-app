@@ -28,7 +28,7 @@ class _SolvePageState extends ConsumerState<SolvePage> {
   void dispose() { _inputCtrl.dispose(); _scrollCtrl.dispose(); super.dispose(); }
 
   int? get _subjectId => ref.read(currentSubjectProvider)?.id;
-  (int, String) get _key => (_subjectId!, 'solve');
+  (String, String) get _key => (_subjectId!.toString(), 'solve');
 
   void _bindSendingCallback() {
     final sid = _subjectId;
@@ -125,7 +125,7 @@ class _SolveBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final key = (subjectId, 'solve');
+    final key = (subjectId.toString(), 'solve');
     final chatState = ref.watch(chatProvider(key));
     return Column(
       children: [
@@ -190,7 +190,7 @@ class _SessionBar extends ConsumerWidget {
           ),
           const Spacer(),
           TextButton.icon(
-            onPressed: () => ref.read(chatProvider((subjectId, 'solve')).notifier).newSession(),
+            onPressed: () => ref.read(chatProvider((subjectId.toString(), 'solve')).notifier).newSession(),
             icon: const Icon(Icons.add, size: 16),
             label: const Text('新建对话', style: TextStyle(fontSize: 13)),
           ),

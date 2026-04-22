@@ -45,6 +45,16 @@
 - **SkillParser**：经验贴解析器接口，将非结构化文本解析为结构化 Skill 草稿，支持插拔不同 AI 模型实现
 - **Skill_Marketplace**：Skill 共创市场，支持用户发布、浏览、订阅社区贡献的 Skill，含沙箱隔离与审核机制
 - **Sandbox**：共创 Skill 运行沙箱，隔离第三方 Skill 的执行环境，防止越权访问数据或组件
+- **Universal_Chat_Page**：通用聊天页，系统根路由 `/` 的唯一入口，所有交互从此发起，Classmate_Agent 在此进行场景识别并路由到对应 Skill/组件
+- **Scene_Recognition**：场景识别，Classmate_Agent 对用户输入进行意图分析，识别出学科意图、规划意图、工具意图或 Spec 意图，并触发对应路由跳转流程
+- **Mini_App_Bar**：底部迷你应用快捷栏，包含 Toolkit、Solve、Quiz、Course_Space 四个入口，作为功能快捷方式而非主导航
+- **Toolkit**：工具集合迷你应用，聚合错题本（MistakeBook）和笔记本（Notebook）两个工具，路由前缀 `/toolkit`
+- **Course_Space**：课程空间迷你应用（即图书馆），包含学科大纲、思维导图生成、讲义查看功能，路由前缀 `/course-space`
+- **Spec_Mode**：Spec 规划模式，用于大型学习目标的结构化拆解与任务规划，路由 `/spec`，类比 Kiro 的 spec 工作流
+- **Route_Guard**：路由守卫，分三层：全局守卫（鉴权）、模块守卫（学科/Skill 权限）、页面守卫（参数校验）
+- **Route_Observer**：GoRouterObserver 实现，追踪页面进入/退出/停留时长，将路由事件写入 Event_Bus
+- **Context_Params**：路由上下文参数，包含 `sceneSource`（user_active / agent_plan）、`taskId`、`contextId`、`renderMode`（full / modal），所有路由均支持携带
+- **Scene_Source**：场景来源标识，`user_active` 表示用户主动触发，`agent_plan` 表示 Agent 规划触发，写入 Route_Observer 的事件载荷
 
 ---
 
@@ -162,19 +172,72 @@
 
 ---
 
-### 需求 8：UI 导航结构与全局学科上下文
+### 需求 8：对话中心式 UI 架构与路由体系
 
-**用户故事：** 作为用户，我希望通过底部 5 个 Tab 快速访问所有功能，并通过顶部学科切换栏随时切换当前学科，以便所有功能页都在同一学科上下文下工作。
+**用户故事：** 作为用户，我希望以聊天页面作为唯一主入口与系统交互，通过自然语言触发所有功能，底部快捷栏仅作为迷你应用的直达入口，以便我无需记忆导航结构，系统能根据我的意图自动路由到合适的功能。
 
 #### 验收标准
 
-1. THE Learning_OS SHALL 实现底部导航栏，包含以下 5 个 Tab（按顺序）：问答（/chat）、解题（/solve）、导图（/mindmap）、出题（/quiz）、我的（/profile），使用 ShellRoute 实现，切换 Tab 时保持各页面状态。
-2. THE Learning_OS SHALL 在问答、解题、导图、出题四个功能页顶部统一显示 SubjectBar，SubjectBar 展示当前选中学科名称，点击后弹出底部抽屉列出所有学科，支持切换、新建、管理操作。
-3. THE Learning_OS SHALL 使用 `currentSubjectProvider`（`StateProvider<Subject?>`）作为全局学科上下文，所有功能页、Skill 调度、Agent 调用均读取该 Provider 获取当前学科，不允许各页面维护独立的学科状态副本。
-4. WHEN 用户在 SubjectBar 切换学科时，THE Learning_OS SHALL 更新 `currentSubjectProvider` 的值，所有订阅该 Provider 的功能页在 500 毫秒内响应学科切换，刷新页面内容。
-5. WHILE 未选择学科时，THE Learning_OS SHALL 在功能页内容区域显示"请先选择学科"引导提示，不展示功能内容，SubjectBar 显示"请选择学科"占位文本。
-6. THE Learning_OS SHALL 实现以下路由结构：`/login`、`/register`、`/`（Shell）、`/chat`、`/solve`、`/mindmap`、`/quiz`、`/profile`、`/profile/subjects`、`/profile/subjects/:id`、`/profile/history`，路由配置集中在 `lib/routes/app_router.dart`。
-7. THE Learning_OS SHALL 在"我的"页面（/profile）提供学科管理入口（跳转 /profile/subjects）和对话历史入口（跳转 /profile/history），学科管理页保留现有学科列表 UI，每个学科卡片点击进入含资料库和历年题两个 Tab 的学科资料页。
+##### 8.1 通用聊天页作为根入口
+
+1. THE Learning_OS SHALL 将根路由 `/` 映射到 Universal_Chat_Page，Universal_Chat_Page 为应用唯一主入口，不存在底部 Tab 主导航栏。
+2. THE Learning_OS SHALL 在 Universal_Chat_Page 底部渲染 Mini_App_Bar，Mini_App_Bar 包含以下 4 个快捷入口（按顺序）：Toolkit（工具箱）、Solve（解题）、Quiz（出题）、Course Space（课程空间），点击直接跳转对应路由，不作为主导航使用。
+3. THE Learning_OS SHALL 通过侧边栏（Sidebar）提供个人中心（/profile）入口，侧边栏由 Universal_Chat_Page 左滑或点击头像触发，不占用底部导航位置。
+4. WHEN 用户在 Universal_Chat_Page 发起新对话时，THE Learning_OS SHALL 创建新的 Session 并跳转至 `/chat/:chatId`，保留 Universal_Chat_Page 在导航栈底部，支持返回。
+
+##### 8.2 场景识别与自动路由
+
+5. WHEN Classmate_Agent 在对话中识别到学科相关意图时，THE Classmate_Agent SHALL 向用户展示确认卡片（如"切换到高数专属对话？"），用户确认后跳转至 `/chat/:chatId/subject/:subjectId`，用户拒绝则继续在当前对话中响应。
+6. WHEN Classmate_Agent 在对话中识别到备考目标或学习规划意图时，THE Classmate_Agent SHALL 触发 ClassTeacher_Agent 发起多轮对话收集目标信息，完成后生成 Learning_Plan 并跳转至 `/chat/:chatId/task/:taskId`。
+7. WHEN Classmate_Agent 在对话中识别到笔记记录或错题录入意图时，THE Classmate_Agent SHALL 在对话流中展示快速跳转卡片，用户点击后跳转至对应 `/toolkit/*` 路由，用户可通过返回按钮或悬浮按钮回到原对话。
+8. WHEN Classmate_Agent 在对话中识别到大型学习目标规划意图时，THE Classmate_Agent SHALL 向用户展示确认提示（如"启动 Spec 规划模式？"），用户确认后跳转至 `/spec`，Spec 完成后返回原对话。
+9. WHEN 任意场景识别触发路由跳转时，THE Route_Observer SHALL 将跳转事件写入 Event_Bus，事件载荷包含：来源路由、目标路由、Scene_Source（user_active 或 agent_plan）、关联 taskId 和 contextId。
+
+##### 8.3 路由结构
+
+10. THE Learning_OS SHALL 实现以下完整路由结构，路由路径使用 kebab-case，路由名称常量使用 UPPER_SNAKE_CASE（如 `ROUTE_MISTAKE_BOOK`）：
+
+    ```
+    /login
+    /register
+    /                                          (Universal_Chat_Page，根入口)
+    /chat/:chatId                              (单次对话 Session)
+    /chat/:chatId/subject/:subjectId           (学科专属对话)
+    /chat/:chatId/task/:taskId                 (任务关联对话)
+    /spec                                      (Spec 规划模式)
+    /toolkit                                   (工具箱，桌面图标风格)
+    /toolkit/mistake-book                      (错题本列表)
+    /toolkit/mistake-book/:mistakeId           (错题详情)
+    /toolkit/notebooks                         (笔记本列表)
+    /toolkit/notebooks/:notebookId             (笔记本详情)
+    /toolkit/notebooks/:notebookId/notes/:noteId  (笔记详情)
+    /toolkit/solve                             (解题)
+    /toolkit/solve/:chatId                     (解题对话 Session)
+    /toolkit/quiz                              (出题)
+    /toolkit/quiz/:chatId                      (出题对话 Session)
+    /course-space                              (课程空间/图书馆)
+    /course-space/:subjectId                   (学科课程空间)
+    /course-space/:subjectId/outline/:outlineNodeId   (大纲节点)
+    /course-space/:subjectId/mindmap/:outlineNodeId   (思维导图，含生成功能)
+    /course-space/:subjectId/lecture/:outlineNodeId   (讲义查看)
+    /profile                                   (个人中心，侧边栏入口)
+    /profile/subjects                          (学科管理)
+    /profile/history                           (对话历史)
+    ```
+
+11. THE Learning_OS SHALL 将路由配置按模块拆分为独立文件：`auth_routes.dart`、`chat_routes.dart`、`course_space_routes.dart`、`toolkit_routes.dart`、`skill_routes.dart`，并在 `app_router.dart` 中合并，不允许将所有路由集中在单一文件中。
+12. THE Learning_OS SHALL 使用 `go_router_builder` 实现类型安全路由，所有动态路由参数（如 `:notebookId`、`:mistakeId`、`:subjectId`）定义为具名常量（如 `PARAM_NOTEBOOK_ID`），不允许在代码中硬编码参数名字符串。
+
+##### 8.4 路由守卫与参数校验
+
+13. THE Learning_OS SHALL 实现三层 Route_Guard：全局守卫（鉴权，未登录重定向至 /login）、模块守卫（学科/Skill 权限校验）、页面守卫（动态参数合法性校验）。
+14. WHEN 路由动态参数（如 `:chatId`、`:subjectId`）解析失败时，THE Learning_OS SHALL 将用户重定向至自定义 404 页面，不抛出未处理异常；`errorBuilder` 配置自定义 404 页面。
+15. WHEN 用户完成登录时，THE Learning_OS SHALL 使用 `go()` 而非 `push()` 跳转至根路由，清空导航栈，防止用户通过返回键回到登录页。
+
+##### 8.5 路由观测与上下文参数
+
+16. THE Route_Observer SHALL 追踪所有路由的页面进入时间、退出时间、停留时长，并将每次页面退出事件写入 Event_Bus，事件载荷包含：路由路径、停留时长（毫秒）、Scene_Source。
+17. THE Learning_OS SHALL 支持所有路由携带以下 Context_Params（作为 query 参数传递）：`sceneSource`（user_active / agent_plan）、`taskId`、`contextId`、`renderMode`（full / modal），路由组件读取这些参数调整渲染行为，参数缺失时使用默认值，不报错。
 
 ---
 

@@ -1,13 +1,10 @@
 import 'dart:async';
-import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill/quill_delta.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:go_router/go_router.dart';
 import '../../../models/mindmap_library.dart';
-import '../../../routes/app_router.dart';
 import '../../../services/library_service.dart';
 import '../../../services/notebook_service.dart';
 import '../../../providers/library_provider.dart';
@@ -266,9 +263,9 @@ class _LecturePageState extends ConsumerState<LecturePage> {
   final Set<String> _hasLectureNodeIds = {};
   final Set<String> _checkedNodeIds = {};
   // QuillController 缓存（编辑用）
-  final _controllers = _LruCache<String, QuillController>(5);
+  final _controllers = _LruCache<String, QuillController>(20);
   // Markdown 字符串缓存（预览用）
-  final _markdownCache = _LruCache<String, String>(10);
+  final _markdownCache = _LruCache<String, String>(30);
   final Map<String, bool> _nodeLoading = {};
   final Map<String, String?> _nodeError = {};
   final Map<String, bool> _expandedNodes = {};
@@ -379,6 +376,10 @@ class _LecturePageState extends ConsumerState<LecturePage> {
           buf.writeln('- ${b.text}');
         case 'quote':
           buf.writeln('> ${b.text}');
+        case 'formula':
+          buf.writeln(r'\[');
+          buf.writeln(b.text);
+          buf.writeln(r'\]');
         default:
           buf.writeln(b.text);
       }
@@ -472,8 +473,9 @@ class _LecturePageState extends ConsumerState<LecturePage> {
 
     setState(() => _currentNodeId = nodeId);
 
-    // Load if not yet checked
-    if (!_checkedNodeIds.contains(nodeId)) {
+    // Load if not yet checked, or if controller was evicted from LRU cache
+    if (!_checkedNodeIds.contains(nodeId) || _controllers.get(nodeId) == null) {
+      _checkedNodeIds.remove(nodeId); // force reload
       await _loadLectureForNode(nodeId);
     }
   }
@@ -500,9 +502,11 @@ class _LecturePageState extends ConsumerState<LecturePage> {
           errorMsg = event.substring(7);
           break;
         }
+        // 反转义换行符
+        final token = event.replaceAll(r'\n', '\n');
         if (mounted) {
           setState(() {
-            _streamingText[nodeId] = (_streamingText[nodeId] ?? '') + event;
+            _streamingText[nodeId] = (_streamingText[nodeId] ?? '') + token;
           });
         }
       }
@@ -680,6 +684,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                   const VerticalDivider(width: 1, thickness: 1),
                   Expanded(
                     child: _RightPanel(
+                      key: ValueKey(_currentNodeId),
                       nodeId: _currentNodeId,
                       nodeText: currentNodeText,
                       sessionId: widget.sessionId,
@@ -697,6 +702,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                 ],
               )
             : _RightPanel(
+                key: ValueKey(_currentNodeId),
                 nodeId: _currentNodeId,
                 nodeText: currentNodeText,
                 sessionId: widget.sessionId,
@@ -852,6 +858,10 @@ class _LecturePageState extends ConsumerState<LecturePage> {
           buf.writeln('- ${b.text}');
         case 'quote':
           buf.writeln('> ${b.text}');
+        case 'formula':
+          buf.writeln(r'\[');
+          buf.writeln(b.text);
+          buf.writeln(r'\]');
         default:
           buf.writeln(b.text);
       }
@@ -1040,6 +1050,7 @@ class _RightPanel extends StatefulWidget {
   final VoidCallback? onGenerate;
 
   const _RightPanel({
+    super.key,
     required this.nodeId,
     required this.nodeText,
     required this.sessionId,

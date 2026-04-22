@@ -14,13 +14,28 @@ from routers import auth, subjects, sessions, chat, documents, past_exams, exam_
 
 app = FastAPI(title="学科学习助手 API", version="1.0.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS：开发环境默认只允许本地，生产部署时通过 CORS_ALLOWED_ORIGINS 环境变量配置
+# 示例：CORS_ALLOWED_ORIGINS=https://app.example.com,https://www.example.com
+_cors_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
+_cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # 未配置时仅允许本地开发
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 @app.on_event("startup")
 async def _startup():

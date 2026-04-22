@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../components/chat/chat_page.dart';
+import '../../features/chat/chat_page.dart';
 import '../../components/solve/solve_page.dart';
 import '../../components/mindmap/mindmap_page.dart';
 import '../../components/quiz/quiz_page.dart';

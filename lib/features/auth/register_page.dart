@@ -30,7 +30,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final ok = await ref
         .read(authProvider.notifier)
         .register(_usernameCtrl.text.trim(), _passwordCtrl.text);
-    if (ok && mounted) context.go(AppRoutes.subjects);
+    if (ok && mounted) {
+      // 先 go('/') 进入带底部导航栏的主界面，再 push 学科管理页引导新用户
+      // 不能直接 go(subjects)，那样会丢失 Shell，用户将无路可回
+      context.go(AppRoutes.chat);
+      context.push(AppRoutes.subjects);
+    }
   }
 
   @override

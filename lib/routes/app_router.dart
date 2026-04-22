@@ -1,98 +1,231 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../features/auth/login_page.dart';
 import '../features/auth/register_page.dart';
 import '../features/home/shell_page.dart';
-import '../features/classroom/classroom_page.dart';
+import '../features/chat/chat_page.dart';
+import '../features/spec/spec_page.dart';
+import '../features/toolkit/toolkit_page.dart';
+import '../features/profile/profile_page.dart';
+import '../features/profile/edit_profile_page.dart';
+import '../features/profile/memory_page.dart';
+import '../features/subjects/subjects_page.dart';
+import '../features/resources/resources_page.dart';
+import '../features/history/history_page.dart';
+import '../features/subject_detail/subject_detail_page.dart';
+import '../features/skill_marketplace/marketplace_page.dart';
+import '../features/skill_creation/dialog_creation_page.dart';
 import '../components/library/library_page.dart';
 import '../components/library/course_space_page.dart';
 import '../components/library/editable_mindmap_page.dart';
 import '../components/library/lecture/lecture_page.dart';
-import '../components/mistake_book/stationery_page.dart';
 import '../components/mistake_book/mistake_book_page.dart';
-import '../features/profile/profile_page.dart';
-import '../features/subjects/subjects_page.dart';
-import '../features/resources/resources_page.dart';
-import '../features/subject_detail/subject_detail_page.dart';
-import '../features/history/history_page.dart';
 import '../components/notebook/notebook_list_page.dart';
 import '../components/notebook/notebook_detail_page.dart';
 import '../components/notebook/note_detail_page.dart';
-import '../features/profile/edit_profile_page.dart';
-import '../features/profile/memory_page.dart';
+import '../components/solve/solve_page.dart';
+import '../components/quiz/quiz_page.dart';
+import '../components/mindmap_entry/mindmap_entry_page.dart';
+import '../features/skill_runner/my_skills_page.dart';
 import '../providers/auth_provider.dart';
-import '../features/skill_marketplace/marketplace_page.dart';
-import '../features/skill_creation/dialog_creation_page.dart';
+import '../providers/library_provider.dart';
 
-class AppRoutes {
-  static const login       = '/login';
-  static const register    = '/register';
-  static const classroom   = '/classroom';  // 答疑室
-  static const library     = '/library';    // 学校（学科 → 大纲 → 思维导图 → 讲义）
-  static const stationery  = '/stationery'; // 文具盒
-  static const mistakeBook = '/mistakes'; // 错题本（顶层路由，push 覆盖 shell）
+// ─────────────────────────────────────────────────────────────────────────────
+// 所有路由路径常量，集中定义，全项目唯一来源
+// ─────────────────────────────────────────────────────────────────────────────
+class R {
+  R._();
+
+  // Auth
+  static const login    = '/login';
+  static const register = '/register';
+
+  // Shell Tabs
+  static const chat        = '/';
+  static const courseSpace = '/course-space';
+  static const toolkit     = '/toolkit';
   static const profile     = '/profile';
-  static const subjects    = '/profile/subjects';
-  static const resources   = '/profile/resources';
-  static const history     = '/profile/history';
-  static const notebooks   = '/profile/notebooks';
-  static const profileEdit = '/profile/edit';
-  static const memory      = '/profile/memory';
 
-  // 答疑室内部子功能别名（跳转到答疑室即可）
-  static const chat     = '/classroom';
-  static const solve    = '/classroom';
-  static const mindmap  = '/classroom';
-  static const quiz     = '/classroom';
+  // Chat 子路由
+  static String chatSession(String chatId)                        => '/chat/$chatId';
+  static String chatSubject(String chatId, int subjectId)         => '/chat/$chatId/subject/$subjectId';
+  static String chatTask(String chatId, String taskId)            => '/chat/$chatId/task/$taskId';
+  static const spec = '/spec';
 
-  static String subjectDetailPath(int id) => '/profile/resources/$id';
-  static String notebookDetail(int id) => '/profile/notebooks/$id';
-  static String noteDetail(int nbId, int noteId) => '/profile/notebooks/$nbId/notes/$noteId';
+  // 课程空间
+  static String courseSpaceSubject(int subjectId)                 => '/course-space/$subjectId';
+  static String mindmap(int subjectId, int sessionId)             => '/course-space/$subjectId/mindmap/$sessionId';
+  static String lecture(int subjectId, int sessionId, String nodeId)
+      => '/course-space/$subjectId/mindmap/$sessionId/lecture?node_id=${Uri.encodeQueryComponent(nodeId)}';
 
-  // Skill 生态路由
-  static const skillMarketplace  = '/skill-marketplace';   // 学习方法库（DIY 模式入口）
-  static const skillDialogCreate = '/skill-create-dialog'; // 对话式创建学习方法
+  // 工具箱
+  static const toolkitMistakeBook = '/toolkit/mistake-book';
+  static const toolkitNotebooks   = '/toolkit/notebooks';
+  static String notebookDetail(int id)                            => '/toolkit/notebooks/$id';
+  static String noteDetail(int nbId, int noteId)                  => '/toolkit/notebooks/$nbId/notes/$noteId';
+  static const toolkitSolve = '/toolkit/solve';
+  static const toolkitQuiz  = '/toolkit/quiz';
 
-  // Library nested routes
-  static String courseSpace(int subjectId) => '/library/$subjectId';
-  static String editableMindMap(int subjectId, int sessionId) =>
-      '/library/$subjectId/mindmap/$sessionId';
-  static String lecturePage(int subjectId, int sessionId, String nodeId) =>
-      '/library/$subjectId/mindmap/$sessionId/lecture?node_id=${Uri.encodeQueryComponent(nodeId)}';
+  // 我的
+  static const profileEdit     = '/profile/edit';
+  static const profileMemory   = '/profile/memory';
+  static const profileSubjects = '/profile/subjects';
+  static const profileResources = '/profile/resources';
+  static const profileHistory  = '/profile/history';
+  static String subjectDetail(int id)                             => '/profile/resources/$id';
+
+  // 其他独立页面
+  static const skillMarketplace  = '/skill-marketplace';
+  static const skillDialogCreate = '/skill-create-dialog';
+  static const mindmapEntry      = '/mindmap-entry';
+  static String mindmapEntryForSubject(int subjectId) => '/mindmap-entry?subject=$subjectId';
+
+  // ── 向后兼容旧路由（其他文件仍引用，映射到新路由）──────────────────────────
+  // 旧的 /library/:subjectId/mindmap/:sessionId/lecture 仍可用
+  static String legacyMindmap(int subjectId, int sessionId)       => '/course-space/$subjectId/mindmap/$sessionId';
+  static String legacyLecture(int subjectId, int sessionId, String nodeId)
+      => lecture(subjectId, sessionId, nodeId);
+
+  // 旧常量别名（防止其他文件编译报错）
+  static const classroom  = chat;           // /classroom → /
+  static const library    = courseSpace;    // /library   → /course-space
+  static const stationery = toolkit;        // /stationery → /toolkit
+  static const mistakeBook = toolkitMistakeBook;
+  static const notebooks   = toolkitNotebooks;
+  static const subjects    = profileSubjects;
+  static const resources   = profileResources;
+  static const history     = profileHistory;
+  static const memory      = profileMemory;
+  static const solve       = toolkitSolve;
+  static const quiz        = toolkitQuiz;
+  static const mindmap_    = mindmapEntry;
+
+  // 旧方法别名
+  static String subjectDetailPath(int id)  => subjectDetail(id);
+  static String courseSpacePath(int id)    => courseSpaceSubject(id);
+  static String courseSpaceById(int id)    => courseSpaceSubject(id);
+  static String editableMindMap(int subjectId, int sessionId) => mindmap(subjectId, sessionId);
+  static String lecturePage(int subjectId, int sessionId, String nodeId)
+      => lecture(subjectId, sessionId, nodeId);
+  static String notebookDetail_(int id)    => notebookDetail(id);
+  static String noteDetail_(int nbId, int noteId) => noteDetail(nbId, noteId);
 }
 
+// 旧名称别名，让其他文件的 AppRoutes.xxx 不报错
+typedef AppRoutes = R;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Router Provider
+// ─────────────────────────────────────────────────────────────────────────────
 final routerProvider = Provider<GoRouter>((ref) {
   final notifier = _RouterNotifier(ref);
   return GoRouter(
-    initialLocation: AppRoutes.classroom,
+    initialLocation: R.chat,
     refreshListenable: notifier,
     redirect: (context, state) {
       final loggedIn = notifier.isLoggedIn;
-      final isAuth = state.matchedLocation == AppRoutes.login || state.matchedLocation == AppRoutes.register;
-      if (!loggedIn && !isAuth) return AppRoutes.login;
-      if (loggedIn && isAuth) return AppRoutes.classroom;
+      final loc = state.matchedLocation;
+      final isAuth = loc == R.login || loc == R.register;
+      if (!loggedIn && !isAuth) return R.login;
+      if (loggedIn && isAuth) return R.chat;
       return null;
     },
+    errorBuilder: (context, state) => Scaffold(
+      body: Center(child: Text('页面不存在: ${state.uri}')),
+    ),
     routes: [
-      GoRoute(path: AppRoutes.login,    builder: (_, _) => const LoginPage()),
-      GoRoute(path: AppRoutes.register, builder: (_, _) => const RegisterPage()),
-      // profile 子页面放在顶层，push 时覆盖整个 shell
-      GoRoute(path: AppRoutes.profileEdit, builder: (_, _) => const EditProfilePage()),
-      GoRoute(path: AppRoutes.memory,      builder: (_, _) => const MemoryPage()),
-      GoRoute(path: AppRoutes.subjects,    builder: (_, _) => const SubjectsPage()),
-      GoRoute(path: AppRoutes.resources,   builder: (_, _) => const ResourcesPage()),
-      GoRoute(path: AppRoutes.history,     builder: (_, _) => const HistoryPage()),
-      GoRoute(path: AppRoutes.mistakeBook, builder: (_, _) => const MistakeBookPage()),
-      GoRoute(path: AppRoutes.skillMarketplace,  builder: (_, _) => const MarketplacePage()),
-      GoRoute(path: AppRoutes.skillDialogCreate, builder: (_, _) => const DialogCreationPage()),
+      // ── Auth ──────────────────────────────────────────────────────────────
+      GoRoute(path: R.login,    builder: (_, __) => const LoginPage()),
+      GoRoute(path: R.register, builder: (_, __) => const RegisterPage()),
+
+      // ── 独立全屏页面（push 覆盖 shell）────────────────────────────────────
+      GoRoute(path: R.spec,              builder: (_, __) => const SpecPage()),
+      GoRoute(path: R.profileEdit,       builder: (_, __) => const EditProfilePage()),
+      GoRoute(path: R.profileMemory,     builder: (_, __) => const MemoryPage()),
+      GoRoute(path: R.profileSubjects,   builder: (_, __) => const SubjectsPage()),
+      GoRoute(path: R.profileResources,  builder: (_, __) => const ResourcesPage()),
+      GoRoute(path: R.profileHistory,    builder: (_, __) => const HistoryPage()),
+      GoRoute(path: R.skillMarketplace,  builder: (_, __) => const MarketplacePage()),
+      GoRoute(path: R.skillDialogCreate, builder: (_, __) => const DialogCreationPage()),
+      GoRoute(
+        path: R.mindmapEntry,
+        builder: (_, state) => MindmapEntryPage(
+          initialSubjectId: int.tryParse(state.uri.queryParameters['subject'] ?? ''),
+        ),
+      ),
       GoRoute(
         path: '/profile/resources/:id',
-        builder: (_, state) => SubjectDetailPage(subjectId: int.parse(state.pathParameters['id']!)),
+        builder: (_, state) => SubjectDetailPage(
+          subjectId: int.parse(state.pathParameters['id']!),
+        ),
       ),
-      // library 子页面也放顶层，push 时覆盖整个 shell
+
+      // Chat 子路由（独立全屏，不在 shell 内）
       GoRoute(
-        path: '/library/:subjectId',
+        path: '/chat/:chatId',
+        builder: (_, state) => ChatPage(chatId: state.pathParameters['chatId']),
+        routes: [
+          GoRoute(
+            path: 'subject/:subjectId',
+            builder: (_, state) => ChatPage(
+              chatId: state.pathParameters['chatId'],
+              subjectId: int.tryParse(state.pathParameters['subjectId'] ?? ''),
+            ),
+          ),
+          GoRoute(
+            path: 'task/:taskId',
+            builder: (_, state) => ChatPage(
+              chatId: state.pathParameters['chatId'],
+              taskId: state.pathParameters['taskId'],
+            ),
+          ),
+        ],
+      ),
+
+      // 工具箱子路由
+      GoRoute(path: R.toolkitMistakeBook, builder: (_, __) => const MistakeBookPage()),
+      GoRoute(path: R.toolkitSolve,       builder: (_, __) => const SolvePage()),
+      GoRoute(path: R.toolkitQuiz,        builder: (_, __) => const QuizPage()),
+      GoRoute(path: '/my-skills',         builder: (_, __) => const MySkillsPage()),
+      GoRoute(
+        path: '/toolkit/mindmap-workshop',
+        builder: (_, state) {
+          final subjectId = int.tryParse(state.uri.queryParameters['subject'] ?? '');
+          if (subjectId != null) {
+            // 直接进指定学科的详情页
+            return CourseSpacePage(subjectId: subjectId);
+          }
+          // 没有指定学科，显示学科选择页
+          return const _MindmapSubjectPickerPage();
+        },
+      ),
+      GoRoute(
+        path: R.toolkitNotebooks,
+        builder: (_, __) => const NotebookListPage(),
+        routes: [
+          GoRoute(
+            path: ':notebookId',
+            builder: (_, state) => NotebookDetailPage(
+              notebookId: int.parse(state.pathParameters['notebookId']!),
+            ),
+            routes: [
+              GoRoute(
+                path: 'notes/:noteId',
+                builder: (_, state) => NoteDetailPage(
+                  notebookId: int.parse(state.pathParameters['notebookId']!),
+                  noteId: int.parse(state.pathParameters['noteId']!),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+
+      // 课程空间子路由（独立全屏）
+      GoRoute(
+        path: '/course-space/:subjectId',
         builder: (_, state) => CourseSpacePage(
           subjectId: int.parse(state.pathParameters['subjectId']!),
         ),
@@ -115,43 +248,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
         ],
-      ),      GoRoute(
-        path: AppRoutes.notebooks,
-        builder: (_, _) => const NotebookListPage(),
-        routes: [
-          GoRoute(
-            path: ':nbId',
-            builder: (_, state) => NotebookDetailPage(
-              notebookId: int.parse(state.pathParameters['nbId']!),
-            ),
-            routes: [
-              GoRoute(
-                path: 'notes/:noteId',
-                builder: (_, state) => NoteDetailPage(
-                  notebookId: int.parse(state.pathParameters['nbId']!),
-                  noteId: int.parse(state.pathParameters['noteId']!),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
+
+      // ── Shell（底部 4 Tab）────────────────────────────────────────────────
       ShellRoute(
-        builder: (_, _, child) => ShellPage(child: child),
+        builder: (_, __, child) => ShellPage(child: child),
         routes: [
-          GoRoute(path: AppRoutes.classroom,  builder: (_, _) => const ClassroomPage()),
-          GoRoute(
-            path: AppRoutes.library,
-            builder: (_, _) => const LibraryPage(),
-          ),
-          GoRoute(
-            path: AppRoutes.stationery,
-            builder: (_, _) => const StationeryPage(),
-          ),
-          GoRoute(
-            path: AppRoutes.profile,
-            builder: (_, _) => const ProfilePage(),
-          ),
+          GoRoute(path: '/',               builder: (_, __) => const ChatPage()),
+          GoRoute(path: R.courseSpace,     builder: (_, __) => const LibraryPage()),
+          GoRoute(path: R.toolkit,         builder: (_, __) => const ToolkitPage()),
+          GoRoute(path: R.profile,         builder: (_, __) => const ProfilePage()),
         ],
       ),
     ],
@@ -170,4 +276,106 @@ class _RouterNotifier extends ChangeNotifier {
   }
 }
 
-// Placeholder pages — will be replaced by full implementations in later tasks.
+// ── 脑图工坊学科选择页（无 subjectId 时显示）────────────────────────────────
+
+class _MindmapSubjectPickerPage extends ConsumerWidget {
+  const _MindmapSubjectPickerPage();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final subjectsAsync = ref.watch(schoolSubjectsProvider);
+    final cs = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('脑图工坊'),
+        centerTitle: false,
+      ),
+      body: subjectsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('加载失败：$e')),
+        data: (subjects) {
+          if (subjects.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(40),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.school_outlined, size: 64, color: cs.outlineVariant),
+                    const SizedBox(height: 16),
+                    Text('还没有学科', style: TextStyle(color: cs.outline, fontSize: 15)),
+                    const SizedBox(height: 8),
+                    Text('去「我的 → 学科管理」创建学科',
+                        style: TextStyle(color: cs.outline, fontSize: 13)),
+                  ],
+                ),
+              ),
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: subjects.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (_, i) {
+              final item = subjects[i];
+              final pct = item.totalNodes == 0
+                  ? 0
+                  : (item.litNodes / item.totalNodes * 100).floor();
+              return Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: cs.outlineVariant),
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => context.push(
+                    AppRoutes.courseSpaceById(item.subject.id),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: cs.primaryContainer,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.account_tree_outlined,
+                              color: cs.onPrimaryContainer),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(item.subject.name,
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${item.sessionCount} 份导图  ·  进度 $pct%',
+                                style: TextStyle(
+                                    fontSize: 12, color: cs.outline),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right, color: cs.outline),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}

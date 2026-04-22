@@ -384,6 +384,11 @@ def companion_observe(body: CompanionObserveIn, user=Depends(get_current_user)):
             mistake_count=body.mistake_count,
             emotion_keywords=body.emotion_keywords or "无",
             declining_subjects=body.declining_subjects or "无",
+        ).format(
+            focus_minutes=body.focus_minutes,
+            mistake_count=body.mistake_count,
+            emotion_keywords=body.emotion_keywords or "无",
+            declining_subjects=body.declining_subjects or "无",
         )
 
     try:

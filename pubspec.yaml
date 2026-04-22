@@ -91,6 +91,12 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  # 应用资源
+  assets:
+    - assets/images/backgrounds/
+    - assets/images/empty_states/
+    - assets/images/icons/
+
   fonts:
     - family: Noto Sans SC
       fonts:
