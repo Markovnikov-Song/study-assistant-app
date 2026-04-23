@@ -10,8 +10,8 @@ enum MessageRole { user, assistant }
 // 消息类型：普通文本 or 场景识别卡片
 enum MessageType { text, sceneCard }
 
-// 场景类型：学科 / 规划 / 工具 / Spec
-enum SceneType { subject, planning, tool, spec }
+// 场景类型：学科 / 规划 / 工具 / Spec / 日历
+enum SceneType { subject, planning, tool, spec, calendar }
 
 // 场景卡片数据（纯本地状态，不来自服务器）
 // dismissed 需要可变，所以不用 const，也不用 final

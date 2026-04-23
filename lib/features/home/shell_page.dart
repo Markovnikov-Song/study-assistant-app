@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/hint_provider.dart';
 import '../../providers/subject_provider.dart';
+import '../../providers/background_style_provider.dart';
 import '../chat/chat_page.dart';
 import '../../components/library/library_page.dart';
 import '../toolkit/toolkit_page.dart';
@@ -141,33 +142,28 @@ class _ShellPageState extends ConsumerState<ShellPage> {
 }
 
 // 全页 SVG 背景装饰
-class _PageBackground extends StatelessWidget {
+class _PageBackground extends ConsumerWidget {
   final int pageIndex;
   final bool isDark;
 
   const _PageBackground({required this.pageIndex, required this.isDark});
 
-  static const _bgAssets = [
-    'assets/images/backgrounds/bg_chat.svg',
-    'assets/images/backgrounds/bg_library.svg',
-    'assets/images/backgrounds/bg_toolkit.svg',
-    'assets/images/backgrounds/bg_profile.svg',
-  ];
-
   @override
-  Widget build(BuildContext context) {
-    return SvgPicture.asset(
-      _bgAssets[pageIndex],
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      colorFilter: isDark
-          ? null
-          : const ColorFilter.mode(
-              Colors.white,
-              BlendMode.softLight,
-            ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 从 Provider 获取当前背景风格
+    final bgAsset = ref.watch(currentPageBackgroundProvider(pageIndex));
+
+    return Opacity(
       opacity: isDark ? 0.55 : 0.25,
+      child: isDark
+          ? SvgPicture.asset(bgAsset, fit: BoxFit.cover)
+          : ColorFiltered(
+              colorFilter: const ColorFilter.mode(
+                Colors.white,
+                BlendMode.softLight,
+              ),
+              child: SvgPicture.asset(bgAsset, fit: BoxFit.cover),
+            ),
     );
   }
 }

@@ -26,8 +26,8 @@ class CalendarEventUpdated extends AppEvent {
 class CalendarEventCompleted extends AppEvent {
   final int eventId;
   final int? subjectId;
-  final String? taskId;
-  final String? mindmapNodeId;
+  final String? taskId;          // 关联的 study-planner task id
+  final String? mindmapNodeId;   // 关联的思维导图节点 id
   const CalendarEventCompleted({
     required this.eventId,
     this.subjectId,

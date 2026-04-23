@@ -29,6 +29,9 @@ import '../components/solve/solve_page.dart';
 import '../components/quiz/quiz_page.dart';
 import '../components/mindmap_entry/mindmap_entry_page.dart';
 import '../features/skill_runner/my_skills_page.dart';
+import '../features/calendar/calendar_page.dart';
+import '../features/calendar/widgets/countdown_list_page.dart';
+import '../features/calendar/widgets/stats_panel.dart';
 import '../providers/auth_provider.dart';
 import '../providers/library_provider.dart';
 
@@ -81,6 +84,12 @@ class R {
   static const skillDialogCreate = '/skill-create-dialog';
   static const mindmapEntry      = '/mindmap-entry';
   static String mindmapEntryForSubject(int subjectId) => '/mindmap-entry?subject=$subjectId';
+
+  // Calendar Planner
+  static const toolkitCalendar          = '/toolkit/calendar';
+  static String toolkitCalendarTask(String id) => '/toolkit/calendar/task/$id';
+  static const toolkitCalendarCountdown = '/toolkit/calendar/countdown';
+  static const toolkitCalendarStats     = '/toolkit/calendar/stats';
 
   // ── 向后兼容旧路由（其他文件仍引用，映射到新路由）──────────────────────────
   // 旧的 /library/:subjectId/mindmap/:sessionId/lecture 仍可用
@@ -189,6 +198,33 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: R.toolkitSolve,       builder: (_, __) => const SolvePage()),
       GoRoute(path: R.toolkitQuiz,        builder: (_, __) => const QuizPage()),
       GoRoute(path: '/my-skills',         builder: (_, __) => const MySkillsPage()),
+      GoRoute(
+        path: R.toolkitCalendar,
+        builder: (_, state) => CalendarPage(
+          renderMode: state.uri.queryParameters['mode'] ?? 'full',
+          sceneSource: state.uri.queryParameters['source'] ?? 'user_active',
+          subjectId: int.tryParse(state.uri.queryParameters['subject'] ?? ''),
+          prefillDate: state.uri.queryParameters['date'] != null
+              ? DateTime.tryParse(state.uri.queryParameters['date']!)
+              : null,
+        ),
+        routes: [
+          GoRoute(
+            path: 'task/:taskId',
+            builder: (_, state) => CalendarPage(
+              taskId: state.pathParameters['taskId'],
+            ),
+          ),
+          GoRoute(
+            path: 'countdown',
+            builder: (_, __) => const CountdownListPage(),
+          ),
+          GoRoute(
+            path: 'stats',
+            builder: (_, __) => const StatsPanel(),
+          ),
+        ],
+      ),
       GoRoute(
         path: '/toolkit/mindmap-workshop',
         builder: (_, state) {

@@ -2,9 +2,10 @@ class ApiConstants {
   ApiConstants._();
 
   // 开发时指向本地，生产时改为部署地址
+  // 手机调试时用热点的 IP
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8000',
+    defaultValue: 'http://192.168.137.1:8002',
   );
 
   // Auth

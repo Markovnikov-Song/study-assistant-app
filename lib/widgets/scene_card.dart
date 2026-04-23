@@ -22,6 +22,7 @@ class SceneCard extends StatelessWidget {
       case SceneType.planning: return const Color(0xFF43A047); // 绿色
       case SceneType.tool:     return const Color(0xFFFB8C00); // 橙色
       case SceneType.spec:     return const Color(0xFF8E24AA); // 紫色
+      case SceneType.calendar: return const Color(0xFF6366F1); // 靛蓝色
     }
   }
 
@@ -32,6 +33,7 @@ class SceneCard extends StatelessWidget {
       case SceneType.planning: return Icons.assignment_outlined;
       case SceneType.tool:     return Icons.build_outlined;
       case SceneType.spec:     return Icons.account_tree_outlined;
+      case SceneType.calendar: return Icons.calendar_today_outlined;
     }
   }
 

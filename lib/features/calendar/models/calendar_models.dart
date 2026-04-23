@@ -1,42 +1,15 @@
-import 'package:flutter/material.dart';
-
-// ─── 枚举 ─────────────────────────────────────────────────────
+enum ViewMode { month, week, day }
 
 enum PomodoroPhase { idle, focusing, resting, paused }
 
-enum ViewMode { month, week, day }
-
-// ─── DateRange ────────────────────────────────────────────────
-
-class DateRange {
-  final DateTime start;
-  final DateTime end;
-
-  const DateRange({required this.start, required this.end});
-
-  /// 构造某月的日期范围（月初到月末）
-  factory DateRange.month(DateTime month) {
-    final start = DateTime(month.year, month.month, 1);
-    final end = DateTime(month.year, month.month + 1, 0);
-    return DateRange(start: start, end: end);
-  }
-
-  @override
-  bool operator ==(Object other) =>
-      other is DateRange && start == other.start && end == other.end;
-
-  @override
-  int get hashCode => Object.hash(start, end);
-}
-
-// ─── CalendarEvent ────────────────────────────────────────────
+// ── CalendarEvent ─────────────────────────────────────────────────────────────
 
 class CalendarEvent {
   final int id;
   final int userId;
   final String title;
   final DateTime eventDate;
-  final String startTime; // "HH:mm"
+  final String startTime;       // "HH:MM"
   final int durationMinutes;
   final int? actualDurationMinutes;
   final int? subjectId;
@@ -46,10 +19,11 @@ class CalendarEvent {
   final String? notes;
   final bool isCompleted;
   final bool isCountdown;
-  final String priority; // 'high' | 'medium' | 'low'
-  final String source;   // 'manual' | 'study-planner' | 'agent'
+  final String priority;        // high / medium / low
+  final String source;          // manual / study-planner / agent / routine
   final int? routineId;
   final DateTime createdAt;
+  final DateTime updatedAt;
 
   const CalendarEvent({
     required this.id,
@@ -70,17 +44,20 @@ class CalendarEvent {
     required this.source,
     this.routineId,
     required this.createdAt,
+    required this.updatedAt,
   });
 
   factory CalendarEvent.fromJson(Map<String, dynamic> json) => CalendarEvent(
         id: (json['id'] as num).toInt(),
-        userId: (json['user_id'] as num?)?.toInt() ?? 0,
+        userId: (json['user_id'] as num).toInt(),
         title: json['title'] as String,
         eventDate: DateTime.parse(json['event_date'] as String),
         startTime: json['start_time'] as String,
         durationMinutes: (json['duration_minutes'] as num).toInt(),
-        actualDurationMinutes: (json['actual_duration_minutes'] as num?)?.toInt(),
-        subjectId: (json['subject_id'] as num?)?.toInt(),
+        actualDurationMinutes: json['actual_duration_minutes'] != null
+            ? (json['actual_duration_minutes'] as num).toInt()
+            : null,
+        subjectId: json['subject_id'] != null ? (json['subject_id'] as num).toInt() : null,
         subjectName: json['subject_name'] as String?,
         subjectColor: json['subject_color'] as String?,
         color: json['color'] as String? ?? '#6366F1',
@@ -89,73 +66,46 @@ class CalendarEvent {
         isCountdown: json['is_countdown'] as bool? ?? false,
         priority: json['priority'] as String? ?? 'medium',
         source: json['source'] as String? ?? 'manual',
-        routineId: (json['routine_id'] as num?)?.toInt(),
-        createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'] as String).toLocal()
-            : DateTime.now(),
+        routineId: json['routine_id'] != null ? (json['routine_id'] as num).toInt() : null,
+        createdAt: DateTime.parse(json['created_at'] as String),
+        updatedAt: DateTime.parse(json['updated_at'] as String),
       );
 
   CalendarEvent copyWith({
-    int? id,
-    int? userId,
-    String? title,
+    bool? isCompleted,
+    int? actualDurationMinutes,
     DateTime? eventDate,
     String? startTime,
-    int? durationMinutes,
-    int? actualDurationMinutes,
-    int? subjectId,
-    String? subjectName,
-    String? subjectColor,
-    String? color,
-    String? notes,
-    bool? isCompleted,
-    bool? isCountdown,
-    String? priority,
-    String? source,
-    int? routineId,
-    DateTime? createdAt,
   }) =>
       CalendarEvent(
-        id: id ?? this.id,
-        userId: userId ?? this.userId,
-        title: title ?? this.title,
+        id: id,
+        userId: userId,
+        title: title,
         eventDate: eventDate ?? this.eventDate,
         startTime: startTime ?? this.startTime,
-        durationMinutes: durationMinutes ?? this.durationMinutes,
+        durationMinutes: durationMinutes,
         actualDurationMinutes: actualDurationMinutes ?? this.actualDurationMinutes,
-        subjectId: subjectId ?? this.subjectId,
-        subjectName: subjectName ?? this.subjectName,
-        subjectColor: subjectColor ?? this.subjectColor,
-        color: color ?? this.color,
-        notes: notes ?? this.notes,
+        subjectId: subjectId,
+        subjectName: subjectName,
+        subjectColor: subjectColor,
+        color: color,
+        notes: notes,
         isCompleted: isCompleted ?? this.isCompleted,
-        isCountdown: isCountdown ?? this.isCountdown,
-        priority: priority ?? this.priority,
-        source: source ?? this.source,
-        routineId: routineId ?? this.routineId,
-        createdAt: createdAt ?? this.createdAt,
+        isCountdown: isCountdown,
+        priority: priority,
+        source: source,
+        routineId: routineId,
+        createdAt: createdAt,
+        updatedAt: DateTime.now(),
       );
-
-  /// 将 startTime 字符串解析为 TimeOfDay
-  TimeOfDay get startTimeOfDay {
-    final parts = startTime.split(':');
-    return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
-  }
-
-  /// 将 color 字符串解析为 Color
-  Color get colorValue {
-    final hex = color.replaceFirst('#', '');
-    return Color(int.parse('FF$hex', radix: 16));
-  }
 }
 
-// ─── CalendarRoutine ──────────────────────────────────────────
+// ── CalendarRoutine ───────────────────────────────────────────────────────────
 
 class CalendarRoutine {
   final int id;
-  final int userId;
   final String title;
-  final String repeatType; // 'daily' | 'weekly' | 'monthly'
+  final String repeatType;
   final int? dayOfWeek;
   final String startTime;
   final int durationMinutes;
@@ -168,7 +118,6 @@ class CalendarRoutine {
 
   const CalendarRoutine({
     required this.id,
-    required this.userId,
     required this.title,
     required this.repeatType,
     this.dayOfWeek,
@@ -184,30 +133,24 @@ class CalendarRoutine {
 
   factory CalendarRoutine.fromJson(Map<String, dynamic> json) => CalendarRoutine(
         id: (json['id'] as num).toInt(),
-        userId: (json['user_id'] as num?)?.toInt() ?? 0,
         title: json['title'] as String,
         repeatType: json['repeat_type'] as String,
-        dayOfWeek: (json['day_of_week'] as num?)?.toInt(),
+        dayOfWeek: json['day_of_week'] != null ? (json['day_of_week'] as num).toInt() : null,
         startTime: json['start_time'] as String,
         durationMinutes: (json['duration_minutes'] as num).toInt(),
-        subjectId: (json['subject_id'] as num?)?.toInt(),
+        subjectId: json['subject_id'] != null ? (json['subject_id'] as num).toInt() : null,
         color: json['color'] as String? ?? '#6366F1',
         startDate: DateTime.parse(json['start_date'] as String),
-        endDate: json['end_date'] != null
-            ? DateTime.parse(json['end_date'] as String)
-            : null,
+        endDate: json['end_date'] != null ? DateTime.parse(json['end_date'] as String) : null,
         isActive: json['is_active'] as bool? ?? true,
-        createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'] as String).toLocal()
-            : DateTime.now(),
+        createdAt: DateTime.parse(json['created_at'] as String),
       );
 }
 
-// ─── StudySession ─────────────────────────────────────────────
+// ── StudySession ──────────────────────────────────────────────────────────────
 
 class StudySession {
   final int id;
-  final int userId;
   final int? eventId;
   final int? subjectId;
   final DateTime startedAt;
@@ -218,7 +161,6 @@ class StudySession {
 
   const StudySession({
     required this.id,
-    required this.userId,
     this.eventId,
     this.subjectId,
     required this.startedAt,
@@ -230,93 +172,17 @@ class StudySession {
 
   factory StudySession.fromJson(Map<String, dynamic> json) => StudySession(
         id: (json['id'] as num).toInt(),
-        userId: (json['user_id'] as num?)?.toInt() ?? 0,
-        eventId: (json['event_id'] as num?)?.toInt(),
-        subjectId: (json['subject_id'] as num?)?.toInt(),
-        startedAt: DateTime.parse(json['started_at'] as String).toLocal(),
-        endedAt: DateTime.parse(json['ended_at'] as String).toLocal(),
+        eventId: json['event_id'] != null ? (json['event_id'] as num).toInt() : null,
+        subjectId: json['subject_id'] != null ? (json['subject_id'] as num).toInt() : null,
+        startedAt: DateTime.parse(json['started_at'] as String),
+        endedAt: DateTime.parse(json['ended_at'] as String),
         durationMinutes: (json['duration_minutes'] as num).toInt(),
-        pomodoroCount: (json['pomodoro_count'] as num?)?.toInt() ?? 0,
-        createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'] as String).toLocal()
-            : DateTime.now(),
+        pomodoroCount: (json['pomodoro_count'] as num).toInt(),
+        createdAt: DateTime.parse(json['created_at'] as String),
       );
 }
 
-// ─── DailyStats ───────────────────────────────────────────────
-
-class DailyStats {
-  final DateTime date;
-  final int durationMinutes;
-
-  const DailyStats({required this.date, required this.durationMinutes});
-
-  factory DailyStats.fromJson(Map<String, dynamic> json) => DailyStats(
-        date: DateTime.parse(json['date'] as String),
-        durationMinutes: (json['duration_minutes'] as num).toInt(),
-      );
-}
-
-// ─── SubjectStats ─────────────────────────────────────────────
-
-class SubjectStats {
-  final int subjectId;
-  final String subjectName;
-  final String color;
-  final int durationMinutes;
-  final double percentage;
-
-  const SubjectStats({
-    required this.subjectId,
-    required this.subjectName,
-    required this.color,
-    required this.durationMinutes,
-    required this.percentage,
-  });
-
-  factory SubjectStats.fromJson(Map<String, dynamic> json) => SubjectStats(
-        subjectId: (json['subject_id'] as num).toInt(),
-        subjectName: json['subject_name'] as String,
-        color: json['color'] as String? ?? '#6366F1',
-        durationMinutes: (json['duration_minutes'] as num).toInt(),
-        percentage: (json['percentage'] as num).toDouble(),
-      );
-}
-
-// ─── CalendarStats ────────────────────────────────────────────
-
-class CalendarStats {
-  final String period;
-  final int totalDurationMinutes;
-  final int checkinDays;
-  final int streakDays;
-  final List<DailyStats> dailyStats;
-  final List<SubjectStats> subjectStats;
-
-  const CalendarStats({
-    required this.period,
-    required this.totalDurationMinutes,
-    required this.checkinDays,
-    required this.streakDays,
-    required this.dailyStats,
-    required this.subjectStats,
-  });
-
-  factory CalendarStats.fromJson(Map<String, dynamic> json) => CalendarStats(
-        period: json['period'] as String,
-        totalDurationMinutes: (json['total_duration_minutes'] as num).toInt(),
-        checkinDays: (json['checkin_days'] as num).toInt(),
-        streakDays: (json['streak_days'] as num).toInt(),
-        dailyStats: (json['daily_stats'] as List)
-            .map((e) => DailyStats.fromJson(e))
-            .toList(),
-        subjectStats: (json['subject_stats'] as List)
-            .map((e) => SubjectStats.fromJson(e))
-            .toList(),
-      );
-}
-
-// ─── TodayEventsResult ────────────────────────────────────────
+// ── TodayStats ────────────────────────────────────────────────────────────────
 
 class TodayStats {
   final int total;
@@ -347,16 +213,103 @@ class TodayEventsResult {
   final TodayStats stats;
 
   const TodayEventsResult({required this.events, required this.stats});
+}
 
-  factory TodayEventsResult.fromJson(Map<String, dynamic> json) => TodayEventsResult(
-        events: (json['events'] as List)
-            .map((e) => CalendarEvent.fromJson(e))
+// ── CalendarStats ─────────────────────────────────────────────────────────────
+
+class DailyStatItem {
+  final DateTime date;
+  final int durationMinutes;
+  const DailyStatItem({required this.date, required this.durationMinutes});
+}
+
+class SubjectStatItem {
+  final int? subjectId;
+  final String subjectName;
+  final String color;
+  final int durationMinutes;
+  final double percentage;
+  const SubjectStatItem({
+    this.subjectId,
+    required this.subjectName,
+    required this.color,
+    required this.durationMinutes,
+    required this.percentage,
+  });
+}
+
+class CalendarStats {
+  final String period;
+  final int totalDurationMinutes;
+  final int checkinDays;
+  final int streakDays;
+  final List<DailyStatItem> dailyStats;
+  final List<SubjectStatItem> subjectStats;
+
+  const CalendarStats({
+    required this.period,
+    required this.totalDurationMinutes,
+    required this.checkinDays,
+    required this.streakDays,
+    required this.dailyStats,
+    required this.subjectStats,
+  });
+
+  factory CalendarStats.fromJson(Map<String, dynamic> json) => CalendarStats(
+        period: json['period'] as String,
+        totalDurationMinutes: (json['total_duration_minutes'] as num).toInt(),
+        checkinDays: (json['checkin_days'] as num).toInt(),
+        streakDays: (json['streak_days'] as num).toInt(),
+        dailyStats: (json['daily_stats'] as List)
+            .map((e) => DailyStatItem(
+                  date: DateTime.parse(e['date'] as String),
+                  durationMinutes: (e['duration_minutes'] as num).toInt(),
+                ))
             .toList(),
-        stats: TodayStats.fromJson(json['stats']),
+        subjectStats: (json['subject_stats'] as List)
+            .map((e) => SubjectStatItem(
+                  subjectId: e['subject_id'] != null ? (e['subject_id'] as num).toInt() : null,
+                  subjectName: e['subject_name'] as String,
+                  color: e['color'] as String,
+                  durationMinutes: (e['duration_minutes'] as num).toInt(),
+                  percentage: (e['percentage'] as num).toDouble(),
+                ))
+            .toList(),
       );
 }
 
-// ─── PomodoroTimerState ───────────────────────────────────────
+// ── DateRange ─────────────────────────────────────────────────────────────────
+
+class DateRange {
+  final DateTime start;
+  final DateTime end;
+
+  const DateRange({required this.start, required this.end});
+
+  factory DateRange.month(DateTime month) {
+    final start = DateTime(month.year, month.month, 1);
+    final end = DateTime(month.year, month.month + 1, 0);
+    return DateRange(start: start, end: end);
+  }
+
+  factory DateRange.week(DateTime day) {
+    final monday = day.subtract(Duration(days: day.weekday - 1));
+    final sunday = monday.add(const Duration(days: 6));
+    return DateRange(start: monday, end: sunday);
+  }
+
+  String get startIso => '${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
+  String get endIso => '${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}';
+
+  @override
+  bool operator ==(Object other) =>
+      other is DateRange && start == other.start && end == other.end;
+
+  @override
+  int get hashCode => Object.hash(start, end);
+}
+
+// ── PomodoroTimerState ────────────────────────────────────────────────────────
 
 class PomodoroTimerState {
   final PomodoroPhase phase;
@@ -375,7 +328,6 @@ class PomodoroTimerState {
 
   factory PomodoroTimerState.idle() => const PomodoroTimerState(
         phase: PomodoroPhase.idle,
-        currentEvent: null,
         durationMinutes: 25,
         elapsedSeconds: 0,
         completedPomodoros: 0,

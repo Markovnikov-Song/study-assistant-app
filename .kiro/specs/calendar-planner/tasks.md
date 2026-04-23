@@ -107,8 +107,8 @@
     - 定义 `calendarApiServiceProvider`（Riverpod Provider）
     - _需求：11.3、12.1_
 
-- [-] 7. 前端 Riverpod Providers
-  - [ ] 7.1 创建 `lib/features/calendar/providers/calendar_providers.dart`
+- [x] 7. 前端 Riverpod Providers
+  - [x] 7.1 创建 `lib/features/calendar/providers/calendar_providers.dart`
     - 实现 `calendarEventsProvider(DateRange)` — 按日期范围加载事件
     - 实现 `todayEventsProvider` — 今日事件 + 完成率
     - 实现 `calendarRoutinesProvider` — 活跃例程列表
@@ -117,7 +117,7 @@
     - 实现 `calendarFocusedDateProvider`（`CalendarFocusedDate` Notifier，默认今日）
     - _需求：12.1、12.4_
 
-  - [ ] 7.2 实现 `PomodoroTimerNotifier`（全局单例 Provider）
+  - [x] 7.2 实现 `PomodoroTimerNotifier`（全局单例 Provider）
     - 状态机：idle → focusing → resting → paused → idle
     - `start(event, durationMinutes)`、`pause()`、`resume()`、`stop(markCompleted)`
     - `_onPomodoroComplete()`：自动调用 `POST /api/calendar/sessions`，更新 `actual_duration_minutes`，发布 `PomodoroCompleted`
@@ -136,7 +136,7 @@
     - **属性 7：累计时长达标自动完成**
     - **验证：需求 5.5**
 
-  - [ ] 7.6 在 `CalendarPage` 初始化时接入 EventBus 缓存失效逻辑
+  - [x] 7.6 在 `CalendarPage` 初始化时接入 EventBus 缓存失效逻辑
     - 监听 `CalendarEventCreated` → invalidate `calendarEventsProvider` + `todayEventsProvider`
     - 监听 `CalendarEventUpdated` → invalidate 受影响月份的 `calendarEventsProvider` + `todayEventsProvider`
     - 监听 `CalendarEventCompleted` → invalidate `todayEventsProvider` + `calendarStatsProvider('7d')`
@@ -148,29 +148,29 @@
     - **验证：需求 12.3**
 
 - [ ] 8. 工具箱入口注册 + 路由配置
-  - [ ] 8.1 在 `lib/features/toolkit/toolkit_page.dart` 的 `kDefaultTools` 末尾追加 Calendar ToolItem
+  - [x] 8.1 在 `lib/features/toolkit/toolkit_page.dart` 的 `kDefaultTools` 末尾追加 Calendar ToolItem
     - `id: 'calendar'`，图标 `Icons.calendar_today_outlined` / `Icons.calendar_today_rounded`
     - 渐变色 `[Color(0xFF6366F1), Color(0xFF818CF8)]`
     - `label: '学习日历'`，`description: '计划、打卡、复盘，学习闭环'`
     - `route: '/toolkit/calendar'`
     - _需求：1.1_
 
-  - [ ] 8.2 在 `lib/routes/app_router.dart` 的 `R` 类中新增路由常量
+  - [x] 8.2 在 `lib/routes/app_router.dart` 的 `R` 类中新增路由常量
     - `toolkitCalendar = '/toolkit/calendar'`
     - `toolkitCalendarTask(String id)` → `/toolkit/calendar/task/$id`
     - `toolkitCalendarCountdown = '/toolkit/calendar/countdown'`
     - `toolkitCalendarStats = '/toolkit/calendar/stats'`
     - _需求：1.2_
 
-  - [ ] 8.3 在 `routerProvider` 中注册 Calendar 路由树
+  - [x] 8.3 在 `routerProvider` 中注册 Calendar 路由树
     - 主路由 `/toolkit/calendar`：构建 `CalendarPage`，从 query params 读取 `mode`、`source`、`subject`、`date`
     - 子路由 `task/:taskId` → `CalendarTaskDetailPage`（占位页，后续扩展）
     - 子路由 `countdown` → `CountdownListPage`
     - 子路由 `stats` → `StatsPanel`
     - _需求：1.2、4.4、8.4_
 
-- [ ] 9. CalendarPage 主页面骨架
-  - [ ] 9.1 创建 `lib/features/calendar/calendar_page.dart`
+- [x] 9. CalendarPage 主页面骨架
+  - [x] 9.1 创建 `lib/features/calendar/calendar_page.dart`
     - 定义 `CalendarPage` 构造参数：`renderMode`、`sceneSource`、`subjectId`、`taskId`、`prefillDate`、`onResult`
     - 实现顶部视图切换控件（月/周/日 SegmentedButton）
     - 实现「今天」按钮（定位至今日）
@@ -185,8 +185,8 @@
     - **属性 17：calendarEventsProvider 预加载相邻月份**
     - **验证：需求 12.2**
 
-- [ ] 10. MonthView 月视图组件
-  - [ ] 10.1 创建 `lib/features/calendar/widgets/month_view.dart`
+- [x] 10. MonthView 月视图组件
+  - [x] 10.1 创建 `lib/features/calendar/widgets/month_view.dart`
     - 基于 `table_calendar` 实现 `MonthView`
     - 每个日期格显示学科颜色标记点（最多 3 个，超出显示「+N」）
     - `CountdownEvent` 日期以红色边框高亮
@@ -198,8 +198,8 @@
     - **属性 9：月视图日期格颜色规则**
     - **验证：需求 6.6**
 
-- [ ] 11. WeekView / DayView 时间轴视图组件
-  - [ ] 11.1 创建 `lib/features/calendar/widgets/timetable_view.dart`
+- [-] 11. WeekView / DayView 时间轴视图组件
+  - [x] 11.1 创建 `lib/features/calendar/widgets/timetable_view.dart`
     - 基于 `timetable` 库的 `MultiDateTimetable` 实现 `TimetableView`
     - 周视图传 7 天，日视图传 1 天
     - 事件以色块形式按时间段展示
@@ -212,8 +212,8 @@
     - **属性 2：拖拽后事件时间更新**
     - **验证：需求 3.4**
 
-- [ ] 12. EventFormSheet 事件表单
-  - [ ] 12.1 创建 `lib/features/calendar/widgets/event_form_sheet.dart`
+- [x] 12. EventFormSheet 事件表单
+  - [x] 12.1 创建 `lib/features/calendar/widgets/event_form_sheet.dart`
     - 顶部类型切换标签：「事件」「例程」「任务」，默认「事件」
     - 「事件」类型字段：标题、日期、开始时间、时长（15–480 分钟步进 15 的 Slider/Picker）、学科标签、颜色、备注、是否考试倒计时开关、优先级
     - 「例程」类型字段：标题、重复周期（每日/每周/每月）、执行时间、时长、学科标签、生效日期范围
@@ -228,8 +228,8 @@
     - **属性 1：事件颜色继承学科颜色**
     - **验证：需求 2.5**
 
-- [ ] 13. 考试倒计时功能
-  - [ ] 13.1 实现 `CalendarPage` 顶部倒计时横幅
+- [x] 13. 考试倒计时功能
+  - [x] 13.1 实现 `CalendarPage` 顶部倒计时横幅
     - 查询最近的 `is_countdown=true` 事件，计算剩余天数
     - 实现 `_countdownBannerColor(int daysLeft)` 纯函数：`d > 30` 绿色，`10 ≤ d ≤ 30` 橙色，`d < 10` 红色，`d = 0` 返回 null（显示特殊文案「今天是 {标题}，加油！」）
     - _需求：4.1、4.2、4.3_
@@ -238,13 +238,13 @@
     - **属性 3：倒计时横幅颜色分段规则**
     - **验证：需求 4.2、4.3**
 
-  - [ ] 13.3 创建 `lib/features/calendar/widgets/countdown_list_page.dart`
+  - [x] 13.3 创建 `lib/features/calendar/widgets/countdown_list_page.dart`
     - 展示所有 `is_countdown=true` 事件，按日期升序排列
     - 每条显示标题、日期、剩余天数进度条
     - _需求：4.4_
 
-- [ ] 14. TodayPanel 今日事件面板
-  - [ ] 14.1 创建 `lib/features/calendar/widgets/today_panel.dart`
+- [x] 14. TodayPanel 今日事件面板
+  - [x] 14.1 创建 `lib/features/calendar/widgets/today_panel.dart`
     - 可展开/收起，默认展开
     - 标题区域：「今日进度 X/Y（Z%）」+ 进度条，实现 `_completionRate(int completed, int total)` 纯函数
     - 事件列表：按 `start_time` 升序排列，每条显示学科颜色标记、标题、时间段、预估时长、完成状态指示器
@@ -261,8 +261,8 @@
     - **属性 11：TodayPanel 完成率计算**
     - **验证：需求 7.3、7.4**
 
-- [ ] 15. 事件完成打卡与正向反馈
-  - [ ] 15.1 实现事件卡片完成状态指示器
+- [x] 15. 事件完成打卡与正向反馈
+  - [x] 15.1 实现事件卡片完成状态指示器
     - 圆形复选框，颜色与事件/学科颜色一致，未完成空心，已完成填充勾选
     - 点击调用 `PATCH /api/calendar/events/{id}`（`is_completed` 取反）
     - 已完成事件以删除线 + 降低透明度展示，不从视图移除
@@ -273,7 +273,7 @@
     - **属性 8：完成状态切换幂等性**
     - **验证：需求 6.2**
 
-  - [ ] 15.3 实现今日全部完成动画与跨模块 EventBus 同步
+  - [x] 15.3 实现今日全部完成动画与跨模块 EventBus 同步
     - 当今日所有事件均完成时，触发撒花动画（参考 `editable_mindmap_page` 的 confetti 实现），TodayPanel 显示「今日全部完成！」
     - `CalendarEventCompleted` 监听方：若 `taskId != null` → `PATCH /api/study-planner/tasks/{taskId}`（status: done）；若 `mindmapNodeId != null` → `PATCH /api/mindmap/nodes/{nodeId}`（is_lit: 1）
     - _需求：6.4、6.5_
@@ -281,16 +281,16 @@
 - [ ] 16. 检查点 — 核心功能验证
   - 确保月视图、TodayPanel、打卡、倒计时横幅均正常工作，运行所有已实现的属性测试，如有问题请提出。
 
-- [ ] 17. PomodoroTimer 番茄钟计时器
-  - [ ] 17.1 创建 `lib/features/calendar/widgets/pomodoro_timer.dart`
+- [x] 17. PomodoroTimer 番茄钟计时器
+  - [x] 17.1 创建 `lib/features/calendar/widgets/pomodoro_timer.dart`
     - 底部悬浮计时条 UI：显示剩余时间、已完成番茄数、暂停/继续/停止按钮
     - 全局单例（通过 `pomodoroTimerProvider` 管理），切换页面后计时条保持显示
     - 时长可在事件详情中自定义（15/25/45/60 分钟），默认 25 分钟
     - 手动停止时弹出 Dialog「是否标记事件为已完成？」
     - _需求：5.1–5.6_
 
-- [ ] 18. StatsPanel 学习数据统计
-  - [ ] 18.1 创建 `lib/features/calendar/widgets/stats_panel.dart`
+- [x] 18. StatsPanel 学习数据统计
+  - [x] 18.1 创建 `lib/features/calendar/widgets/stats_panel.dart`
     - 近 7 天每日实际学习时长柱状图（数据来自 `study_sessions`）
     - 近 30 天学科占比饼图（使用各学科 `SubjectColor` 着色）
     - 本月总学习时长、本月打卡天数
@@ -301,8 +301,8 @@
     - **属性 13：连续打卡徽章阈值（n ≥ 7 显示，n < 7 不显示）**
     - **验证：需求 8.5**
 
-- [ ] 19. Agent 联动 — IntentType.calendar + SceneType.calendar
-  - [ ] 19.1 在 `lib/services/intent_detector.dart` 中新增 `IntentType.calendar`
+- [x] 19. Agent 联动 — IntentType.calendar + SceneType.calendar
+  - [x] 19.1 在 `lib/services/intent_detector.dart` 中新增 `IntentType.calendar`
     - 在 `IntentType` 枚举中追加 `calendar`
     - 在 `RuleBasedIntentDetector` 中新增 `_calendarKeywords`：「加到日历」「添加计划」「安排学习」「记到日历」「下周」「明天」「提醒我」
     - 优先级：spec > planning > calendar > subject > tool > none
@@ -313,23 +313,23 @@
     - **属性 14：日历关键词意图识别**
     - **验证：需求 9.1**
 
-  - [ ] 19.3 在 `lib/models/chat_message.dart` 中新增 `SceneType.calendar`
+  - [x] 19.3 在 `lib/models/chat_message.dart` 中新增 `SceneType.calendar`
     - 在 `SceneType` 枚举中追加 `calendar`
     - _需求：9.5_
 
-  - [ ] 19.4 在 `lib/widgets/scene_card.dart` 中处理 `SceneType.calendar`
+  - [x] 19.4 在 `lib/widgets/scene_card.dart` 中处理 `SceneType.calendar`
     - `_accentColor`：返回 `Color(0xFF6366F1)`（靛蓝色）
     - `_icon`：返回 `Icons.calendar_today_outlined`
     - _需求：9.5_
 
-  - [ ] 19.5 在 `lib/features/chat/chat_page.dart` 中接入 Calendar 场景化调用
+  - [x] 19.5 在 `lib/features/chat/chat_page.dart` 中接入 Calendar 场景化调用
     - 当 `IntentType.calendar` 被识别时，在对话流中插入 `SceneCard(SceneType.calendar)`，显示提取的事件信息摘要，确认按钮「添加到日历」
     - 用户点击「添加到日历」时，以 `renderMode: 'modal'` 唤起 `CalendarPage`，预填提取的事件信息
     - 日历事件成功创建后，在对话流中插入助教消息「已添加到日历 ✓ [查看日历](/toolkit/calendar)」，发布 `CalendarEventCreated`
     - _需求：9.2–9.4_
 
-- [ ] 20. pubspec.yaml 依赖更新
-  - [ ] 20.1 在 `pubspec.yaml` 中新增前端依赖
+- [x] 20. pubspec.yaml 依赖更新
+  - [x] 20.1 在 `pubspec.yaml` 中新增前端依赖
     - `table_calendar: ^3.2.0`
     - `timetable: latest`（或当前最新稳定版）
     - `flutter_local_notifications: latest`

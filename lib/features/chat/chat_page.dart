@@ -18,6 +18,9 @@ import '../../widgets/markdown_latex_view.dart';
 import '../../widgets/mcp_status_indicator.dart';
 import '../../components/notebook/widgets/notebook_picker_sheet.dart';
 import '../../core/theme/app_colors.dart';
+import '../calendar/calendar_page.dart';
+import '../../core/event_bus/app_event_bus.dart';
+import '../../core/event_bus/calendar_events.dart';
 
 // ─── ChatPage（参数化，支持通用/学科/任务三种场景）────────────
 
@@ -184,6 +187,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           subtitle: '启动 Spec 规划模式进行系统性拆解',
           confirmLabel: '启动',
           dismissLabel: '普通对话',
+          payload: intent.params,
+        );
+      case IntentType.calendar:
+        return SceneCardData(
+          sceneType: SceneType.calendar,
+          title: '检测到日程需求',
+          subtitle: intent.params['date'] != null
+              ? '添加到日历？'
+              : '添加到学习日历？',
+          confirmLabel: '添加到日历',
+          dismissLabel: '稍后再说',
           payload: intent.params,
         );
       case IntentType.none:
@@ -418,19 +432,25 @@ class _ChatBody extends ConsumerWidget {
                 ],
               ),
             ),
-          _InputBar(
-            controller: inputCtrl,
-            sending: sending,
-            placeholder: '输入问题…',
-            onSubmit: onSubmit,
-            onCancel: onCancel,
-            onCamera: onCamera,
-            onGallery: onGallery,
+          SafeArea(
+            top: false,
+            child: _InputBar(
+              controller: inputCtrl,
+              sending: sending,
+              placeholder: '输入问题…',
+              onSubmit: onSubmit,
+              onCancel: onCancel,
+              onCamera: onCamera,
+              onGallery: onGallery,
+            ),
           ),
         ] else
-          _MultiSelectBar(
-            subjectId: subjectId,
-            messages: chatState.maybeWhen(data: (msgs) => msgs, orElse: () => []),
+          SafeArea(
+            top: false,
+            child: _MultiSelectBar(
+              subjectId: subjectId,
+              messages: chatState.maybeWhen(data: (msgs) => msgs, orElse: () => []),
+            ),
           ),
       ],
     );
@@ -464,6 +484,39 @@ void _handleSceneCardConfirm(
       if (route != null) context.push(route);
     case SceneType.spec:
       context.push('/spec');
+    case SceneType.calendar:
+      final payload = data.payload;
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => CalendarPage(
+          renderMode: 'modal',
+          sceneSource: 'agent',
+          prefillDate: payload['date'] as DateTime?,
+          prefillTime: payload['time'] as String?,
+          onResult: (result) {
+            if (result.success) {
+              final eventId = result.data['eventId'] as int?;
+              final eventDate = result.data['eventDate'] as DateTime?;
+              ref.read(chatProvider(key).notifier).appendMessage(
+                ChatMessage.local(
+                  role: MessageRole.assistant,
+                  content: '已添加到日历 ✓ [查看日历](/toolkit/calendar)',
+                ),
+              );
+              if (eventId != null && eventDate != null) {
+                AppEventBus.instance.fire(CalendarEventCreated(
+                  eventId: eventId,
+                  eventDate: eventDate,
+                  source: 'agent',
+                ));
+              }
+            }
+          },
+        ),
+      );
   }
 }
 

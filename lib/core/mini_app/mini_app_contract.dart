@@ -24,20 +24,14 @@ class MiniAppResult {
   });
 }
 
-/// MiniApp 契约接口
-abstract class MiniAppContract {
-  MiniAppInput get input;
-  void Function(MiniAppResult)? get onResult;
-}
-
 /// Calendar Planner 专用入参
 class CalendarMiniAppInput extends MiniAppInput {
   final int? subjectId;
   final String? taskId;
   final DateTime? prefillDate;
   final String? prefillTitle;
-  final String? prefillTime; // 格式 "HH:mm"
-  final int? prefillDuration;
+  final String? prefillTime;   // "HH:mm"
+  final int? prefillDuration;  // 分钟
 
   const CalendarMiniAppInput({
     required super.sceneSource,

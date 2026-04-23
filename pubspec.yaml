@@ -80,6 +80,10 @@ dependencies:
   confetti: ^0.7.0
   vector_math: ^2.2.0
   web: ^1.1.1
+
+  # 日历
+  table_calendar: ^3.2.0
+  flutter_local_notifications: ^18.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
