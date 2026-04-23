@@ -153,10 +153,10 @@ class ConversationSession {
   String get typeLabel {
     // switch 语句，类似 Python 的 match-case
     switch (sessionType) {
-      case SessionType.qa:      return '💬 问答';
-      case SessionType.solve:   return '🔢 解题';
-      case SessionType.mindmap: return '🗺 思维导图';
-      case SessionType.exam:    return '🤖 出题';
+      case SessionType.qa:      return '问答';
+      case SessionType.solve:   return '解题';
+      case SessionType.mindmap: return '思维导图';
+      case SessionType.exam:    return '出题';
     }
   }
 

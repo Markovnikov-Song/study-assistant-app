@@ -142,7 +142,7 @@ class _ExportBookDialogState extends ConsumerState<ExportBookDialog> {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('🎉 专属辅导书已生成'),
+          content: Text('专属辅导书已生成'),
           backgroundColor: Colors.green,
         ),
       );

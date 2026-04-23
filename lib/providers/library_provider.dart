@@ -133,3 +133,10 @@ final nodeLectureExistsProvider =
     return false;
   }
 });
+
+// ── Knowledge Links (by sessionId) ───────────────────────────────────────────
+
+final knowledgeLinksProvider =
+    FutureProvider.family<List<KnowledgeLink>, int>((ref, sessionId) {
+  return ref.read(libraryServiceProvider).getKnowledgeLinks(sessionId);
+});

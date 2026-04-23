@@ -255,3 +255,35 @@ class LectureContent {
         'blocks': blocks.map((b) => b.toJson()).toList(),
       };
 }
+
+// ── KnowledgeLink ─────────────────────────────────────────────────────────────
+
+class KnowledgeLink {
+  final int id;
+  final String sourceNodeId;
+  final String targetNodeId;
+  final String sourceNodeText;
+  final String targetNodeText;
+  final String linkType; // causal | dependency | contrast | evolution
+  final String rationale;
+
+  const KnowledgeLink({
+    required this.id,
+    required this.sourceNodeId,
+    required this.targetNodeId,
+    required this.sourceNodeText,
+    required this.targetNodeText,
+    required this.linkType,
+    required this.rationale,
+  });
+
+  factory KnowledgeLink.fromJson(Map<String, dynamic> json) => KnowledgeLink(
+        id: (json['id'] as num).toInt(),
+        sourceNodeId: json['source_node_id'] as String? ?? '',
+        targetNodeId: json['target_node_id'] as String? ?? '',
+        sourceNodeText: json['source_node_text'] as String? ?? '',
+        targetNodeText: json['target_node_text'] as String? ?? '',
+        linkType: json['link_type'] as String? ?? 'causal',
+        rationale: json['rationale'] as String? ?? '',
+      );
+}

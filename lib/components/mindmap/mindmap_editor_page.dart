@@ -212,6 +212,7 @@ class _AiGenerationTabState extends ConsumerState<_AiGenerationTab> {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.css">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #fff; overflow: hidden; }
@@ -221,6 +222,7 @@ class _AiGenerationTabState extends ConsumerState<_AiGenerationTab> {
 <body>
 <svg id="mindmap"></svg>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.17"></script>
 <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.17"></script>
 <script>

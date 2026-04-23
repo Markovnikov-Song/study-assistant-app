@@ -26,10 +26,10 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
 
   static const _typeOptions = [
     (null, '全部'),
-    ('qa', '💬 问答'),
-    ('solve', '🔢 解题'),
-    ('mindmap', '🗺 导图'),
-    ('exam', '🤖 出题'),
+    ('qa', '问答'),
+    ('solve', '解题'),
+    ('mindmap', '导图'),
+    ('exam', '出题'),
   ];
 
   List<HistorySessionItem> _filter(List<HistorySessionItem> all) => all

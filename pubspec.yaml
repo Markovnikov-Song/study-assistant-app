@@ -29,6 +29,7 @@ dependencies:
   flutter_secure_storage: ^9.2.2
 
   # 图片/相机
+  flutter_svg: ^2.0.10
   image_picker: ^1.1.2
   file_picker: ^8.1.2
 

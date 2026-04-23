@@ -310,6 +310,28 @@ class NodeLecture(Base):
     session = relationship("ConversationSession")
 
 
+class MindmapKnowledgeLink(Base):
+    """知识关联图：存储思维导图节点间的跨章节关联关系。"""
+    __tablename__ = "mindmap_knowledge_links"
+    __table_args__ = (
+        Index("idx_knowledge_links_user_session", "user_id", "session_id"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    session_id = Column(Integer, ForeignKey("conversation_sessions.id", ondelete="CASCADE"), nullable=False)
+    source_node_id = Column(String(512), nullable=False)
+    target_node_id = Column(String(512), nullable=False)
+    source_node_text = Column(String(256), nullable=False)
+    target_node_text = Column(String(256), nullable=False)
+    link_type = Column(String(16), nullable=False)   # causal | dependency | contrast | evolution
+    rationale = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+
+    user = relationship("User")
+    session = relationship("ConversationSession")
+
+
 class HintSuggestion(Base):
     """LLM 生成的提示词建议缓存，按 (user_id, subject_id, hint_type) 唯一。"""
     __tablename__ = "hint_suggestions"

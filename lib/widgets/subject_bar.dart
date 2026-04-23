@@ -19,7 +19,7 @@ class SubjectBarTitle extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('📚', style: TextStyle(fontSize: 16)),
+          const Icon(Icons.menu_book_rounded, size: 18),
           const SizedBox(width: 6),
           Text(current?.name ?? '选择学科', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
           const SizedBox(width: 2),
@@ -144,9 +144,9 @@ class _SubjectTile extends ConsumerWidget {
           }
         },
         itemBuilder: (_) => [
-          PopupMenuItem(value: 'pin', child: Text(subject.isPinned ? '取消置顶' : '📌 置顶')),
-          PopupMenuItem(value: 'archive', child: Text(subject.isArchived ? '📤 取消归档' : '📦 归档')),
-          const PopupMenuItem(value: 'delete', child: Text('🗑 删除')),
+          PopupMenuItem(value: 'pin', child: Text(subject.isPinned ? '取消置顶' : '置顶')),
+          PopupMenuItem(value: 'archive', child: Text(subject.isArchived ? '取消归档' : '归档')),
+          const PopupMenuItem(value: 'delete', child: Text('删除')),
         ],
       ),
       onTap: onSelect,

@@ -45,8 +45,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text('📚 伴学',
-                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  const Text('伴学',
+                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, letterSpacing: 4),
                       textAlign: TextAlign.center),
                   const SizedBox(height: 48),
                   TextFormField(

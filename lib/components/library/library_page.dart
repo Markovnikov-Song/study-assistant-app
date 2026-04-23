@@ -57,52 +57,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
       body: Stack(
         children: [
-          // 顶部装饰渐变
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 180,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [
-                          AppColors.primaryDark.withOpacity(0.2),
-                          AppColors.primaryLight.withOpacity(0.05),
-                          Colors.transparent,
-                        ]
-                      : [
-                          AppColors.primaryLight.withOpacity(0.12),
-                          AppColors.primary.withOpacity(0.04),
-                          Colors.transparent,
-                        ],
-                ),
-              ),
-            ),
-          ),
-          // 装饰性圆形
-          Positioned(
-            top: -50,
-            right: -50,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    (isDark ? AppColors.primaryDark : AppColors.primaryLight)
-                        .withOpacity(0.08),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // 主内容
+          // 主内容（SVG 背景由 ShellPage 提供）
           CustomScrollView(
             slivers: [
               // App Bar

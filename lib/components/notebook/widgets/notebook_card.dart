@@ -36,10 +36,13 @@ class NotebookCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              // 图标：系统预设本用 📌，用户自定义本用 📓
-              Text(
-                notebook.isSystem ? '📌' : '📓',
-                style: const TextStyle(fontSize: 20),
+              // 图标：系统预设本用图钉图标，用户自定义本用笔记本图标
+              Icon(
+                notebook.isSystem ? Icons.push_pin_rounded : Icons.menu_book_rounded,
+                size: 22,
+                color: notebook.isSystem
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.secondary,
               ),
               const SizedBox(width: 12),
               // 笔记本名称

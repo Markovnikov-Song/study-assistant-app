@@ -39,10 +39,10 @@ class _SessionHistorySheetState extends ConsumerState<_SessionHistorySheet> {
 
   static const _filters = [
     (null, '全部'),
-    ('qa', '💬 问答'),
-    ('solve', '🔢 解题'),
-    ('mindmap', '🗺 导图'),
-    ('exam', '🤖 出题'),
+    ('qa', '问答'),
+    ('solve', '解题'),
+    ('mindmap', '导图'),
+    ('exam', '出题'),
   ];
 
   @override

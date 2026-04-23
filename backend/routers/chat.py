@@ -193,6 +193,74 @@ def mindmap(body: MindMapIn, user=Depends(get_current_user)):
         db.add(ConversationHistory(session_id=session_id, role="user", content="生成思维导图"))
         db.add(ConversationHistory(session_id=session_id, role="assistant", content=content))
 
+    # 异步触发知识关联图生成（不阻塞响应）
+    import threading
+    def _async_generate_links():
+        try:
+            import json as _json, re as _re
+            from services.llm_service import LLMService
+            from database import MindmapKnowledgeLink, get_session as _db
+
+            node_texts = []
+            for line in content.splitlines():
+                m = _re.match(r"^#{1,4}\s+(.*)", line)
+                if m:
+                    text = _re.sub(r"^[⭐⚠️🎯📌]\s*", "", m.group(1).strip()).strip()
+                    if text:
+                        node_texts.append(text)
+
+            if len(node_texts) < 3:
+                return
+
+            prompt = (
+                "你是一个知识图谱分析专家。请分析以下思维导图节点，找出 5-12 条最重要的跨节点关联。\n\n"
+                f"节点列表：\n{chr(10).join(f'- {t}' for t in node_texts)}\n\n"
+                "以 JSON 数组输出，每条包含 source_node_text、target_node_text、"
+                "link_type（causal/dependency/contrast/evolution）、rationale（≤30字）。"
+                "只输出 JSON，不要其他文字。"
+            )
+            raw = LLMService().chat(messages=[{"role": "user", "content": prompt}], max_tokens=1500)
+            raw = raw.strip()
+            if raw.startswith("```"):
+                lines = raw.splitlines()
+                raw = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+            items = _json.loads(raw)
+            if not isinstance(items, list):
+                return
+
+            node_id_map = {}
+            for line in content.splitlines():
+                m = _re.match(r"^#{1,4}\s+(.*)", line)
+                if m:
+                    raw_text = m.group(1).strip()
+                    clean = _re.sub(r"^[⭐⚠️🎯📌]\s*", "", raw_text).strip()
+                    if clean:
+                        node_id_map[clean] = raw_text
+
+            valid_types = {"causal", "dependency", "contrast", "evolution"}
+            with _db() as db:
+                db.query(MindmapKnowledgeLink).filter_by(
+                    user_id=user["id"], session_id=session_id
+                ).delete()
+                for item in items:
+                    src = str(item.get("source_node_text", "")).strip()
+                    dst = str(item.get("target_node_text", "")).strip()
+                    lt = str(item.get("link_type", "")).strip()
+                    rat = str(item.get("rationale", "")).strip()[:100]
+                    if not src or not dst or lt not in valid_types or src == dst:
+                        continue
+                    db.add(MindmapKnowledgeLink(
+                        user_id=user["id"], session_id=session_id,
+                        source_node_id=node_id_map.get(src, src),
+                        target_node_id=node_id_map.get(dst, dst),
+                        source_node_text=src, target_node_text=dst,
+                        link_type=lt, rationale=rat,
+                    ))
+        except Exception:
+            pass  # 关联图生成失败不影响主流程
+
+    threading.Thread(target=_async_generate_links, daemon=True).start()
+
     return MindMapOut(session_id=session_id, content=content)
 
 

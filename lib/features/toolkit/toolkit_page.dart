@@ -89,92 +89,61 @@ class ToolkitPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWideScreen = screenWidth > 600;
+    // Web端限制最大宽度，保持类似手机的紧凑布局
+    final contentMaxWidth = isWideScreen ? 420.0 : double.infinity;
+
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
       body: Stack(
         children: [
-          // 背景装饰
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 200,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                  colors: isDark
-                      ? [
-                          AppColors.secondary.withOpacity(0.15),
-                          AppColors.accent.withOpacity(0.08),
-                          Colors.transparent,
-                        ]
-                      : [
-                          AppColors.secondaryLight.withOpacity(0.12),
-                          AppColors.accentLight.withOpacity(0.06),
-                          Colors.transparent,
-                        ],
-                ),
-              ),
-            ),
-          ),
-          // 装饰圆形
-          Positioned(
-            top: 60,
-            left: -80,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.accent.withOpacity(isDark ? 0.1 : 0.08),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // 主内容
-          CustomScrollView(
-            slivers: [
-              // App Bar
-              SliverAppBar(
-                expandedHeight: 80,
-                floating: true,
-                pinned: false,
-                backgroundColor: Colors.transparent,
-                flexibleSpace: FlexibleSpaceBar(
-                  titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-                  title: Text(
-                    '工具箱',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+          // 主内容（SVG 背景由 ShellPage 提供）
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: contentMaxWidth),
+              child: CustomScrollView(
+                slivers: [
+                  // App Bar
+                  SliverAppBar(
+                    expandedHeight: 80,
+                    floating: true,
+                    pinned: false,
+                    backgroundColor: Colors.transparent,
+                    flexibleSpace: FlexibleSpaceBar(
+                      titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
+                      title: Text(
+                        '工具箱',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              // 工具卡片网格
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.9,
+                  // 工具卡片网格（固定2列，类似手机布局）
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: 0.9,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _ToolCard(
+                          item: kDefaultTools[index],
+                          iconSize: isWideScreen ? 56 : 52,
+                        ),
+                        childCount: kDefaultTools.length,
+                      ),
+                    ),
                   ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => _ToolCard(item: kDefaultTools[index]),
-                    childCount: kDefaultTools.length,
-                  ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ),
@@ -184,8 +153,9 @@ class ToolkitPage extends StatelessWidget {
 
 class _ToolCard extends StatefulWidget {
   final ToolItem item;
+  final double iconSize;
 
-  const _ToolCard({required this.item});
+  const _ToolCard({required this.item, this.iconSize = 52});
 
   @override
   State<_ToolCard> createState() => _ToolCardState();
@@ -231,15 +201,15 @@ class _ToolCardState extends State<_ToolCard> {
               children: [
                 // 图标
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: widget.iconSize,
+                  height: widget.iconSize,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: widget.item.gradientColors,
                     ),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
                         color: widget.item.gradientColors.first.withOpacity(0.35),
@@ -250,7 +220,7 @@ class _ToolCardState extends State<_ToolCard> {
                   ),
                   child: Icon(
                     widget.item.icon,
-                    size: 28,
+                    size: widget.iconSize * 0.54,
                     color: Colors.white,
                   ),
                 ),

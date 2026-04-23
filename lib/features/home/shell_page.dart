@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/hint_provider.dart';
@@ -79,29 +80,9 @@ class _ShellPageState extends ConsumerState<ShellPage> {
     return Scaffold(
       body: Stack(
         children: [
-          // 背景渐变装饰
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 120,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [
-                          AppColors.primaryDark.withOpacity(0.15),
-                          AppColors.primaryLight.withOpacity(0.05),
-                        ]
-                      : [
-                          AppColors.primaryLight.withOpacity(0.08),
-                          AppColors.primary.withOpacity(0.02),
-                        ],
-                ),
-              ),
-            ),
+          // 全页 SVG 背景装饰
+          Positioned.fill(
+            child: _PageBackground(pageIndex: _currentIndex, isDark: isDark),
           ),
           // 页面内容
           PageView(
@@ -155,6 +136,38 @@ class _ShellPageState extends ConsumerState<ShellPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// 全页 SVG 背景装饰
+class _PageBackground extends StatelessWidget {
+  final int pageIndex;
+  final bool isDark;
+
+  const _PageBackground({required this.pageIndex, required this.isDark});
+
+  static const _bgAssets = [
+    'assets/images/backgrounds/bg_chat.svg',
+    'assets/images/backgrounds/bg_library.svg',
+    'assets/images/backgrounds/bg_toolkit.svg',
+    'assets/images/backgrounds/bg_profile.svg',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SvgPicture.asset(
+      _bgAssets[pageIndex],
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      colorFilter: isDark
+          ? null
+          : const ColorFilter.mode(
+              Colors.white,
+              BlendMode.softLight,
+            ),
+      opacity: isDark ? 0.55 : 0.25,
     );
   }
 }

@@ -236,4 +236,28 @@ class LibraryService {
       throw ApiException.fromDioException(e);
     }
   }
+
+  // ── Knowledge Links ───────────────────────────────────────────────────────
+
+  Future<List<KnowledgeLink>> getKnowledgeLinks(int sessionId) async {
+    try {
+      final res = await _dio.get('$_base/sessions/$sessionId/knowledge-links');
+      return (res.data as List)
+          .map((e) => KnowledgeLink.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<void> generateKnowledgeLinks(int sessionId) async {
+    try {
+      await _dio.post(
+        '$_base/sessions/$sessionId/knowledge-links/generate',
+        options: Options(receiveTimeout: const Duration(seconds: 120)),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:confetti/confetti.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -490,7 +491,7 @@ class _ProgressBar extends StatelessWidget {
               Expanded(
                 child: Text(
                   isComplete
-                      ? '🎉 全部完成！已学习 ${progress.lit} / 总计 ${progress.total} 个知识点（$pct%）'
+                      ? '全部完成！已学习 ${progress.lit} / 总计 ${progress.total} 个知识点（$pct%）'
                       : '已学习 ${progress.lit} / 总计 ${progress.total} 个知识点（$pct%）',
                   style: TextStyle(fontSize: 13, color: cs.onSurface),
                 ),
@@ -867,15 +868,80 @@ class _GeneratingDialogState extends State<_GeneratingDialog> {
   }
 }
 
-// ── 知识关联图占位 ─────────────────────────────────────────────────────────────
+// ── 知识关联图视图 ────────────────────────────────────────────────────────────
 
-class _KnowledgeGraphPlaceholder extends StatelessWidget {
+class _KnowledgeGraphPlaceholder extends ConsumerStatefulWidget {
   final int sessionId;
   const _KnowledgeGraphPlaceholder({required this.sessionId});
 
   @override
+  ConsumerState<_KnowledgeGraphPlaceholder> createState() =>
+      _KnowledgeGraphPlaceholderState();
+}
+
+class _KnowledgeGraphPlaceholderState
+    extends ConsumerState<_KnowledgeGraphPlaceholder> {
+  bool _generating = false;
+
+  // 四种关联类型的颜色
+  static const _linkColors = {
+    'causal': Color(0xFFEF4444),      // 因果 — 红
+    'dependency': Color(0xFF3B82F6),  // 依赖 — 蓝
+    'contrast': Color(0xFFF97316),    // 对比 — 橙
+    'evolution': Color(0xFF22C55E),   // 演进 — 绿
+  };
+
+  static const _linkLabels = {
+    'causal': '因果',
+    'dependency': '依赖',
+    'contrast': '对比',
+    'evolution': '演进',
+  };
+
+  Future<void> _generate() async {
+    setState(() => _generating = true);
+    try {
+      await ref.read(libraryServiceProvider).generateKnowledgeLinks(widget.sessionId);
+      ref.invalidate(knowledgeLinksProvider(widget.sessionId));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('生成失败：$e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
+
+  Future<void> _confirmRegenerate() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('重新生成'),
+        content: const Text('将覆盖现有知识关联数据，确认重新生成？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('确认')),
+        ],
+      ),
+    );
+    if (ok == true) _generate();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final linksAsync = ref.watch(knowledgeLinksProvider(widget.sessionId));
+
+    return linksAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => _buildEmpty(cs),
+      data: (links) => links.isEmpty ? _buildEmpty(cs) : _buildGraph(cs, links),
+    );
+  }
+
+  Widget _buildEmpty(ColorScheme cs) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -885,31 +951,502 @@ class _KnowledgeGraphPlaceholder extends StatelessWidget {
             Icon(Icons.hub_outlined, size: 64, color: cs.outlineVariant),
             const SizedBox(height: 16),
             Text('知识关联图',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(color: cs.onSurface)),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: cs.onSurface)),
             const SizedBox(height: 8),
             Text(
-              '展示跨章节概念的因果、依赖、对比关系\n与思维导图一同生成后在此显示',
+              '展示跨章节概念的因果、依赖、对比、演进关系',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: cs.outline),
             ),
-            const SizedBox(height: 20),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: cs.tertiaryContainer,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text('即将推出',
-                  style: TextStyle(
-                      fontSize: 12, color: cs.onTertiaryContainer)),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _generating ? null : _generate,
+              icon: _generating
+                  ? const SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.auto_awesome, size: 18),
+              label: Text(_generating ? 'AI 分析中…' : '生成知识关联图'),
+            ),
+            const SizedBox(height: 12),
+            // 图例
+            Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              alignment: WrapAlignment.center,
+              children: _linkColors.entries.map((e) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 12, height: 3, color: e.value),
+                  const SizedBox(width: 4),
+                  Text(_linkLabels[e.key]!, style: TextStyle(fontSize: 11, color: cs.outline)),
+                ],
+              )).toList(),
             ),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildGraph(ColorScheme cs, List<KnowledgeLink> links) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewSize = Size(constraints.maxWidth, constraints.maxHeight);
+        final canvasSize = Size(
+          math.max(viewSize.width, 600),
+          math.max(viewSize.height, 500),
+        );
+        return _KnowledgeGraphCanvas(
+          links: links,
+          colorScheme: cs,
+          canvasSize: canvasSize,
+          viewSize: viewSize,
+          generating: _generating,
+          onLinkTap: _showLinkDetail,
+          onRegenerate: _confirmRegenerate,
+        );
+      },
+    );
+  }
+
+  void _showLinkDetail(KnowledgeLink link) {
+    final cs = Theme.of(context).colorScheme;
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 10, height: 10,
+                    decoration: BoxDecoration(
+                      color: _linkColors[link.linkType] ?? cs.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(_linkLabels[link.linkType] ?? link.linkType,
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: _linkColors[link.linkType] ?? cs.primary,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(link.sourceNodeText, style: const TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Icon(Icons.arrow_forward, size: 16, color: cs.outline),
+                  ),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(link.targetNodeText, style: const TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                ],
+              ),
+              if (link.rationale.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text('依据', style: TextStyle(fontSize: 12, color: cs.outline)),
+                const SizedBox(height: 4),
+                Text(link.rationale, style: const TextStyle(fontSize: 13)),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── 知识关联图画布（含缩放/平移，与思维导图逻辑一致）────────────────────────
+
+class _KnowledgeGraphCanvas extends StatefulWidget {
+  final List<KnowledgeLink> links;
+  final ColorScheme colorScheme;
+  final Size canvasSize;
+  final Size viewSize;
+  final bool generating;
+  final void Function(KnowledgeLink) onLinkTap;
+  final VoidCallback onRegenerate;
+
+  const _KnowledgeGraphCanvas({
+    required this.links,
+    required this.colorScheme,
+    required this.canvasSize,
+    required this.viewSize,
+    required this.generating,
+    required this.onLinkTap,
+    required this.onRegenerate,
+  });
+
+  @override
+  State<_KnowledgeGraphCanvas> createState() => _KnowledgeGraphCanvasState();
+}
+
+class _KnowledgeGraphCanvasState extends State<_KnowledgeGraphCanvas> {
+  late TransformationController _transformCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _transformCtrl = TransformationController();
+  }
+
+  @override
+  void dispose() {
+    _transformCtrl.dispose();
+    super.dispose();
+  }
+
+  void _zoom(double factor) {
+    final current = _transformCtrl.value.getMaxScaleOnAxis();
+    final next = (current * factor).clamp(0.3, 3.0);
+    final actualFactor = next / current;
+    final cx = widget.viewSize.width / 2;
+    final cy = widget.viewSize.height / 2;
+    _transformCtrl.value = _transformCtrl.value.clone()
+      ..translateByVector3(Vector3(cx, cy, 0))
+      ..scaleByVector3(Vector3(actualFactor, actualFactor, 1.0))
+      ..translateByVector3(Vector3(-cx, -cy, 0));
+  }
+
+  void _handleScroll(PointerScrollEvent event) {
+    if (event.kind == PointerDeviceKind.mouse) {
+      final dy = event.scrollDelta.dy;
+      final dx = event.scrollDelta.dx;
+      if (dx.abs() > dy.abs()) {
+        _transformCtrl.value = _transformCtrl.value.clone()
+          ..translateByVector3(Vector3(-dx, 0, 0));
+      } else {
+        _transformCtrl.value = _transformCtrl.value.clone()
+          ..translateByVector3(Vector3(0, -dy, 0));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = widget.colorScheme;
+    // 预计算节点位置，供点击检测用
+    final painter = _KnowledgeGraphPainter(
+      links: widget.links,
+      colorScheme: cs,
+      canvasSize: widget.canvasSize,
+    );
+
+    return Stack(
+      children: [
+        Listener(
+          onPointerSignal: (event) {
+            if (event is PointerScrollEvent) _handleScroll(event);
+          },
+          child: InteractiveViewer(
+            constrained: false,
+            minScale: 0.3,
+            maxScale: 3.0,
+            panEnabled: true,
+            scaleEnabled: false,
+            transformationController: _transformCtrl,
+            child: SizedBox(
+              width: widget.canvasSize.width,
+              height: widget.canvasSize.height,
+              child: GestureDetector(
+                onTapUp: (details) {
+                  final positions = painter.circleLayout(
+                    painter.collectNodes(widget.links),
+                    widget.canvasSize,
+                  );
+                  for (final link in widget.links) {
+                    final src = positions[link.sourceNodeText];
+                    final dst = positions[link.targetNodeText];
+                    if (src == null || dst == null) continue;
+                    final mid = Offset(
+                      (src.dx + dst.dx) / 2,
+                      (src.dy + dst.dy) / 2 - 40,
+                    );
+                    if ((details.localPosition - mid).distance < 24) {
+                      widget.onLinkTap(link);
+                      return;
+                    }
+                  }
+                },
+                child: CustomPaint(
+                  painter: painter,
+                  size: widget.canvasSize,
+                  child: SizedBox(
+                    width: widget.canvasSize.width,
+                    height: widget.canvasSize.height,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        // 缩放按钮（右上角，与思维导图一致）
+        Positioned(
+          top: 8,
+          left: 8,
+          child: Column(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.add, size: 18),
+                tooltip: '放大',
+                onPressed: () => _zoom(1.25),
+                style: IconButton.styleFrom(
+                  backgroundColor: cs.surface,
+                  side: BorderSide(color: cs.outlineVariant),
+                ),
+              ),
+              const SizedBox(height: 4),
+              IconButton(
+                icon: const Icon(Icons.remove, size: 18),
+                tooltip: '缩小',
+                onPressed: () => _zoom(0.8),
+                style: IconButton.styleFrom(
+                  backgroundColor: cs.surface,
+                  side: BorderSide(color: cs.outlineVariant),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // 图例
+        Positioned(
+          top: 12,
+          right: 12,
+          child: _Legend(cs: cs),
+        ),
+        // 重新生成按钮
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton.small(
+            onPressed: widget.generating ? null : widget.onRegenerate,
+            tooltip: '重新生成',
+            child: widget.generating
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.refresh, size: 18),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── 图例 ──────────────────────────────────────────────────────────────────────
+
+class _Legend extends StatelessWidget {
+  final ColorScheme cs;
+  const _Legend({required this.cs});
+
+  static const _items = [
+    ('causal', '因果', Color(0xFFEF4444)),
+    ('dependency', '依赖', Color(0xFF3B82F6)),
+    ('contrast', '对比', Color(0xFFF97316)),
+    ('evolution', '演进', Color(0xFF22C55E)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: cs.surface.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: _items.map((item) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 16, height: 2, color: item.$3),
+              const SizedBox(width: 6),
+              Text(item.$2, style: TextStyle(fontSize: 11, color: cs.onSurface)),
+            ],
+          ),
+        )).toList(),
+      ),
+    );
+  }
+}
+
+// ── 知识关联图 Painter ────────────────────────────────────────────────────────
+
+class _KnowledgeGraphPainter extends CustomPainter {
+  final List<KnowledgeLink> links;
+  final ColorScheme colorScheme;
+  final Size canvasSize;
+
+  static const _linkColors = {
+    'causal': Color(0xFFEF4444),
+    'dependency': Color(0xFF3B82F6),
+    'contrast': Color(0xFFF97316),
+    'evolution': Color(0xFF22C55E),
+  };
+
+  _KnowledgeGraphPainter({
+    required this.links,
+    required this.colorScheme,
+    required this.canvasSize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final nodeTexts = collectNodes(links);
+    final positions = circleLayout(nodeTexts, size);
+
+    // 1. 画连线
+    for (final link in links) {
+      final src = positions[link.sourceNodeText];
+      final dst = positions[link.targetNodeText];
+      if (src == null || dst == null) continue;
+
+      final color = _linkColors[link.linkType] ?? colorScheme.primary;
+      final linePaint = Paint()
+        ..color = color.withValues(alpha: 0.65)
+        ..strokeWidth = 1.8
+        ..style = PaintingStyle.stroke;
+
+      final mid = Offset(
+        (src.dx + dst.dx) / 2,
+        (src.dy + dst.dy) / 2 - 40,
+      );
+      final path = Path()
+        ..moveTo(src.dx, src.dy)
+        ..quadraticBezierTo(mid.dx, mid.dy, dst.dx, dst.dy);
+      canvas.drawPath(path, linePaint);
+
+      // 箭头
+      final angle = (dst - mid).direction;
+      final tip = dst - Offset.fromDirection(angle, 22);
+      final p1 = tip + Offset.fromDirection(angle + 2.4, 7);
+      final p2 = tip + Offset.fromDirection(angle - 2.4, 7);
+      canvas.drawPath(
+        Path()
+          ..moveTo(tip.dx, tip.dy)
+          ..lineTo(p1.dx, p1.dy)
+          ..lineTo(p2.dx, p2.dy)
+          ..close(),
+        Paint()
+          ..color = color.withValues(alpha: 0.65)
+          ..style = PaintingStyle.fill,
+      );
+    }
+
+    // 2. 画节点气泡
+    const nodeR = 20.0;
+    const textStyle = TextStyle(fontSize: 11, fontWeight: FontWeight.w500);
+
+    for (final entry in positions.entries) {
+      final pos = entry.value;
+      final text = entry.key;
+
+      // 气泡背景
+      canvas.drawCircle(
+        pos,
+        nodeR,
+        Paint()..color = colorScheme.primaryContainer,
+      );
+      canvas.drawCircle(
+        pos,
+        nodeR,
+        Paint()
+          ..color = colorScheme.primary.withValues(alpha: 0.4)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2,
+      );
+
+      // 节点文字（截断）
+      final label = text.length > 6 ? '${text.substring(0, 5)}…' : text;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: textStyle.copyWith(color: colorScheme.onPrimaryContainer),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout(maxWidth: nodeR * 2);
+
+      tp.paint(
+        canvas,
+        Offset(pos.dx - tp.width / 2, pos.dy - tp.height / 2),
+      );
+
+      // 节点下方完整文字标签
+      final fullTp = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            fontSize: 10,
+            color: colorScheme.onSurface.withValues(alpha: 0.7),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 2,
+      )..layout(maxWidth: 80);
+
+      fullTp.paint(
+        canvas,
+        Offset(pos.dx - fullTp.width / 2, pos.dy + nodeR + 4),
+      );
+    }
+  }
+
+  Set<String> collectNodes(List<KnowledgeLink> links) {
+    final nodes = <String>{};
+    for (final l in links) {
+      nodes.add(l.sourceNodeText);
+      nodes.add(l.targetNodeText);
+    }
+    return nodes;
+  }
+
+  Map<String, Offset> circleLayout(Set<String> nodes, Size size) {
+    final list = nodes.toList();
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = (size.shortestSide / 2 - 80).clamp(80.0, 220.0);
+    final result = <String, Offset>{};
+    for (int i = 0; i < list.length; i++) {
+      final angle = 2 * math.pi * i / list.length - math.pi / 2;
+      result[list[i]] = Offset(
+        cx + r * math.cos(angle),
+        cy + r * math.sin(angle),
+      );
+    }
+    return result;
+  }
+
+  @override
+  bool shouldRepaint(_KnowledgeGraphPainter old) =>
+      old.links != links || old.canvasSize != canvasSize;
 }

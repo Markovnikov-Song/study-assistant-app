@@ -19,52 +19,7 @@ class ProfilePage extends ConsumerWidget {
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
       body: Stack(
         children: [
-          // 顶部装饰渐变
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 280,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [
-                          AppColors.primaryDark.withOpacity(0.25),
-                          AppColors.secondary.withOpacity(0.15),
-                          Colors.transparent,
-                        ]
-                      : [
-                          AppColors.primaryLight.withOpacity(0.15),
-                          AppColors.primary.withOpacity(0.08),
-                          Colors.transparent,
-                        ],
-                ),
-              ),
-            ),
-          ),
-          // 装饰圆形
-          Positioned(
-            top: -100,
-            right: -80,
-            child: Container(
-              width: 280,
-              height: 280,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    (isDark ? AppColors.primaryDark : AppColors.primaryLight)
-                        .withOpacity(0.1),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // 主内容
+          // 主内容（SVG 背景由 ShellPage 提供）
           CustomScrollView(
             slivers: [
               // App Bar

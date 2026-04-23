@@ -17,10 +17,10 @@ class StudyDocument {
 
   String get statusLabel {
     switch (status) {
-      case DocumentStatus.pending: return '⏳ 等待';
-      case DocumentStatus.processing: return '🔄 处理中';
-      case DocumentStatus.completed: return '✅ 完成';
-      case DocumentStatus.failed: return '❌ 失败';
+      case DocumentStatus.pending: return '等待';
+      case DocumentStatus.processing: return '处理中';
+      case DocumentStatus.completed: return '完成';
+      case DocumentStatus.failed: return '失败';
     }
   }
 
