@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/dio_client.dart';
-import '../../core/skill/skill_model.dart';
 import '../../providers/current_subject_provider.dart';
 import '../../widgets/markdown_latex_view.dart';
 

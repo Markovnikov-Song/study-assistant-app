@@ -49,7 +49,7 @@ class MonthView extends ConsumerWidget {
       calendarStyle: CalendarStyle(
         outsideDaysVisible: false,
         todayDecoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.2),
+          color: AppColors.primary.withValues(alpha: 0.2),
           shape: BoxShape.circle,
         ),
         todayTextStyle: const TextStyle(

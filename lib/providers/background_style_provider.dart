@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -18,8 +17,8 @@ class BackgroundStyle {
 }
 
 /// 预设背景风格
-class kBackgroundStyles {
-  kBackgroundStyles._();
+class KBackgroundStyles {
+  KBackgroundStyles._();
 
   /// 默认风格 - 深靛蓝/紫渐变配浮光球
   static const defaultStyle = BackgroundStyle(
@@ -109,7 +108,7 @@ final backgroundStyleProvider =
 });
 
 class BackgroundStyleNotifier extends StateNotifier<BackgroundStyle> {
-  BackgroundStyleNotifier() : super(kBackgroundStyles.defaultStyle) {
+  BackgroundStyleNotifier() : super(KBackgroundStyles.defaultStyle) {
     _loadSaved();
   }
 
@@ -117,7 +116,7 @@ class BackgroundStyleNotifier extends StateNotifier<BackgroundStyle> {
     final prefs = await SharedPreferences.getInstance();
     final savedId = prefs.getString('background_style_id');
     if (savedId != null) {
-      state = kBackgroundStyles.getById(savedId);
+      state = KBackgroundStyles.getById(savedId);
     }
   }
 
@@ -128,7 +127,7 @@ class BackgroundStyleNotifier extends StateNotifier<BackgroundStyle> {
   }
 
   Future<void> reset() async {
-    state = kBackgroundStyles.defaultStyle;
+    state = KBackgroundStyles.defaultStyle;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('background_style_id');
   }
@@ -141,5 +140,5 @@ final currentPageBackgroundProvider =
   if (pageIndex >= 0 && pageIndex < style.svgAssets.length) {
     return style.svgAssets[pageIndex];
   }
-  return kBackgroundStyles.defaultStyle.svgAssets[pageIndex];
+  return KBackgroundStyles.defaultStyle.svgAssets[pageIndex];
 });

@@ -53,12 +53,12 @@ class EmptyState extends StatelessWidget {
                     end: Alignment.bottomRight,
                     colors: isDark
                         ? [
-                            AppColors.primaryDark.withOpacity(0.2),
-                            AppColors.primaryLight.withOpacity(0.1),
+                            AppColors.primaryDark.withValues(alpha: 0.2),
+                            AppColors.primaryLight.withValues(alpha: 0.1),
                           ]
                         : [
-                            AppColors.primaryLight.withOpacity(0.1),
-                            AppColors.primary.withOpacity(0.05),
+                            AppColors.primaryLight.withValues(alpha: 0.1),
+                            AppColors.primary.withValues(alpha: 0.05),
                           ],
                   ),
                 ),

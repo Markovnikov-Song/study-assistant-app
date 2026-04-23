@@ -106,12 +106,12 @@ class _ShellPageState extends ConsumerState<ShellPage> {
           child: Container(
             decoration: BoxDecoration(
               color: (isDark ? AppColors.surfaceDark : AppColors.surface)
-                  .withOpacity(0.85),
+                  .withValues(alpha: 0.85),
               border: Border(
                 top: BorderSide(
                   color: isDark
-                      ? AppColors.borderDark.withOpacity(0.3)
-                      : AppColors.border.withOpacity(0.5),
+                      ? AppColors.borderDark.withValues(alpha: 0.3)
+                      : AppColors.border.withValues(alpha: 0.5),
                   width: 0.5,
                 ),
               ),

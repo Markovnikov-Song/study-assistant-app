@@ -107,8 +107,8 @@ class DotsPatternBackground extends StatelessWidget {
             painter: _DotsPatternPainter(
               dotColor: dotColor ??
                   (isDark
-                      ? AppColors.textTertiaryDark.withOpacity(0.1)
-                      : AppColors.textTertiary.withOpacity(0.15)),
+                      ? AppColors.textTertiaryDark.withValues(alpha: 0.1)
+                      : AppColors.textTertiary.withValues(alpha: 0.15)),
               spacing: spacing,
               dotRadius: dotRadius,
             ),
@@ -352,8 +352,8 @@ class AvatarDecoration extends StatelessWidget {
         shape: BoxShape.circle,
         color: backgroundColor ??
             (isDark
-                ? AppColors.primaryDark.withOpacity(0.3)
-                : AppColors.primaryLight.withOpacity(0.15)),
+                ? AppColors.primaryDark.withValues(alpha: 0.3)
+                : AppColors.primaryLight.withValues(alpha: 0.15)),
         border: showBorder
             ? Border.all(
                 color: isDark ? AppColors.primaryDark : AppColors.primaryLight,
@@ -396,8 +396,8 @@ class TagDecoration extends StatelessWidget {
       decoration: BoxDecoration(
         color: backgroundColor ??
             (isDark
-                ? AppColors.primaryDark.withOpacity(0.2)
-                : AppColors.primaryLight.withOpacity(0.1)),
+                ? AppColors.primaryDark.withValues(alpha: 0.2)
+                : AppColors.primaryLight.withValues(alpha: 0.1)),
         borderRadius: borderRadius ?? AppTheme.borderRadiusSm,
       ),
       child: DefaultTextStyle(

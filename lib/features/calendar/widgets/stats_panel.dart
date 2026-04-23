@@ -124,7 +124,7 @@ class StatsPanel extends ConsumerWidget {
                             child: LinearProgressIndicator(
                               value: s.percentage,
                               minHeight: 6,
-                              backgroundColor: color.withOpacity(0.15),
+                              backgroundColor: color.withValues(alpha: 0.15),
                               color: color,
                             ),
                           ),
@@ -200,7 +200,6 @@ class _SummaryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hours = (totalMinutes / 60).toStringAsFixed(1);
-    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
         Expanded(child: _StatCard(label: '本月学习', value: '$hours h')),

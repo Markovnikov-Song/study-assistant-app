@@ -98,7 +98,7 @@ const List<ToolItem> kDefaultTools = [
     label: '错题本',
     description: '记录错题，巩固薄弱点',
     route: '/toolkit/mistake-book',
-    iconOptions: const [
+    iconOptions: [
       Icons.error_outline_rounded,
       Icons.error_rounded,
       Icons.warning_amber_outlined,
@@ -115,7 +115,7 @@ const List<ToolItem> kDefaultTools = [
     label: '笔记本',
     description: '收藏内容，整理笔记',
     route: '/toolkit/notebooks',
-    iconOptions: const [
+    iconOptions: [
       Icons.note_alt_outlined,
       Icons.note_alt_rounded,
       Icons.sticky_note_2_outlined,
@@ -132,7 +132,7 @@ const List<ToolItem> kDefaultTools = [
     label: '解题',
     description: '拍照识题，AI解答',
     route: '/toolkit/solve',
-    iconOptions: const [
+    iconOptions: [
       Icons.calculate_outlined,
       Icons.calculate_rounded,
       Icons.functions,
@@ -149,7 +149,7 @@ const List<ToolItem> kDefaultTools = [
     label: '出题',
     description: '智能出题，检验学习',
     route: '/toolkit/quiz',
-    iconOptions: const [
+    iconOptions: [
       Icons.quiz_outlined,
       Icons.quiz_rounded,
       Icons.help_outline_rounded,
@@ -166,7 +166,7 @@ const List<ToolItem> kDefaultTools = [
     label: '脑图工坊',
     description: '生成思维导图',
     route: '/toolkit/mindmap-workshop',
-    iconOptions: const [
+    iconOptions: [
       Icons.account_tree_outlined,
       Icons.account_tree_rounded,
       Icons.hub_outlined,
@@ -183,12 +183,12 @@ const List<ToolItem> kDefaultTools = [
     label: '方法库',
     description: '查看并使用学习方法',
     route: '/my-skills',
-    iconOptions: const [
+    iconOptions: [
       Icons.auto_awesome_outlined,
       Icons.auto_awesome_rounded,
       Icons.star_outline_rounded,
       Icons.auto_fix_high_outlined,
-      Icons.wand_outlined,
+      Icons.psychology_outlined,
       Icons.tips_and_updates_outlined,
     ],
   ),
@@ -200,7 +200,7 @@ const List<ToolItem> kDefaultTools = [
     label: '学习日历',
     description: '计划、打卡、复盘，学习闭环',
     route: '/toolkit/calendar',
-    iconOptions: const [
+    iconOptions: [
       Icons.calendar_today_outlined,
       Icons.calendar_month_outlined,
       Icons.event_note_outlined,
@@ -260,7 +260,7 @@ class ToolkitPage extends ConsumerWidget {
                         crossAxisCount: 2,
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
-                        childAspectRatio: 0.88,
+                        childAspectRatio: 0.82,
                       ),
                       delegate: SliverChildBuilderDelegate(
                         (context, index) => _ToolCard(
@@ -341,6 +341,7 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
       onLongPress: widget.item.iconOptions != null ? _showIconPicker : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
+        // ignore: deprecated_member_use
         transform: Matrix4.identity()..scale(_isPressed ? 0.96 : 1.0),
         child: Container(
           decoration: BoxDecoration(
@@ -349,8 +350,8 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
             boxShadow: [
               BoxShadow(
                 color: _isPressed
-                    ? Colors.black.withOpacity(0.1)
-                    : Colors.black.withOpacity(isDark ? 0.15 : 0.05),
+                    ? Colors.black.withValues(alpha: 0.1)
+                    : Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
                 blurRadius: _isPressed ? 8 : 16,
                 offset: Offset(0, _isPressed ? 2 : 6),
               ),
@@ -379,7 +380,7 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
-                        color: widget.item.gradientColors.first.withOpacity(0.35),
+                        color: widget.item.gradientColors.first.withValues(alpha: 0.35),
                         blurRadius: 10,
                         offset: const Offset(0, 3),
                       ),
@@ -430,7 +431,7 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
                       padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? AppColors.surfaceElevatedDark.withOpacity(0.5)
+                            ? AppColors.surfaceElevatedDark.withValues(alpha: 0.5)
                             : AppColors.surfaceContainer,
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -578,7 +579,7 @@ class _IconPickerSheet extends StatelessWidget {
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
-                                  color: item.gradientColors.first.withOpacity(0.4),
+                                  color: item.gradientColors.first.withValues(alpha: 0.4),
                                   blurRadius: 12,
                                   offset: const Offset(0, 4),
                                 ),

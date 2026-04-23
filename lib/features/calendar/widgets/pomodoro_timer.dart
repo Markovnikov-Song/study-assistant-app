@@ -26,8 +26,8 @@ class PomodoroFloatingBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: isResting
-            ? AppColors.success.withOpacity(0.15)
-            : AppColors.primary.withOpacity(0.1),
+            ? AppColors.success.withValues(alpha: 0.15)
+            : AppColors.primary.withValues(alpha: 0.1),
         border: Border(
           top: BorderSide(
             color: isResting ? AppColors.success : AppColors.primary,

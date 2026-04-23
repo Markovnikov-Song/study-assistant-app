@@ -97,21 +97,7 @@ class R {
   static String legacyLecture(int subjectId, int sessionId, String nodeId)
       => lecture(subjectId, sessionId, nodeId);
 
-  // 旧常量别名（防止其他文件编译报错）
-  static const classroom  = chat;           // /classroom → /
-  static const library    = courseSpace;    // /library   → /course-space
-  static const stationery = toolkit;        // /stationery → /toolkit
-  static const mistakeBook = toolkitMistakeBook;
-  static const notebooks   = toolkitNotebooks;
-  static const subjects    = profileSubjects;
-  static const resources   = profileResources;
-  static const history     = profileHistory;
-  static const memory      = profileMemory;
-  static const solve       = toolkitSolve;
-  static const quiz        = toolkitQuiz;
-  static const mindmap_    = mindmapEntry;
-
-  // 旧方法别名
+  // 旧方法别名（保持向后兼容）
   static String subjectDetailPath(int id)  => subjectDetail(id);
   static String courseSpacePath(int id)    => courseSpaceSubject(id);
   static String courseSpaceById(int id)    => courseSpaceSubject(id);
@@ -146,18 +132,18 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
     routes: [
       // ── Auth ──────────────────────────────────────────────────────────────
-      GoRoute(path: R.login,    builder: (_, __) => const LoginPage()),
-      GoRoute(path: R.register, builder: (_, __) => const RegisterPage()),
+      GoRoute(path: R.login,    builder: (_, _) => const LoginPage()),
+      GoRoute(path: R.register, builder: (_, _) => const RegisterPage()),
 
       // ── 独立全屏页面（push 覆盖 shell）────────────────────────────────────
-      GoRoute(path: R.spec,              builder: (_, __) => const SpecPage()),
-      GoRoute(path: R.profileEdit,       builder: (_, __) => const EditProfilePage()),
-      GoRoute(path: R.profileMemory,     builder: (_, __) => const MemoryPage()),
-      GoRoute(path: R.profileSubjects,   builder: (_, __) => const SubjectsPage()),
-      GoRoute(path: R.profileResources,  builder: (_, __) => const ResourcesPage()),
-      GoRoute(path: R.profileHistory,    builder: (_, __) => const HistoryPage()),
-      GoRoute(path: R.skillMarketplace,  builder: (_, __) => const MarketplacePage()),
-      GoRoute(path: R.skillDialogCreate, builder: (_, __) => const DialogCreationPage()),
+      GoRoute(path: R.spec,              builder: (_, _) => const SpecPage()),
+      GoRoute(path: R.profileEdit,       builder: (_, _) => const EditProfilePage()),
+      GoRoute(path: R.profileMemory,     builder: (_, _) => const MemoryPage()),
+      GoRoute(path: R.profileSubjects,   builder: (_, _) => const SubjectsPage()),
+      GoRoute(path: R.profileResources,  builder: (_, _) => const ResourcesPage()),
+      GoRoute(path: R.profileHistory,    builder: (_, _) => const HistoryPage()),
+      GoRoute(path: R.skillMarketplace,  builder: (_, _) => const MarketplacePage()),
+      GoRoute(path: R.skillDialogCreate, builder: (_, _) => const DialogCreationPage()),
       GoRoute(
         path: R.mindmapEntry,
         builder: (_, state) => MindmapEntryPage(
@@ -194,10 +180,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // 工具箱子路由
-      GoRoute(path: R.toolkitMistakeBook, builder: (_, __) => const MistakeBookPage()),
-      GoRoute(path: R.toolkitSolve,       builder: (_, __) => const SolvePage()),
-      GoRoute(path: R.toolkitQuiz,        builder: (_, __) => const QuizPage()),
-      GoRoute(path: '/my-skills',         builder: (_, __) => const MySkillsPage()),
+      GoRoute(path: R.toolkitMistakeBook, builder: (_, _) => const MistakeBookPage()),
+      GoRoute(path: R.toolkitSolve,       builder: (_, _) => const SolvePage()),
+      GoRoute(path: R.toolkitQuiz,        builder: (_, _) => const QuizPage()),
+      GoRoute(path: '/my-skills',         builder: (_, _) => const MySkillsPage()),
       GoRoute(
         path: R.toolkitCalendar,
         builder: (_, state) => CalendarPage(
@@ -217,11 +203,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: 'countdown',
-            builder: (_, __) => const CountdownListPage(),
+            builder: (_, _) => const CountdownListPage(),
           ),
           GoRoute(
             path: 'stats',
-            builder: (_, __) => const StatsPanel(),
+            builder: (_, _) => const StatsPanel(),
           ),
         ],
       ),
@@ -239,7 +225,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: R.toolkitNotebooks,
-        builder: (_, __) => const NotebookListPage(),
+        builder: (_, _) => const NotebookListPage(),
         routes: [
           GoRoute(
             path: ':notebookId',
@@ -288,12 +274,12 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // ── Shell（底部 4 Tab）────────────────────────────────────────────────
       ShellRoute(
-        builder: (_, __, child) => ShellPage(child: child),
+        builder: (_, _, child) => ShellPage(child: child),
         routes: [
-          GoRoute(path: '/',               builder: (_, __) => const ChatPage()),
-          GoRoute(path: R.courseSpace,     builder: (_, __) => const LibraryPage()),
-          GoRoute(path: R.toolkit,         builder: (_, __) => const ToolkitPage()),
-          GoRoute(path: R.profile,         builder: (_, __) => const ProfilePage()),
+          GoRoute(path: '/',               builder: (_, _) => const ChatPage()),
+          GoRoute(path: R.courseSpace,     builder: (_, _) => const LibraryPage()),
+          GoRoute(path: R.toolkit,         builder: (_, _) => const ToolkitPage()),
+          GoRoute(path: R.profile,         builder: (_, _) => const ProfilePage()),
         ],
       ),
     ],
@@ -352,7 +338,7 @@ class _MindmapSubjectPickerPage extends ConsumerWidget {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: subjects.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (_, i) {
               final item = subjects[i];
               final pct = item.totalNodes == 0

@@ -29,7 +29,7 @@ class McpStatusIndicator extends ConsumerWidget {
     return statusAsync.when(
       data: (summary) => _buildIndicator(context, summary),
       loading: () => _buildDot(context, Colors.grey.shade400, '连接中…'),
-      error: (_, __) => _buildDot(context, Colors.grey.shade400, '离线模式'),
+      error: (_, _) => _buildDot(context, Colors.grey.shade400, '离线模式'),
     );
   }
 

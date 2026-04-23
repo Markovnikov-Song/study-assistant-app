@@ -245,7 +245,7 @@ class _DayColumn extends StatelessWidget {
                 border: Border(
                   top: BorderSide(
                     color: (isDark ? AppColors.borderDark : AppColors.border)
-                        .withOpacity(0.5),
+                        .withValues(alpha: 0.5),
                     width: 0.5,
                   ),
                   left: BorderSide(
@@ -301,7 +301,7 @@ class _EventBlock extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           decoration: BoxDecoration(
-            color: _parseColor(event.color).withOpacity(event.isCompleted ? 0.4 : 0.85),
+            color: _parseColor(event.color).withValues(alpha: event.isCompleted ? 0.4 : 0.85),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Text(

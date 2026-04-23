@@ -60,7 +60,7 @@ class AgentCouncilImpl implements AgentCouncil {
         },
       );
       return _parseDecision(res.data!);
-    } on DioException catch (e) {
+    } on DioException catch (_) {
       // 网络失败时返回骨架决策，不中断流程
       return CouncilDecision(
         summary: '议题「${agenda.topic}」已记录，网络恢复后处理。',

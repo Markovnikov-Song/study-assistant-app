@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,7 +5,6 @@ import '../../models/mindmap_library.dart';
 import '../../providers/library_provider.dart';
 import '../../routes/app_router.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_theme.dart';
 
 /// LibraryPage — 图书馆主页，展示学科课程卡片列表（含学习进度）
 /// 全新设计的「静谧学习」视觉风格
@@ -88,7 +86,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+                          color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
                           blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
@@ -175,7 +173,7 @@ class _EmptyState extends StatelessWidget {
                 gradient: RadialGradient(
                   colors: [
                     (isDark ? AppColors.primaryDark : AppColors.primaryLight)
-                        .withOpacity(0.1),
+                        .withValues(alpha: 0.1),
                     Colors.transparent,
                   ],
                 ),
@@ -221,7 +219,6 @@ class _SubjectCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cs = Theme.of(context).colorScheme;
     final subject = item.subject;
     final percent = item.totalNodes == 0 ? 0.0 : item.litNodes / item.totalNodes;
 
@@ -234,7 +231,7 @@ class _SubjectCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -270,7 +267,7 @@ class _SubjectCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: subjectColors.first.withOpacity(0.3),
+                            color: subjectColors.first.withValues(alpha: 0.3),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -310,7 +307,7 @@ class _SubjectCard extends StatelessWidget {
                                 Container(
                                   padding: const EdgeInsets.all(4),
                                   decoration: BoxDecoration(
-                                    color: AppColors.accent.withOpacity(0.1),
+                                    color: AppColors.accent.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: const Icon(
@@ -372,8 +369,8 @@ class _SubjectCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            subjectColors.first.withOpacity(0.15),
-                            subjectColors.last.withOpacity(0.1),
+                            subjectColors.first.withValues(alpha: 0.15),
+                            subjectColors.last.withValues(alpha: 0.1),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(8),
@@ -414,7 +411,7 @@ class _SubjectCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
-                            color: subjectColors.first.withOpacity(0.25),
+                            color: subjectColors.first.withValues(alpha: 0.25),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
@@ -493,7 +490,7 @@ class _StatChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: isDark
-            ? AppColors.surfaceElevatedDark.withOpacity(0.5)
+            ? AppColors.surfaceElevatedDark.withValues(alpha: 0.5)
             : AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(6),
       ),

@@ -95,9 +95,9 @@ class MessageSearchDelegate extends SearchDelegate<void> {
     // solve/mindmap/exam 是顶层独立页，用 push 以便能返回
     // qa 类型跳回主页根路由，用 go 清空栈
     final route = switch (result.sessionType) {
-      SessionType.solve   => AppRoutes.solve,
+      SessionType.solve   => AppRoutes.toolkitSolve,
       SessionType.mindmap => AppRoutes.mindmapEntry,
-      SessionType.exam    => AppRoutes.quiz,
+      SessionType.exam    => AppRoutes.toolkitQuiz,
       _                   => AppRoutes.chat,
     };
     if (route == AppRoutes.chat) {

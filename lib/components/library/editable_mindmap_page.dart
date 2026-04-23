@@ -105,7 +105,7 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
           // 缩放和撤销只在知识树 Tab 显示
           AnimatedBuilder(
             animation: _tabController,
-            builder: (_, __) => _tabController.index == 0
+            builder: (_, _) => _tabController.index == 0
                 ? Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(icon: const Icon(Icons.add), tooltip: '放大', onPressed: () => _zoomFn?.call(1.25)),
                     IconButton(icon: const Icon(Icons.remove), tooltip: '缩小', onPressed: () => _zoomFn?.call(0.8)),
@@ -525,10 +525,8 @@ class _MindMapCanvas extends ConsumerStatefulWidget {
   final void Function(TreeNode) onNodeTap;
   final void Function(TreeNode) onNodeLongPress;
   final void Function(void Function(double))? onZoomReady;
-  final void Function(void Function(String), void Function(String))? onGeneratingReady;
 
   const _MindMapCanvas({
-    super.key,
     required this.roots,
     required this.nodeStates,
     required this.sessionId,
@@ -536,7 +534,6 @@ class _MindMapCanvas extends ConsumerStatefulWidget {
     required this.onNodeTap,
     required this.onNodeLongPress,
     this.onZoomReady,
-    this.onGeneratingReady,
   });
 
   @override
@@ -556,7 +553,6 @@ class _MindMapCanvasState extends ConsumerState<_MindMapCanvas> {
   void initState() {
     super.initState();
     widget.onZoomReady?.call(zoom);
-    widget.onGeneratingReady?.call(addGenerating, removeGenerating);
   }
 
   @override

@@ -300,7 +300,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 gradient: RadialGradient(
                   colors: [
                     (isDark ? AppColors.primaryDark : AppColors.primaryLight)
-                        .withOpacity(0.05),
+                        .withValues(alpha: 0.05),
                     Colors.transparent,
                   ],
                 ),
@@ -623,8 +623,8 @@ class _Bubble extends ConsumerWidget {
             boxShadow: [
               BoxShadow(
                 color: isUser
-                    ? AppColors.primary.withOpacity(0.25)
-                    : Colors.black.withOpacity(isDark ? 0.15 : 0.05),
+                    ? AppColors.primary.withValues(alpha: 0.25)
+                    : Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -852,7 +852,7 @@ class _EmptyHints extends ConsumerWidget {
                 gradient: RadialGradient(
                   colors: [
                     (isDark ? AppColors.primaryDark : AppColors.primaryLight)
-                        .withOpacity(0.15),
+                        .withValues(alpha: 0.15),
                     Colors.transparent,
                   ],
                 ),
@@ -950,7 +950,7 @@ class _InputBar extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               color: isDark
-                  ? AppColors.surfaceElevatedDark.withOpacity(0.5)
+                  ? AppColors.surfaceElevatedDark.withValues(alpha: 0.5)
                   : AppColors.surfaceContainer,
               borderRadius: BorderRadius.circular(10),
             ),
@@ -968,7 +968,7 @@ class _InputBar extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               color: isDark
-                  ? AppColors.surfaceElevatedDark.withOpacity(0.5)
+                  ? AppColors.surfaceElevatedDark.withValues(alpha: 0.5)
                   : AppColors.surfaceContainer,
               borderRadius: BorderRadius.circular(10),
             ),
@@ -1027,7 +1027,7 @@ class _InputBar extends StatelessWidget {
                   ? null
                   : [
                       BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
+                        color: AppColors.primary.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),

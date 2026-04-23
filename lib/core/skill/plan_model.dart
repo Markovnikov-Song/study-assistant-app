@@ -10,8 +10,6 @@
 //
 // Phase 1: Data model skeleton only — no business logic.
 
-import 'package:study_assistant_app/core/skill/skill_model.dart';
-
 /// A single entry in a Plan — one subject, one time slot, one Skill.
 class PlanEntry {
   final String id;

@@ -114,13 +114,10 @@ class _SectionHeader extends StatelessWidget {
   final IconData icon;
   final String title;
   final String? subtitle;
-  final String? badge;
-
   const _SectionHeader({
     required this.icon,
     required this.title,
     this.subtitle,
-    this.badge,
   });
 
   @override
@@ -136,18 +133,6 @@ class _SectionHeader extends StatelessWidget {
           const SizedBox(width: 6),
           Text(subtitle!,
               style: TextStyle(fontSize: 12, color: cs.outline)),
-        ],
-        if (badge != null) ...[
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: cs.tertiaryContainer,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(badge!,
-                style: TextStyle(fontSize: 10, color: cs.onTertiaryContainer)),
-          ),
         ],
       ],
     );

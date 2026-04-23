@@ -230,7 +230,7 @@ class _CountdownBanner extends ConsumerWidget {
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: color.withOpacity(0.12),
+          color: color.withValues(alpha: 0.12),
           child: Row(
             children: [
               Icon(Icons.flag_rounded, size: 16, color: color),

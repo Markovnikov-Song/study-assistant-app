@@ -1,8 +1,8 @@
+// ignore_for_file: deprecated_member_use, avoid_web_libraries_in_flutter
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
-// ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
+import 'dart:typed_data';
 
 /// Web 平台：用 XHR 发 POST 请求，获取二进制响应。
 /// 绕过 Dio 在 Web 上 ResponseType.bytes 的问题。

@@ -40,7 +40,6 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
   String _color = '#6366F1';
   bool _isCountdown = false;
   String _priority = 'medium';
-  String _repeatType = 'daily';
   bool _saving = false;
   String? _titleError;
 
@@ -168,7 +167,6 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
   Widget build(BuildContext context) {
     final subjectsAsync = ref.watch(subjectsProvider);
     final subjects = subjectsAsync.valueOrNull ?? [];
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -270,7 +268,7 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
                   // 学科
                   if (subjects.isNotEmpty)
                     DropdownButtonFormField<int?>(
-                      value: _subjectId,
+                      initialValue: _subjectId,
                       decoration: const InputDecoration(
                         labelText: '学科（选填）',
                         border: OutlineInputBorder(),
@@ -319,7 +317,7 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
 
                   // 优先级
                   DropdownButtonFormField<String>(
-                    value: _priority,
+                    initialValue: _priority,
                     decoration: const InputDecoration(
                       labelText: '优先级',
                       border: OutlineInputBorder(),

@@ -76,7 +76,7 @@ class AppTheme {
 
   static List<BoxShadow> get shadowPrimary => [
         BoxShadow(
-          color: AppColors.primary.withOpacity(0.3),
+          color: AppColors.primary.withValues(alpha: 0.3),
           blurRadius: 20,
           offset: const Offset(0, 4),
         ),
@@ -184,19 +184,19 @@ class AppTheme {
       brightness: Brightness.light,
       primary: AppColors.primary,
       onPrimary: AppColors.textOnPrimary,
-      primaryContainer: AppColors.primaryLight.withOpacity(0.15),
+      primaryContainer: AppColors.primaryLight.withValues(alpha: 0.15),
       onPrimaryContainer: AppColors.primaryDark,
       secondary: AppColors.secondary,
       onSecondary: AppColors.textOnPrimary,
-      secondaryContainer: AppColors.secondaryLight.withOpacity(0.15),
+      secondaryContainer: AppColors.secondaryLight.withValues(alpha: 0.15),
       onSecondaryContainer: AppColors.secondary,
       tertiary: AppColors.accent,
       onTertiary: AppColors.textOnPrimary,
-      tertiaryContainer: AppColors.accentLight.withOpacity(0.15),
+      tertiaryContainer: AppColors.accentLight.withValues(alpha: 0.15),
       onTertiaryContainer: AppColors.accent,
       error: AppColors.error,
       onError: AppColors.textOnPrimary,
-      errorContainer: AppColors.errorLight.withOpacity(0.15),
+      errorContainer: AppColors.errorLight.withValues(alpha: 0.15),
       onErrorContainer: AppColors.error,
       surface: AppColors.surface,
       onSurface: AppColors.textPrimary,
@@ -357,11 +357,11 @@ class AppTheme {
       // ─── 底部导航 ──────────────────────────────────────────
       navigationBarTheme: NavigationBarThemeData(
         elevation: 0,
-        backgroundColor: AppColors.surface.withOpacity(0.85),
+        backgroundColor: AppColors.surface.withValues(alpha: 0.85),
         surfaceTintColor: Colors.transparent,
         height: 80,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        indicatorColor: AppColors.primaryLight.withOpacity(0.15),
+        indicatorColor: AppColors.primaryLight.withValues(alpha: 0.15),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return const IconThemeData(color: AppColors.primary, size: 24);
@@ -400,7 +400,7 @@ class AppTheme {
         elevation: 0,
         pressElevation: 0,
         backgroundColor: AppColors.surfaceContainer,
-        selectedColor: AppColors.primaryLight.withOpacity(0.15),
+        selectedColor: AppColors.primaryLight.withValues(alpha: 0.15),
         labelStyle: textTheme.labelMedium?.copyWith(
           color: AppColors.textSecondary,
         ),
@@ -468,26 +468,26 @@ class AppTheme {
       brightness: Brightness.dark,
       primary: AppColors.primaryLight,
       onPrimary: AppColors.backgroundDark,
-      primaryContainer: AppColors.primaryDark.withOpacity(0.3),
+      primaryContainer: AppColors.primaryDark.withValues(alpha: 0.3),
       onPrimaryContainer: AppColors.primaryLight,
       secondary: AppColors.secondaryLight,
       onSecondary: AppColors.backgroundDark,
-      secondaryContainer: AppColors.secondary.withOpacity(0.3),
+      secondaryContainer: AppColors.secondary.withValues(alpha: 0.3),
       onSecondaryContainer: AppColors.secondaryLight,
       tertiary: AppColors.accentLight,
       onTertiary: AppColors.backgroundDark,
-      tertiaryContainer: AppColors.accent.withOpacity(0.3),
+      tertiaryContainer: AppColors.accent.withValues(alpha: 0.3),
       onTertiaryContainer: AppColors.accentLight,
       error: AppColors.errorLight,
       onError: AppColors.backgroundDark,
-      errorContainer: AppColors.error.withOpacity(0.3),
+      errorContainer: AppColors.error.withValues(alpha: 0.3),
       onErrorContainer: AppColors.errorLight,
       surface: AppColors.surfaceDark,
       onSurface: AppColors.textPrimaryDark,
       surfaceContainerHighest: AppColors.surfaceContainerHighDark,
       onSurfaceVariant: AppColors.textSecondaryDark,
       outline: AppColors.borderDark,
-      outlineVariant: AppColors.borderDark.withOpacity(0.5),
+      outlineVariant: AppColors.borderDark.withValues(alpha: 0.5),
       shadow: Colors.black,
     );
 
@@ -640,11 +640,11 @@ class AppTheme {
       // ─── 底部导航 ──────────────────────────────────────────
       navigationBarTheme: NavigationBarThemeData(
         elevation: 0,
-        backgroundColor: AppColors.surfaceDark.withOpacity(0.9),
+        backgroundColor: AppColors.surfaceDark.withValues(alpha: 0.9),
         surfaceTintColor: Colors.transparent,
         height: 80,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        indicatorColor: AppColors.primaryDark.withOpacity(0.3),
+        indicatorColor: AppColors.primaryDark.withValues(alpha: 0.3),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return const IconThemeData(color: AppColors.primaryLight, size: 24);
@@ -683,7 +683,7 @@ class AppTheme {
         elevation: 0,
         pressElevation: 0,
         backgroundColor: AppColors.surfaceElevatedDark,
-        selectedColor: AppColors.primaryDark.withOpacity(0.3),
+        selectedColor: AppColors.primaryDark.withValues(alpha: 0.3),
         labelStyle: textTheme.labelMedium?.copyWith(
           color: AppColors.textSecondaryDark,
         ),
@@ -797,7 +797,7 @@ class AppDecorations {
       borderRadius: AppTheme.borderRadiusMd,
       child: BackdropFilter(
         filter: ColorFilter.mode(
-          Colors.white.withOpacity(opacity),
+          Colors.white.withValues(alpha: opacity),
           BlendMode.srcOver,
         ),
         child: child,
@@ -808,7 +808,7 @@ class AppDecorations {
   // ─── 圆形头像背景 ─────────────────────────────────────────
   static BoxDecoration avatarBg({Color? color}) {
     return BoxDecoration(
-      color: color ?? AppColors.primaryLight.withOpacity(0.15),
+      color: color ?? AppColors.primaryLight.withValues(alpha: 0.15),
       shape: BoxShape.circle,
     );
   }
@@ -816,7 +816,7 @@ class AppDecorations {
   // ─── 标签背景 ─────────────────────────────────────────────
   static BoxDecoration tagBg({Color? color}) {
     return BoxDecoration(
-      color: color ?? AppColors.primaryLight.withOpacity(0.1),
+      color: color ?? AppColors.primaryLight.withValues(alpha: 0.1),
       borderRadius: AppTheme.borderRadiusSm,
     );
   }

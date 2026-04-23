@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional
+from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -17,7 +17,7 @@ class QueryIn(BaseModel):
     subject_id: Optional[int] = None
     message: str
     session_id: Optional[int] = None
-    mode: str = "strict"   # strict | broad | hybrid | solve
+    mode: Literal["strict", "broad", "hybrid", "solve"] = "strict"
 
 
 class SourceOut(BaseModel):

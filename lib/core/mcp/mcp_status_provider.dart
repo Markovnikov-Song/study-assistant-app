@@ -35,7 +35,7 @@ final mcpConnectionStateProvider = Provider<MCPConnectionState>((ref) {
   return ref.watch(mcpStatusProvider).when(
     data: (summary) => summary.state,
     loading: () => MCPConnectionState.offline,
-    error: (_, __) => MCPConnectionState.offline,
+    error: (_, _) => MCPConnectionState.offline,
   );
 });
 

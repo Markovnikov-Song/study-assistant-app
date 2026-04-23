@@ -51,7 +51,7 @@ class ProfilePage extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(isDark ? 0.2 : 0.08),
+                          color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.08),
                           blurRadius: 20,
                           offset: const Offset(0, 4),
                         ),
@@ -82,7 +82,7 @@ class ProfilePage extends ConsumerWidget {
                                     borderRadius: BorderRadius.circular(18),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppColors.primary.withOpacity(0.3),
+                                        color: AppColors.primary.withValues(alpha: 0.3),
                                         blurRadius: 12,
                                         offset: const Offset(0, 4),
                                       ),
@@ -162,7 +162,7 @@ class ProfilePage extends ConsumerWidget {
                                   ),
                                   decoration: BoxDecoration(
                                     color: isDark
-                                        ? AppColors.surfaceElevatedDark.withOpacity(0.5)
+                                        ? AppColors.surfaceElevatedDark.withValues(alpha: 0.5)
                                         : AppColors.surfaceContainer,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
@@ -213,7 +213,7 @@ class ProfilePage extends ConsumerWidget {
                       iconColor: AppColors.secondary,
                       title: '学科管理',
                       subtitle: '新建、编辑、归档学科',
-                      onTap: () => context.push(AppRoutes.subjects),
+                      onTap: () => context.push(AppRoutes.profileSubjects),
                       isDark: isDark,
                     ),
                     _buildMenuTile(
@@ -222,7 +222,7 @@ class ProfilePage extends ConsumerWidget {
                       iconColor: AppColors.accent,
                       title: '资料管理',
                       subtitle: '管理各学科的资料和历年题',
-                      onTap: () => context.push(AppRoutes.resources),
+                      onTap: () => context.push(AppRoutes.profileResources),
                       isDark: isDark,
                     ),
                     const SizedBox(height: 16),
@@ -233,7 +233,7 @@ class ProfilePage extends ConsumerWidget {
                       iconColor: const Color(0xFF06B6D4),
                       title: '对话历史',
                       subtitle: '查看所有历史对话',
-                      onTap: () => context.push(AppRoutes.history),
+                      onTap: () => context.push(AppRoutes.profileHistory),
                       isDark: isDark,
                     ),
                     const SizedBox(height: 16),
@@ -251,10 +251,10 @@ class ProfilePage extends ConsumerWidget {
                     // 退出登录按钮
                     Container(
                       decoration: BoxDecoration(
-                        color: AppColors.error.withOpacity(0.08),
+                        color: AppColors.error.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: AppColors.error.withOpacity(0.2),
+                          color: AppColors.error.withValues(alpha: 0.2),
                         ),
                       ),
                       child: Material(
@@ -294,7 +294,7 @@ class ProfilePage extends ConsumerWidget {
                                 Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: AppColors.error.withOpacity(0.1),
+                                    color: AppColors.error.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: const Icon(
@@ -365,7 +365,7 @@ class ProfilePage extends ConsumerWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.1 : 0.03),
+              color: Colors.black.withValues(alpha: isDark ? 0.1 : 0.03),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -388,8 +388,8 @@ class ProfilePage extends ConsumerWidget {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          iconColor.withOpacity(0.15),
-                          iconColor.withOpacity(0.08),
+                          iconColor.withValues(alpha: 0.15),
+                          iconColor.withValues(alpha: 0.08),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(12),
@@ -551,10 +551,10 @@ class _BackgroundStyleSheet extends StatelessWidget {
               child: ListView.separated(
                 shrinkWrap: true,
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                itemCount: kBackgroundStyles.all.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemCount: KBackgroundStyles.all.length,
+                separatorBuilder: (context, _) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
-                  final style = kBackgroundStyles.all[index];
+                  final style = KBackgroundStyles.all[index];
                   final isSelected = style.id == currentStyle.id;
                   return _BackgroundStyleItem(
                     style: style,
@@ -597,7 +597,7 @@ class _BackgroundStyleItem extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.primary.withOpacity(0.1)
+              ? AppColors.primary.withValues(alpha: 0.1)
               : (isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceContainer),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
@@ -607,7 +607,7 @@ class _BackgroundStyleItem extends StatelessWidget {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.primary.withOpacity(0.2),
+                    color: AppColors.primary.withValues(alpha: 0.2),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -627,7 +627,7 @@ class _BackgroundStyleItem extends StatelessWidget {
               child: Center(
                 child: Icon(
                   _getStyleIcon(style.id),
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   size: 24,
                 ),
               ),

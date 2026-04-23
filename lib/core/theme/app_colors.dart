@@ -101,8 +101,8 @@ class AppColors {
   );
 
   // ─── 阴影颜色 ──────────────────────────────────────────────
-  static Color shadowPrimary = primary.withOpacity(0.25);
-  static Color shadowDark = Colors.black.withOpacity(0.15);
+  static Color shadowPrimary = primary.withValues(alpha: 0.25);
+  static Color shadowDark = Colors.black.withValues(alpha: 0.15);
 }
 
 /// ============================================================
