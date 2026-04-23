@@ -5,7 +5,7 @@ class ApiConstants {
   // 手机调试时用热点的 IP
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://192.168.137.1:8002',
+    defaultValue: 'http://192.168.137.1:8000',
   );
 
   // Auth

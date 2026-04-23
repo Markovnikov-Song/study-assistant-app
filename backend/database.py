@@ -62,6 +62,9 @@ class User(Base):
 
 class Subject(Base):
     __tablename__ = "subjects"
+    __table_args__ = (
+        Index("idx_subjects_user_id", "user_id"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -89,6 +92,10 @@ class Subject(Base):
 
 class Document(Base):
     __tablename__ = "documents"
+    __table_args__ = (
+        Index("idx_documents_user_id", "user_id"),
+        Index("idx_documents_subject_id", "subject_id"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
@@ -105,6 +112,9 @@ class Document(Base):
 
 class Chunk(Base):
     __tablename__ = "chunks"
+    __table_args__ = (
+        Index("idx_chunks_subject_id", "subject_id"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
@@ -119,6 +129,10 @@ class Chunk(Base):
 
 class ConversationSession(Base):
     __tablename__ = "conversation_sessions"
+    __table_args__ = (
+        Index("idx_conversation_sessions_user_id", "user_id"),
+        Index("idx_conversation_sessions_user_created", "user_id", "created_at"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -138,6 +152,10 @@ class ConversationSession(Base):
 
 class ConversationHistory(Base):
     __tablename__ = "conversation_history"
+    __table_args__ = (
+        Index("idx_conversation_history_session_id", "session_id"),
+        Index("idx_conversation_history_created_at", "created_at"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(
@@ -154,6 +172,10 @@ class ConversationHistory(Base):
 
 class PastExamFile(Base):
     __tablename__ = "past_exam_files"
+    __table_args__ = (
+        Index("idx_past_exam_files_user_id", "user_id"),
+        Index("idx_past_exam_files_subject_id", "subject_id"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
@@ -172,6 +194,9 @@ class PastExamFile(Base):
 
 class PastExamQuestion(Base):
     __tablename__ = "past_exam_questions"
+    __table_args__ = (
+        Index("idx_past_exam_questions_subject_id", "subject_id"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     exam_file_id = Column(
@@ -336,6 +361,7 @@ class HintSuggestion(Base):
     """LLM 生成的提示词建议缓存，按 (user_id, subject_id, hint_type) 唯一。"""
     __tablename__ = "hint_suggestions"
     __table_args__ = (
+        UniqueConstraint("user_id", "subject_id", "hint_type", name="uq_hint_suggestion"),
         Index("idx_hint_suggestions_user_subject", "user_id", "subject_id"),
     )
 

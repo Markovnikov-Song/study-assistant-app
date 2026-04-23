@@ -137,11 +137,14 @@ def batch_create_notes(body: BatchCreateNotesIn, user=Depends(get_current_user))
         raise HTTPException(400, "至少需要一条笔记")
     with get_session() as db:
         notebook_ids = {item.notebook_id for item in body.notes}
+        # 批量查询验证笔记本所有权（优化 N+1 查询）
+        existing_notebooks = db.query(Notebook.id).filter(
+            Notebook.id.in_(notebook_ids),
+            Notebook.user_id == user["id"]
+        ).all()
+        existing_ids = {nb.id for nb in existing_notebooks}
         for nb_id in notebook_ids:
-            nb = db.query(Notebook).filter(
-                Notebook.id == nb_id, Notebook.user_id == user["id"]
-            ).first()
-            if not nb:
+            if nb_id not in existing_ids:
                 raise HTTPException(404, f"笔记本 {nb_id} 不存在或无权限")
         created = []
         for item in body.notes:

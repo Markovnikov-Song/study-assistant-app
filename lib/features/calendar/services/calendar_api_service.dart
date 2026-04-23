@@ -52,8 +52,13 @@ class CalendarApiService {
       };
       final res = await _dio.get('$_base/events', queryParameters: params);
       final map = _asMap(res.data);
-      final list = map['events'] as List? ?? _asList(res.data);
-      return list.map((e) => CalendarEvent.fromJson(e as Map<String, dynamic>)).toList();
+      final rawList = map['events'];
+      if (rawList == null) return [];
+      final list = rawList is List ? rawList : _asList(rawList);
+      return list
+          .whereType<Map<String, dynamic>>()
+          .map((e) => CalendarEvent.fromJson(e))
+          .toList();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -63,12 +68,14 @@ class CalendarApiService {
     try {
       final res = await _dio.get('$_base/events/today');
       final data = _asMap(res.data);
-      return TodayEventsResult(
-        events: (_asList(data['events']))
-            .map((e) => CalendarEvent.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        stats: TodayStats.fromJson(_asMap(data['stats'])),
-      );
+      final rawEvents = data['events'];
+      final events = (rawEvents is List ? rawEvents : _asList(rawEvents))
+          .whereType<Map<String, dynamic>>()
+          .map((e) => CalendarEvent.fromJson(e))
+          .toList();
+      final rawStats = data['stats'];
+      final stats = TodayStats.fromJson(_asMap(rawStats));
+      return TodayEventsResult(events: events, stats: stats);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

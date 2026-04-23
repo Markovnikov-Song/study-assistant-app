@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/auth/login_page.dart';
 import '../features/auth/register_page.dart';
-import '../features/home/shell_page.dart';
+import '../features/home/responsive_shell.dart';
 import '../features/chat/chat_page.dart';
 import '../features/spec/spec_page.dart';
 import '../features/toolkit/toolkit_page.dart';
@@ -272,9 +272,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // ── Shell（底部 4 Tab）────────────────────────────────────────────────
+      // ── Shell（底部 4 Tab / 桌面侧边栏）────────────────────────────────
       ShellRoute(
-        builder: (_, _, child) => ShellPage(child: child),
+        builder: (context, state, child) {
+          final location = state.matchedLocation;
+          return ResponsiveShell(
+            location: location,
+            child: child,
+          );
+        },
         routes: [
           GoRoute(path: '/',               builder: (_, _) => const ChatPage()),
           GoRoute(path: R.courseSpace,     builder: (_, _) => const LibraryPage()),

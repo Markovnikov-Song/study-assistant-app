@@ -236,8 +236,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Widget build(BuildContext context) {
     final multiSelect = ref.watch(multiSelectProvider);
     final selectedCount = multiSelect.selectedMessageIds.length;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    PreferredSizeWidget appBar;
+    PreferredSizeWidget? appBar;
     if (multiSelect.isActive) {
       appBar = AppBar(
         leading: IconButton(
@@ -247,83 +248,144 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         title: Text('已选中 $selectedCount 条消息'),
         centerTitle: false,
       );
-    } else if (widget.subjectId != null) {
-      // 学科专属对话顶栏：显示学科名 + 返回按钮
+    }
+
+    return Scaffold(
+      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
+      // 多选模式用普通 AppBar
+      appBar: appBar,
+      body: multiSelect.isActive
+          ? _ChatBody(
+              chatKey: _chatKey,
+              sessionType: _sessionType,
+              subjectId: widget.subjectId ?? 0,
+              isGeneral: widget.subjectId == null && widget.taskId == null,
+              useHybrid: _useHybrid,
+              sending: _sending,
+              inputCtrl: _inputCtrl,
+              scrollCtrl: _scrollCtrl,
+              onHybridChanged: (v) => setState(() => _useHybrid = v),
+              onSubmit: _submit,
+              onCancel: _cancelSending,
+              onCamera: () => _pickAndOcr(ImageSource.camera),
+              onGallery: () => _pickAndOcr(ImageSource.gallery),
+            )
+          : _ChatPageWithSliverAppBar(
+              chatKey: _chatKey,
+              sessionType: _sessionType,
+              subjectId: widget.subjectId,
+              taskId: widget.taskId,
+              useHybrid: _useHybrid,
+              sending: _sending,
+              inputCtrl: _inputCtrl,
+              scrollCtrl: _scrollCtrl,
+              onHybridChanged: (v) => setState(() => _useHybrid = v),
+              onSubmit: _submit,
+              onCancel: _cancelSending,
+              onCamera: () => _pickAndOcr(ImageSource.camera),
+              onGallery: () => _pickAndOcr(ImageSource.gallery),
+            ),
+    );
+  }
+}
+
+// ─── 带 SliverAppBar 的答疑室内容 ────────────────────────────────
+
+class _ChatPageWithSliverAppBar extends ConsumerWidget {
+  final String chatKey;
+  final String sessionType;
+  final int? subjectId;
+  final String? taskId;
+  final bool useHybrid, sending;
+  final TextEditingController inputCtrl;
+  final ScrollController scrollCtrl;
+  final ValueChanged<bool> onHybridChanged;
+  final VoidCallback onSubmit, onCancel, onCamera, onGallery;
+
+  const _ChatPageWithSliverAppBar({
+    required this.chatKey,
+    required this.sessionType,
+    required this.subjectId,
+    required this.taskId,
+    required this.useHybrid,
+    required this.sending,
+    required this.inputCtrl,
+    required this.scrollCtrl,
+    required this.onHybridChanged,
+    required this.onSubmit,
+    required this.onCancel,
+    required this.onCamera,
+    required this.onGallery,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 动态获取标题
+    String title = '助教';
+    if (subjectId != null) {
       final subjectsAsync = ref.watch(subjectsProvider);
-      final subjectName = subjectsAsync.valueOrNull
+      title = subjectsAsync.valueOrNull
               ?.firstWhere(
-                (s) => s.id == widget.subjectId,
+                (s) => s.id == subjectId,
                 orElse: () => Subject(id: 0, name: '学科对话', createdAt: DateTime.now()),
               )
               .name ??
           '学科对话';
-      appBar = AppBar(
-        title: Text(subjectName),
-        centerTitle: false,
-        leading: const BackButton(),
-      );
-    } else if (widget.taskId != null) {
-      // 任务对话顶栏：显示任务名 + 返回按钮
-      appBar = AppBar(
-        title: Text(widget.taskId!),
-        centerTitle: false,
-        leading: const BackButton(),
-      );
-    } else {
-      // 通用对话顶栏：「学习助手」
-      appBar = AppBar(
-        title: const Text('学习助手'),
-        centerTitle: false,
-        actions: [
-          const McpStatusIndicator(),
-          const SizedBox(width: 8),
-        ],
-      );
+    } else if (taskId != null) {
+      title = taskId!;
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
-      appBar: appBar,
-      body: Stack(
-        children: [
-          // 背景装饰
-          Positioned(
-            top: 0,
-            right: 0,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    (isDark ? AppColors.primaryDark : AppColors.primaryLight)
-                        .withValues(alpha: 0.05),
-                    Colors.transparent,
-                  ],
-                ),
+    return CustomScrollView(
+      slivers: [
+        // 统一样式的 AppBar（与图书馆保持一致）
+        SliverAppBar(
+          expandedHeight: 80,
+          floating: true,
+          pinned: false,
+          backgroundColor: Colors.transparent,
+          automaticallyImplyLeading: subjectId != null || taskId != null,
+          flexibleSpace: FlexibleSpaceBar(
+            titlePadding: EdgeInsets.only(
+              left: subjectId != null || taskId != null ? 56 : 20,
+              bottom: 16,
+            ),
+            title: Text(
+              title,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
               ),
             ),
           ),
-          _ChatBody(
-            chatKey: _chatKey,
-            sessionType: _sessionType,
-            subjectId: widget.subjectId ?? 0,
-            isGeneral: widget.subjectId == null && widget.taskId == null,
-            useHybrid: _useHybrid,
-            sending: _sending,
-            inputCtrl: _inputCtrl,
-            scrollCtrl: _scrollCtrl,
-            onHybridChanged: (v) => setState(() => _useHybrid = v),
-            onSubmit: _submit,
-            onCancel: _cancelSending,
-            onCamera: () => _pickAndOcr(ImageSource.camera),
-            onGallery: () => _pickAndOcr(ImageSource.gallery),
+          actions: subjectId == null && taskId == null
+              ? [
+                  const McpStatusIndicator(),
+                  const SizedBox(width: 8),
+                ]
+              : null,
+        ),
+        // 聊天内容
+        SliverFillRemaining(
+          child: _ChatBody(
+            chatKey: chatKey,
+            sessionType: sessionType,
+            subjectId: subjectId ?? 0,
+            isGeneral: subjectId == null && taskId == null,
+            useHybrid: useHybrid,
+            sending: sending,
+            inputCtrl: inputCtrl,
+            scrollCtrl: scrollCtrl,
+            onHybridChanged: onHybridChanged,
+            onSubmit: onSubmit,
+            onCancel: onCancel,
+            onCamera: onCamera,
+            onGallery: onGallery,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

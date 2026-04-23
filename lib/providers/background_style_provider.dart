@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -107,29 +108,44 @@ final backgroundStyleProvider =
   return BackgroundStyleNotifier();
 });
 
+/// 加载状态 Provider（用于等待异步初始化完成）
+final backgroundStyleLoadedProvider = StateProvider<bool>((ref) => false);
+
 class BackgroundStyleNotifier extends StateNotifier<BackgroundStyle> {
   BackgroundStyleNotifier() : super(KBackgroundStyles.defaultStyle) {
     _loadSaved();
   }
 
   Future<void> _loadSaved() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedId = prefs.getString('background_style_id');
-    if (savedId != null) {
-      state = KBackgroundStyles.getById(savedId);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedId = prefs.getString('background_style_id');
+      if (savedId != null) {
+        state = KBackgroundStyles.getById(savedId);
+      }
+    } catch (e) {
+      debugPrint('加载背景风格失败: $e');
     }
   }
 
   Future<void> setStyle(BackgroundStyle style) async {
     state = style;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('background_style_id', style.id);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('background_style_id', style.id);
+    } catch (e) {
+      debugPrint('保存背景风格失败: $e');
+    }
   }
 
   Future<void> reset() async {
     state = KBackgroundStyles.defaultStyle;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('background_style_id');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('background_style_id');
+    } catch (e) {
+      debugPrint('重置背景风格失败: $e');
+    }
   }
 }
 

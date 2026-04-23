@@ -92,6 +92,7 @@ dev_dependencies:
   freezed: ^2.5.7
   json_serializable: ^6.8.0
   riverpod_generator: ^2.6.1
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
@@ -106,3 +107,11 @@ flutter:
     - family: Noto Sans SC
       fonts:
         - asset: assets/fonts/NotoSansSC-Regular.ttf
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/icons/app_icon.png"
+  min_sdk_android: 21
+  web:
+    generate: false

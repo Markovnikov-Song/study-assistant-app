@@ -1,3 +1,19 @@
+// ── Shared helpers ────────────────────────────────────────────────────────────
+
+int _toInt(dynamic v, {int fallback = 0}) {
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v) ?? fallback;
+  return fallback;
+}
+
+double _toDouble(dynamic v, {double fallback = 0.0}) {
+  if (v is double) return v;
+  if (v is num) return v.toDouble();
+  if (v is String) return double.tryParse(v) ?? fallback;
+  return fallback;
+}
+
 enum ViewMode { month, week, day }
 
 enum PomodoroPhase { idle, focusing, resting, paused }
@@ -48,16 +64,16 @@ class CalendarEvent {
   });
 
   factory CalendarEvent.fromJson(Map<String, dynamic> json) => CalendarEvent(
-        id: (json['id'] as num).toInt(),
-        userId: (json['user_id'] as num).toInt(),
-        title: json['title'] as String,
+        id: _toInt(json['id']),
+        userId: _toInt(json['user_id']),
+        title: json['title'] as String? ?? '',
         eventDate: DateTime.parse(json['event_date'] as String),
-        startTime: json['start_time'] as String,
-        durationMinutes: (json['duration_minutes'] as num).toInt(),
+        startTime: json['start_time'] as String? ?? '08:00',
+        durationMinutes: _toInt(json['duration_minutes'], fallback: 60),
         actualDurationMinutes: json['actual_duration_minutes'] != null
-            ? (json['actual_duration_minutes'] as num).toInt()
+            ? _toInt(json['actual_duration_minutes'])
             : null,
-        subjectId: json['subject_id'] != null ? (json['subject_id'] as num).toInt() : null,
+        subjectId: json['subject_id'] != null ? _toInt(json['subject_id']) : null,
         subjectName: json['subject_name'] as String?,
         subjectColor: json['subject_color'] as String?,
         color: json['color'] as String? ?? '#6366F1',
@@ -66,10 +82,17 @@ class CalendarEvent {
         isCountdown: json['is_countdown'] as bool? ?? false,
         priority: json['priority'] as String? ?? 'medium',
         source: json['source'] as String? ?? 'manual',
-        routineId: json['routine_id'] != null ? (json['routine_id'] as num).toInt() : null,
-        createdAt: DateTime.parse(json['created_at'] as String),
-        updatedAt: DateTime.parse(json['updated_at'] as String),
+        routineId: json['routine_id'] != null ? _toInt(json['routine_id']) : null,
+        createdAt: _parseDateTime(json['created_at']),
+        updatedAt: _parseDateTime(json['updated_at']),
       );
+
+  static DateTime _parseDateTime(dynamic v) {
+    if (v is String && v.isNotEmpty) {
+      return DateTime.tryParse(v) ?? DateTime.now();
+    }
+    return DateTime.now();
+  }
 
   CalendarEvent copyWith({
     bool? isCompleted,
@@ -132,13 +155,13 @@ class CalendarRoutine {
   });
 
   factory CalendarRoutine.fromJson(Map<String, dynamic> json) => CalendarRoutine(
-        id: (json['id'] as num).toInt(),
+        id: _toInt(json['id']),
         title: json['title'] as String,
         repeatType: json['repeat_type'] as String,
-        dayOfWeek: json['day_of_week'] != null ? (json['day_of_week'] as num).toInt() : null,
+        dayOfWeek: json['day_of_week'] != null ? _toInt(json['day_of_week']) : null,
         startTime: json['start_time'] as String,
-        durationMinutes: (json['duration_minutes'] as num).toInt(),
-        subjectId: json['subject_id'] != null ? (json['subject_id'] as num).toInt() : null,
+        durationMinutes: _toInt(json['duration_minutes'], fallback: 60),
+        subjectId: json['subject_id'] != null ? _toInt(json['subject_id']) : null,
         color: json['color'] as String? ?? '#6366F1',
         startDate: DateTime.parse(json['start_date'] as String),
         endDate: json['end_date'] != null ? DateTime.parse(json['end_date'] as String) : null,
@@ -171,13 +194,13 @@ class StudySession {
   });
 
   factory StudySession.fromJson(Map<String, dynamic> json) => StudySession(
-        id: (json['id'] as num).toInt(),
-        eventId: json['event_id'] != null ? (json['event_id'] as num).toInt() : null,
-        subjectId: json['subject_id'] != null ? (json['subject_id'] as num).toInt() : null,
+        id: _toInt(json['id']),
+        eventId: json['event_id'] != null ? _toInt(json['event_id']) : null,
+        subjectId: json['subject_id'] != null ? _toInt(json['subject_id']) : null,
         startedAt: DateTime.parse(json['started_at'] as String),
         endedAt: DateTime.parse(json['ended_at'] as String),
-        durationMinutes: (json['duration_minutes'] as num).toInt(),
-        pomodoroCount: (json['pomodoro_count'] as num).toInt(),
+        durationMinutes: _toInt(json['duration_minutes']),
+        pomodoroCount: _toInt(json['pomodoro_count']),
         createdAt: DateTime.parse(json['created_at'] as String),
       );
 }
@@ -200,11 +223,11 @@ class TodayStats {
   });
 
   factory TodayStats.fromJson(Map<String, dynamic> json) => TodayStats(
-        total: (json['total'] as num).toInt(),
-        completed: (json['completed'] as num).toInt(),
-        completionRate: (json['completion_rate'] as num).toDouble(),
-        totalDurationMinutes: (json['total_duration_minutes'] as num).toInt(),
-        actualDurationMinutes: (json['actual_duration_minutes'] as num).toInt(),
+        total: _toInt(json['total']),
+        completed: _toInt(json['completed']),
+        completionRate: _toDouble(json['completion_rate']),
+        totalDurationMinutes: _toInt(json['total_duration_minutes']),
+        actualDurationMinutes: _toInt(json['actual_duration_minutes']),
       );
 }
 
@@ -257,22 +280,24 @@ class CalendarStats {
 
   factory CalendarStats.fromJson(Map<String, dynamic> json) => CalendarStats(
         period: json['period'] as String,
-        totalDurationMinutes: (json['total_duration_minutes'] as num).toInt(),
-        checkinDays: (json['checkin_days'] as num).toInt(),
-        streakDays: (json['streak_days'] as num).toInt(),
-        dailyStats: (json['daily_stats'] as List)
+        totalDurationMinutes: _toInt(json['total_duration_minutes']),
+        checkinDays: _toInt(json['checkin_days']),
+        streakDays: _toInt(json['streak_days']),
+        dailyStats: (json['daily_stats'] as List? ?? [])
+            .whereType<Map<String, dynamic>>()
             .map((e) => DailyStatItem(
-                  date: DateTime.parse(e['date'] as String),
-                  durationMinutes: (e['duration_minutes'] as num).toInt(),
+                  date: DateTime.parse(e['date'] as String? ?? '1970-01-01'),
+                  durationMinutes: _toInt(e['duration_minutes']),
                 ))
             .toList(),
-        subjectStats: (json['subject_stats'] as List)
+        subjectStats: (json['subject_stats'] as List? ?? [])
+            .whereType<Map<String, dynamic>>()
             .map((e) => SubjectStatItem(
-                  subjectId: e['subject_id'] != null ? (e['subject_id'] as num).toInt() : null,
-                  subjectName: e['subject_name'] as String,
-                  color: e['color'] as String,
-                  durationMinutes: (e['duration_minutes'] as num).toInt(),
-                  percentage: (e['percentage'] as num).toDouble(),
+                  subjectId: e['subject_id'] != null ? _toInt(e['subject_id']) : null,
+                  subjectName: e['subject_name'] as String? ?? '',
+                  color: e['color'] as String? ?? '#6366F1',
+                  durationMinutes: _toInt(e['duration_minutes']),
+                  percentage: _toDouble(e['percentage']),
                 ))
             .toList(),
       );

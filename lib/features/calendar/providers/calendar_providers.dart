@@ -34,6 +34,7 @@ final calendarFocusedDateProvider =
 
 final calendarEventsProvider =
     FutureProvider.family<List<CalendarEvent>, DateRange>((ref, range) async {
+  ref.keepAlive(); // 已加载的月份数据保留在内存，切 tab 不重复请求
   final api = ref.watch(calendarApiServiceProvider);
   return api.getEvents(startDate: range.startIso, endDate: range.endIso);
 });
@@ -56,6 +57,7 @@ final calendarRoutinesProvider = FutureProvider<List<CalendarRoutine>>((ref) asy
 
 final calendarStatsProvider =
     FutureProvider.family<CalendarStats, String>((ref, period) async {
+  ref.keepAlive(); // 统计数据保留，避免切 tab 重复请求
   final api = ref.watch(calendarApiServiceProvider);
   return api.getStats(period: period);
 });
