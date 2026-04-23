@@ -25,7 +25,7 @@ class HistorySessionItem extends ConversationSession {
       sessionType: base.sessionType,
       title: base.title,
       createdAt: base.createdAt,
-      subjectId: json['subject_id'] as int?,
+      subjectId: (json['subject_id'] as num?)?.toInt(),
       subjectName: json['subject_name'] as String?,
     );
   }

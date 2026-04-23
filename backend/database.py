@@ -257,6 +257,20 @@ class Note(Base):
     note_type = Column(String(16), nullable=False, default="general")   # general | mistake
     mistake_status = Column(String(16), nullable=True)                  # pending | reviewed
     mistake_details = Column(JSONB, nullable=True)
+    
+    # ========== 增强的错题本字段 ==========
+    # 掌握度评分（0-5分）
+    mastery_score = Column(SmallInteger, nullable=False, default=0)
+    # 复习次数
+    review_count = Column(Integer, nullable=False, default=0)
+    # 最后一次复习时间
+    last_reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    # 错因分类（计算错误/概念模糊/粗心大意/完全不会）
+    mistake_category = Column(String(32), nullable=True)
+    # 掌握度历史记录（JSONB 数组，每条记录 {date, score}）
+    mastery_history = Column(JSONB, nullable=True)
+    # =====================================
+    
     created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
     updated_at = Column(
         DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False
@@ -371,6 +385,125 @@ class HintSuggestion(Base):
     hint_type = Column(String(16), nullable=False)   # "qa" | "solve"
     hints = Column(JSONB, nullable=False)             # List[str]，3 条
     updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class ReviewCard(Base):
+    """
+    SM-2 改良版复习卡片：记录每个知识点的复习状态和间隔参数。
+    
+    改良点：
+    - 学科差异化衰减系数（subject_decay）
+    - 题目难度系数（difficulty）
+    - 遗忘次数追踪（lapse_count）
+    - 评分简化为 0-3 分（忘了/模糊/想起/巩固）
+    """
+    __tablename__ = "review_cards"
+    __table_args__ = (
+        Index("idx_review_cards_user_next", "user_id", "next_review"),
+        Index("idx_review_cards_user_subject", "user_id", "subject_id"),
+        UniqueConstraint("user_id", "node_id", name="uq_review_card_node"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
+    
+    # 知识节点标识
+    node_id = Column(String(512), nullable=False)          # mindmap_node.id
+    node_title = Column(String(256), nullable=True)         # 节点标题，便于展示
+    
+    # SM-2 核心参数
+    ease_factor = Column(SmallInteger, nullable=False, default=250)  # 放大100倍存储，避免浮点精度问题
+    interval = Column(Integer, nullable=False, default=0)    # 当前间隔天数
+    repetitions = Column(Integer, nullable=False, default=0) # 连续正确次数
+    
+    # 元数据
+    difficulty = Column(SmallInteger, nullable=False, default=2)    # 1=简单 2=中等 3=困难
+    subject_decay = Column(SmallInteger, nullable=False, default=100)  # 学科衰减系数，放大100倍
+    total_reviews = Column(Integer, nullable=False, default=0)   # 总复习次数
+    lapse_count = Column(Integer, nullable=False, default=0)        # 遗忘次数（连续错误）
+    
+    # 掌握度评分（0-5分）
+    mastery_score = Column(SmallInteger, nullable=False, default=0)  # 最近一次掌握度评分
+    
+    # 时间戳
+    last_reviewed = Column(DateTime(timezone=True), nullable=True)
+    next_review = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    
+    user = relationship("User")
+    subject = relationship("Subject")
+
+
+class ReviewLog(Base):
+    """
+    复习日志：记录每次复习的详细结果，用于趋势分析和模型优化。
+    """
+    __tablename__ = "review_logs"
+    __table_args__ = (
+        Index("idx_review_logs_card_id", "card_id"),
+        Index("idx_review_logs_reviewed_at", "reviewed_at"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    card_id = Column(Integer, ForeignKey("review_cards.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
+    # 复习结果
+    quality = Column(SmallInteger, nullable=False)          # 0-3: 忘了/模糊/想起/巩固
+    response_time_ms = Column(Integer, nullable=True)       # 答题耗时（毫秒）
+    
+    # 复习前后状态
+    ease_before = Column(SmallInteger, nullable=True)
+    ease_after = Column(SmallInteger, nullable=True)
+    interval_before = Column(Integer, nullable=True)
+    interval_after = Column(Integer, nullable=True)
+    
+    # 时间戳
+    reviewed_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    
+    card = relationship("ReviewCard")
+    user = relationship("User")
+
+
+class FeedbackSignal(Base):
+    """
+    反馈信号持久化：存储 Agent Council 生成的反馈信号历史。
+    
+    支持追踪：
+    - 学习状态的长期趋势
+    - 反馈是否真正改变了行为
+    - 各学科/知识点的问题模式
+    """
+    __tablename__ = "feedback_signals"
+    __table_args__ = (
+        Index("idx_feedback_signals_user_level", "user_id", "level"),
+        Index("idx_feedback_signals_created_at", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True)
+    
+    # 反馈级别
+    level = Column(String(8), nullable=False)             # "fast" | "medium" | "slow"
+    
+    # 反馈内容
+    signal_type = Column(String(32), nullable=False)       # 信号类型，如 "repeated_error", "low_engagement"
+    description = Column(Text, nullable=False)             # 反馈描述
+    suggestion = Column(Text, nullable=True)                # 建议措施
+    
+    # 元数据
+    trigger_context = Column(JSONB, nullable=True)         # 触发上下文（错误题目、会话信息等）
+    is_acknowledged = Column(SmallInteger, nullable=False, default=0)  # 用户是否确认
+    is_actioned = Column(SmallInteger, nullable=False, default=0)       # 是否已执行建议
+    
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    acknowledged_at = Column(DateTime(timezone=True), nullable=True)
+    
+    user = relationship("User")
+    subject = relationship("Subject")
 
 
 # ---------------------------------------------------------------------------

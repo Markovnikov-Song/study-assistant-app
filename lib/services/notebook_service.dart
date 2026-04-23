@@ -64,7 +64,8 @@ class NotebookService {
       final Map<int?, List<Note>> grouped = {};
       final sections = (res.data['sections'] as List);
       for (final section in sections) {
-        final key = section['subject_id'] as int?;
+        final rawKey = section['subject_id'];
+        final key = rawKey == null ? null : (rawKey as num).toInt();
         grouped[key] = (section['notes'] as List)
             .map((e) => Note.fromJson(e as Map<String, dynamic>))
             .toList();

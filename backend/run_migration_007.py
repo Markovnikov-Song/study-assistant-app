@@ -1,3 +1,8 @@
+"""
+一次性跑所有缺失的 migration：
+  - notes 表补充 note_type / mistake_status 字段（原 migration 遗漏）
+  - migration 007: calendar_routines / calendar_events / study_sessions 表
+"""
 import psycopg2
 
 DATABASE_URL = (
@@ -6,13 +11,91 @@ DATABASE_URL = (
     "/neondb?sslmode=require"
 )
 
-with open("migrations/007_add_calendar_tables.sql", "r", encoding="utf-8") as f:
-    sql = f.read()
+SQLS = [
+    # ── notes 表补字段 ────────────────────────────────────────────────────────
+    ("notes.note_type",
+     "ALTER TABLE notes ADD COLUMN IF NOT EXISTS note_type VARCHAR(20) NOT NULL DEFAULT 'general'"),
+    ("notes.mistake_status",
+     "ALTER TABLE notes ADD COLUMN IF NOT EXISTS mistake_status VARCHAR(20)"),
+    ("notes.mistake_details (006)",
+     "ALTER TABLE notes ADD COLUMN IF NOT EXISTS mistake_details JSONB"),
+
+    # ── migration 007 ─────────────────────────────────────────────────────────
+    ("calendar_routines", """
+CREATE TABLE IF NOT EXISTS calendar_routines (
+    id               SERIAL PRIMARY KEY,
+    user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title            VARCHAR(50) NOT NULL,
+    repeat_type      VARCHAR(10) NOT NULL
+                         CHECK (repeat_type IN ('daily', 'weekly', 'monthly')),
+    day_of_week      SMALLINT CHECK (day_of_week BETWEEN 1 AND 7),
+    start_time       TIME NOT NULL,
+    duration_minutes SMALLINT NOT NULL CHECK (duration_minutes BETWEEN 15 AND 480),
+    subject_id       INTEGER REFERENCES subjects(id) ON DELETE SET NULL,
+    color            VARCHAR(7) NOT NULL DEFAULT '#6366F1',
+    start_date       DATE NOT NULL,
+    end_date         DATE,
+    is_active        BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)"""),
+    ("idx_calendar_routines_user",
+     "CREATE INDEX IF NOT EXISTS idx_calendar_routines_user ON calendar_routines (user_id, is_active)"),
+
+    ("calendar_events", """
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id                      SERIAL PRIMARY KEY,
+    user_id                 INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title                   VARCHAR(50) NOT NULL,
+    event_date              DATE NOT NULL,
+    start_time              TIME NOT NULL,
+    duration_minutes        SMALLINT NOT NULL CHECK (duration_minutes BETWEEN 15 AND 480),
+    actual_duration_minutes SMALLINT,
+    subject_id              INTEGER REFERENCES subjects(id) ON DELETE SET NULL,
+    color                   VARCHAR(7) NOT NULL DEFAULT '#6366F1',
+    notes                   VARCHAR(200),
+    is_completed            BOOLEAN NOT NULL DEFAULT FALSE,
+    is_countdown            BOOLEAN NOT NULL DEFAULT FALSE,
+    priority                VARCHAR(10) NOT NULL DEFAULT 'medium'
+                                CHECK (priority IN ('high', 'medium', 'low')),
+    source                  VARCHAR(50) NOT NULL DEFAULT 'manual',
+    routine_id              INTEGER REFERENCES calendar_routines(id) ON DELETE SET NULL,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)"""),
+    ("idx_calendar_events_user_date",
+     "CREATE INDEX IF NOT EXISTS idx_calendar_events_user_date ON calendar_events (user_id, event_date)"),
+    ("idx_calendar_events_countdown",
+     "CREATE INDEX IF NOT EXISTS idx_calendar_events_countdown ON calendar_events (user_id, event_date) WHERE is_countdown = TRUE"),
+
+    ("study_sessions", """
+CREATE TABLE IF NOT EXISTS study_sessions (
+    id               SERIAL PRIMARY KEY,
+    user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    event_id         INTEGER REFERENCES calendar_events(id) ON DELETE SET NULL,
+    subject_id       INTEGER REFERENCES subjects(id) ON DELETE SET NULL,
+    started_at       TIMESTAMPTZ NOT NULL,
+    ended_at         TIMESTAMPTZ NOT NULL,
+    duration_minutes SMALLINT NOT NULL,
+    pomodoro_count   SMALLINT NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)"""),
+    ("idx_study_sessions_user_time",
+     "CREATE INDEX IF NOT EXISTS idx_study_sessions_user_time ON study_sessions (user_id, started_at)"),
+    ("idx_study_sessions_event",
+     "CREATE INDEX IF NOT EXISTS idx_study_sessions_event ON study_sessions (event_id) WHERE event_id IS NOT NULL"),
+]
 
 conn = psycopg2.connect(DATABASE_URL)
 conn.autocommit = True
 cur = conn.cursor()
-cur.execute(sql)
+
+for name, sql in SQLS:
+    try:
+        cur.execute(sql)
+        print(f"  ✓ {name}")
+    except Exception as e:
+        print(f"  ✗ {name}: {e}")
+
 cur.close()
 conn.close()
-print("Migration 007 done — calendar_events, calendar_routines, study_sessions 表已创建")
+print("\n全部完成")

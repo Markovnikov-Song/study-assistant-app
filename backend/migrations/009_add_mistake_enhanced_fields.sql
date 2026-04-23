@@ -1,0 +1,8 @@
+-- Migration 009: 为错题笔记添加增强字段
+-- 包括掌握度评分、复习次数、最后复习时间、错因分类和掌握度历史
+
+ALTER TABLE notes ADD COLUMN IF NOT EXISTS mastery_score SMALLINT NOT NULL DEFAULT 0;
+ALTER TABLE notes ADD COLUMN IF NOT EXISTS review_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE notes ADD COLUMN IF NOT EXISTS last_reviewed_at TIMESTAMPTZ;
+ALTER TABLE notes ADD COLUMN IF NOT EXISTS mistake_category VARCHAR(32);
+ALTER TABLE notes ADD COLUMN IF NOT EXISTS mastery_history JSONB;

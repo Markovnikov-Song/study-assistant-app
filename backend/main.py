@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import auth, subjects, sessions, chat, documents, past_exams, exam_gen, ocr, notebooks, notes, users, hints, library, agent, mcp, marketplace, council, calendar
+from routers import auth, subjects, sessions, chat, documents, past_exams, exam_gen, ocr, notebooks, notes, users, hints, library, agent, mcp, marketplace, council, calendar, review, feedback
 
 app = FastAPI(title="学科学习助手 API", version="1.0.0")
 
@@ -60,6 +60,8 @@ app.include_router(mcp.router,        prefix="/api/mcp",        tags=["mcp"])
 app.include_router(marketplace.router, prefix="/api/marketplace", tags=["marketplace"])
 app.include_router(council.router,    prefix="/api/council",    tags=["council"])
 app.include_router(calendar.router,   prefix="/api/calendar",   tags=["calendar"])
+app.include_router(review.router,     prefix="/api/review",      tags=["review"])
+app.include_router(feedback.router,  prefix="/api/feedback",    tags=["feedback"])
 
 @app.get("/api/health")
 def health():
