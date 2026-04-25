@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/document.dart';
 import '../../models/mindmap_library.dart';
+import '../../models/review.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/document_provider.dart';
 import '../../providers/library_provider.dart';
+import '../../providers/review_provider.dart';
 import '../../routes/app_router.dart';
 
 /// CourseSpacePage — 学科详情页
@@ -97,7 +99,7 @@ class CourseSpacePage extends ConsumerWidget {
                 title: '学习进度',
               ),
               const SizedBox(height: 8),
-              _ProgressSection(sessions: sessions),
+              _ProgressSection(subjectId: subjectId, sessions: sessions),
             ],
           ),
         ),
@@ -368,34 +370,18 @@ class _EmptyMindmapCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ③ 学习进度
+// ③ 学习进度（三维度）
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ProgressSection extends StatelessWidget {
+class _ProgressSection extends ConsumerWidget {
+  final int subjectId;
   final List<MindMapSession> sessions;
-  const _ProgressSection({required this.sessions});
+  const _ProgressSection({required this.subjectId, required this.sessions});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
-
-    if (sessions.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          border: Border.all(color: cs.outlineVariant),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text('暂无学习数据',
-            style: TextStyle(color: cs.outline, fontSize: 13)),
-      );
-    }
-
-    // 聚合所有 session 的进度
-    final totalNodes = sessions.fold(0, (s, e) => s + e.totalNodes);
-    final litNodes = sessions.fold(0, (s, e) => s + e.litNodes);
-    final pct = totalNodes == 0 ? 0 : (litNodes / totalNodes * 100).floor();
-    final progress = totalNodes == 0 ? 0.0 : litNodes / totalNodes;
+    final progressAsync = ref.watch(progressSummaryProvider);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -404,76 +390,293 @@ class _ProgressSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: cs.outlineVariant),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('已掌握 $litNodes / $totalNodes 个知识点',
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w500)),
-              Text('$pct%',
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: cs.primary)),
-            ],
+      child: progressAsync.when(
+        loading: () => const Center(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+        ),
+        error: (_, __) => _buildSimpleProgress(context, cs),
+        data: (progressList) {
+          // 找到当前学科的进度
+          final progress = progressList
+              .where((p) => p.subjectId == subjectId)
+              .firstOrNull;
+          return _buildThreeDimensionProgress(context, cs, progress);
+        },
+      ),
+    );
+  }
+
+  /// 三维度进度展示
+  Widget _buildThreeDimensionProgress(
+    BuildContext context,
+    ColorScheme cs,
+    LearningProgress? progress,
+  ) {
+    if (progress == null) {
+      return _buildSimpleProgress(context, cs);
+    }
+
+    final readPct = (progress.readProgress * 100).floor();
+    final practicePct = (progress.practiceProgress * 100).floor();
+    final masteryPct = (progress.masteryProgress * 100).floor();
+
+    // 综合进度
+    final overallPct = (progress.overallProgress * 100).floor();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 顶部：综合进度
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              '学习进度',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: cs.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$overallPct%',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: cs.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // 三维度进度条
+        _DimensionRow(
+          icon: Icons.auto_stories,
+          label: '阅读',
+          value: readPct,
+          weight: '30%',
+          color: Colors.blue,
+          progress: progress.readProgress,
+        ),
+        const SizedBox(height: 10),
+        _DimensionRow(
+          icon: Icons.quiz_outlined,
+          label: '练习',
+          value: practicePct,
+          weight: '50%',
+          color: Colors.orange,
+          progress: progress.practiceProgress,
+        ),
+        const SizedBox(height: 10),
+        _DimensionRow(
+          icon: Icons.star_outline,
+          label: '掌握',
+          value: masteryPct,
+          weight: '20%',
+          color: Colors.green,
+          progress: progress.masteryProgress,
+        ),
+
+        const SizedBox(height: 16),
+        const Divider(height: 1),
+        const SizedBox(height: 12),
+
+        // 复习统计
+        _buildReviewStats(context, cs, progress.reviewStats),
+      ],
+    );
+  }
+
+  /// 简化版进度展示（无后端数据时）
+  Widget _buildSimpleProgress(BuildContext context, ColorScheme cs) {
+    if (sessions.isEmpty) {
+      return Center(
+        child: Text('暂无学习数据',
+            style: TextStyle(color: cs.outline, fontSize: 13)),
+      );
+    }
+
+    final totalNodes = sessions.fold(0, (s, e) => s + e.totalNodes);
+    final litNodes = sessions.fold(0, (s, e) => s + e.litNodes);
+    final pct = totalNodes == 0 ? 0 : (litNodes / totalNodes * 100).floor();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('已点亮 $litNodes / $totalNodes 个节点',
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w500)),
+            Text('$pct%',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: cs.primary)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: totalNodes == 0 ? 0 : litNodes / totalNodes,
+            minHeight: 8,
+            backgroundColor: cs.surfaceContainerHighest,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '配合练习和复习将提升综合掌握度',
+          style: TextStyle(fontSize: 11, color: cs.outline),
+        ),
+      ],
+    );
+  }
+
+  /// 复习统计
+  Widget _buildReviewStats(
+    BuildContext context,
+    ColorScheme cs,
+    ReviewStats stats,
+  ) {
+    return Row(
+      children: [
+        _StatChip(
+          icon: Icons.layers_outlined,
+          label: '总卡片',
+          value: '${stats.totalCards}',
+        ),
+        const SizedBox(width: 12),
+        _StatChip(
+          icon: Icons.check_circle_outline,
+          label: '已掌握',
+          value: '${stats.masteredCards}',
+          color: Colors.green,
+        ),
+        const SizedBox(width: 12),
+        _StatChip(
+          icon: Icons.star_half_outlined,
+          label: '平均掌握',
+          value: '${stats.avgMastery.toStringAsFixed(1)}/5',
+        ),
+      ],
+    );
+  }
+}
+
+/// 单维度进度行
+class _DimensionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final int value;
+  final String weight;
+  final Color color;
+  final double progress;
+
+  const _DimensionRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.weight,
+    required this.color,
+    required this.progress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 6),
+        SizedBox(
+          width: 40,
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 12, color: cs.onSurface),
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: progress,
-              minHeight: 10,
-              backgroundColor: cs.surfaceContainerHighest,
+              minHeight: 6,
+              backgroundColor: color.withValues(alpha: 0.2),
+              valueColor: AlwaysStoppedAnimation(color),
             ),
           ),
-          const SizedBox(height: 12),
-          // 各 session 小进度条
-          ...sessions.map((s) {
-            final sPct = s.totalNodes == 0
-                ? 0
-                : (s.litNodes / s.totalNodes * 100).floor();
-            final sTitle =
-                s.title?.isNotEmpty == true ? s.title! : '未命名大纲';
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Text(sTitle,
-                        style: TextStyle(fontSize: 12, color: cs.onSurface),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 4,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(3),
-                      child: LinearProgressIndicator(
-                        value: s.totalNodes == 0
-                            ? 0
-                            : s.litNodes / s.totalNodes,
-                        minHeight: 5,
-                        backgroundColor: cs.surfaceContainerHighest,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  SizedBox(
-                    width: 32,
-                    child: Text('$sPct%',
-                        style:
-                            TextStyle(fontSize: 11, color: cs.outline),
-                        textAlign: TextAlign.right),
-                  ),
-                ],
-              ),
-            );
-          }),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 36,
+          child: Text(
+            '$value%',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          weight,
+          style: TextStyle(fontSize: 10, color: cs.outline),
+        ),
+      ],
+    );
+  }
+}
+
+/// 统计小标签
+class _StatChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? color;
+
+  const _StatChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final c = color ?? cs.primary;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: c),
+          const SizedBox(width: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: c,
+            ),
+          ),
         ],
       ),
     );

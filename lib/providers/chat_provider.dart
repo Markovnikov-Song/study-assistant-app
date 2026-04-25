@@ -206,6 +206,15 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       // 取消时：保留用户消息，移除空的 AI 占位消息
       if (cancelled && buffer.isEmpty) {
         state = AsyncValue.data([...current, userMsg]);
+        return;
+      }
+
+      // AI 回复为空（如 422 错误、CAS 跳转后无回复）：移除空的 AI 占位消息
+      if (!cancelled && buffer.isEmpty) {
+        final msgs = state.value;
+        if (msgs != null && msgs.isNotEmpty && msgs.last.role == MessageRole.assistant && msgs.last.content.isEmpty) {
+          state = AsyncValue.data(msgs.sublist(0, msgs.length - 1));
+        }
       }
     }
   }

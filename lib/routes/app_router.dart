@@ -6,11 +6,13 @@ import '../features/auth/login_page.dart';
 import '../features/auth/register_page.dart';
 import '../features/home/responsive_shell.dart';
 import '../features/chat/chat_page.dart';
-import '../features/spec/spec_page.dart';
-import '../features/toolkit/toolkit_page.dart';
+import '../features/splash/splash_screen.dart';
+import '../features/spec/spec_page.dart';import '../features/toolkit/toolkit_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/profile/edit_profile_page.dart';
 import '../features/profile/memory_page.dart';
+import '../features/profile/token_usage_page.dart';
+import '../features/profile/token_detail_page.dart';
 import '../features/subjects/subjects_page.dart';
 import '../features/resources/resources_page.dart';
 import '../features/history/history_page.dart';
@@ -27,11 +29,13 @@ import '../components/notebook/notebook_detail_page.dart';
 import '../components/notebook/note_detail_page.dart';
 import '../components/solve/solve_page.dart';
 import '../components/quiz/quiz_page.dart';
+import '../components/review/review_page.dart';
 import '../components/mindmap_entry/mindmap_entry_page.dart';
 import '../features/skill_runner/my_skills_page.dart';
 import '../features/calendar/calendar_page.dart';
 import '../features/calendar/widgets/countdown_list_page.dart';
 import '../features/calendar/widgets/stats_panel.dart';
+import '../features/profile/notification_settings_page.dart';
 import '../providers/auth_provider.dart';
 import '../providers/library_provider.dart';
 
@@ -77,6 +81,9 @@ class R {
   static const profileSubjects = '/profile/subjects';
   static const profileResources = '/profile/resources';
   static const profileHistory  = '/profile/history';
+  static const profileTokenUsage = '/profile/token-usage';
+  static const profileTokenDetail = '/profile/token-usage/detail';
+  static const profileNotifications = '/profile/notifications';
   static String subjectDetail(int id)                             => '/profile/resources/$id';
 
   // 其他独立页面
@@ -117,7 +124,7 @@ typedef AppRoutes = R;
 final routerProvider = Provider<GoRouter>((ref) {
   final notifier = _RouterNotifier(ref);
   return GoRouter(
-    initialLocation: R.chat,
+    initialLocation: '/splash',
     refreshListenable: notifier,
     redirect: (context, state) {
       final loggedIn = notifier.isLoggedIn;
@@ -131,15 +138,29 @@ final routerProvider = Provider<GoRouter>((ref) {
       body: Center(child: Text('页面不存在: ${state.uri}')),
     ),
     routes: [
+      // ── Splash（开屏动画）──────────────────────────────────────────────────
+      GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
+
       // ── Auth ──────────────────────────────────────────────────────────────
       GoRoute(path: R.login,    builder: (_, _) => const LoginPage()),
       GoRoute(path: R.register, builder: (_, _) => const RegisterPage()),
 
       // ── 独立全屏页面（push 覆盖 shell）────────────────────────────────────
-      GoRoute(path: R.spec,              builder: (_, _) => const SpecPage()),
+      GoRoute(path: R.spec,              builder: (_, state) => SpecPage(
+        prefilledSubjectIds: (state.uri.queryParameters['subjects'] ?? '')
+            .split(',')
+            .where((s) => s.isNotEmpty)
+            .map(int.tryParse)
+            .whereType<int>()
+            .toList(),
+        prefilledContext: state.uri.queryParameters['context'],
+      )),
       GoRoute(path: R.profileEdit,       builder: (_, _) => const EditProfilePage()),
       GoRoute(path: R.profileMemory,     builder: (_, _) => const MemoryPage()),
       GoRoute(path: R.profileSubjects,   builder: (_, _) => const SubjectsPage()),
+      GoRoute(path: R.profileTokenUsage, builder: (_, _) => const TokenUsagePage()),
+      GoRoute(path: R.profileTokenDetail, builder: (_, _) => const TokenDetailPage()),
+      GoRoute(path: R.profileNotifications, builder: (_, _) => const NotificationSettingsPage()),
       GoRoute(path: R.profileResources,  builder: (_, _) => const ResourcesPage()),
       GoRoute(path: R.profileHistory,    builder: (_, _) => const HistoryPage()),
       GoRoute(path: R.skillMarketplace,  builder: (_, _) => const MarketplacePage()),
@@ -181,6 +202,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // 工具箱子路由
       GoRoute(path: R.toolkitMistakeBook, builder: (_, _) => const MistakeBookPage()),
+      GoRoute(path: '/toolkit/review',    builder: (_, _) => const ReviewPage()),
       GoRoute(path: R.toolkitSolve,       builder: (_, _) => const SolvePage()),
       GoRoute(path: R.toolkitQuiz,        builder: (_, _) => const QuizPage()),
       GoRoute(path: '/my-skills',         builder: (_, _) => const MySkillsPage()),

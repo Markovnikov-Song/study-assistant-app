@@ -9,6 +9,7 @@ import '../../models/chat_message.dart';
 import '../../models/notebook.dart';
 import '../../providers/notebook_provider.dart';
 import '../../widgets/markdown_latex_view.dart';
+import '../../tools/speech/speech_input_button.dart';
 
 class NoteDetailPage extends ConsumerStatefulWidget {
   final int notebookId;
@@ -213,6 +214,16 @@ class _NoteDetailPageState extends ConsumerState<NoteDetailPage> {
           ),
         ),
         actions: [
+          // 语音输入
+          SpeechInputButton(
+            onResult: (text) {
+              final ctrl = _quillCtrl;
+              if (ctrl != null) {
+                final index = ctrl.selection.baseOffset.clamp(0, ctrl.document.length - 1);
+                ctrl.document.insert(index, text);
+              }
+            },
+          ),
           // 保存状态指示
           if (_isSaving)
             const Padding(

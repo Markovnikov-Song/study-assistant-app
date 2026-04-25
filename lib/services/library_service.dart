@@ -260,4 +260,14 @@ class LibraryService {
       throw ApiException.fromDioException(e);
     }
   }
+
+  /// 获取 session 三层学习进度（阅读/练习/掌握）
+  Future<Map<String, dynamic>> getSessionProgress(int sessionId) async {
+    try {
+      final res = await _dio.get('$_base/sessions/$sessionId/progress');
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }

@@ -44,6 +44,9 @@ class MindMapSession {
   final bool isPinned;
   final int sortOrder;
 
+  /// 三层综合进度 0.0~1.0（从 /progress 端点懒加载，初始为 null）
+  final double? overallProgress;
+
   const MindMapSession({
     required this.id,
     this.title,
@@ -53,6 +56,7 @@ class MindMapSession {
     required this.litNodes,
     this.isPinned = false,
     this.sortOrder = 0,
+    this.overallProgress,
   });
 
   factory MindMapSession.fromJson(Map<String, dynamic> json) {
@@ -67,8 +71,21 @@ class MindMapSession {
       litNodes: (json['lit_nodes'] as num?)?.toInt() ?? 0,
       isPinned: json['is_pinned'] == true || json['is_pinned'] == 1,
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+      overallProgress: (json['overall_progress'] as num?)?.toDouble(),
     );
   }
+
+  MindMapSession copyWith({double? overallProgress}) => MindMapSession(
+        id: id,
+        title: title,
+        resourceScopeLabel: resourceScopeLabel,
+        createdAt: createdAt,
+        totalNodes: totalNodes,
+        litNodes: litNodes,
+        isPinned: isPinned,
+        sortOrder: sortOrder,
+        overallProgress: overallProgress ?? this.overallProgress,
+      );
 }
 
 // ── TreeNode ──────────────────────────────────────────────────────────────────
@@ -139,20 +156,102 @@ class TreeNode {
 
 // ── MindMapProgress ───────────────────────────────────────────────────────────
 
+/// 节点重要度权重：叶节点（无子节点）权重最高，根节点最低。
+/// depth 1 = 0.4，depth 2 = 0.7，depth 3+ = 1.0；叶节点额外 ×1.5。
+double _nodeWeight(TreeNode node) {
+  final depthWeight = switch (node.depth) {
+    1 => 0.4,
+    2 => 0.7,
+    _ => 1.0,
+  };
+  final leafBonus = node.children.isEmpty ? 1.5 : 1.0;
+  return depthWeight * leafBonus;
+}
+
 class MindMapProgress {
   final int total;
   final int lit;
 
-  const MindMapProgress({required this.total, required this.lit});
+  /// 加权完成率 0.0~1.0（叶节点权重更高）
+  final double weightedScore;
 
-  const MindMapProgress.empty() : total = 0, lit = 0;
+  /// 三层进度（从后端 /progress 端点加载后填充，否则为 null）
+  final double? readProgress;
+  final double? practiceProgress;
+  final double? masteryProgress;
+  final double? overallProgress;
+  final int? mistakeCount;
+  final int? reviewedMistakeCount;
 
+  const MindMapProgress({
+    required this.total,
+    required this.lit,
+    required this.weightedScore,
+    this.readProgress,
+    this.practiceProgress,
+    this.masteryProgress,
+    this.overallProgress,
+    this.mistakeCount,
+    this.reviewedMistakeCount,
+  });
+
+  const MindMapProgress.empty()
+      : total = 0,
+        lit = 0,
+        weightedScore = 0.0,
+        readProgress = null,
+        practiceProgress = null,
+        masteryProgress = null,
+        overallProgress = null,
+        mistakeCount = null,
+        reviewedMistakeCount = null;
+
+  /// 简单计数百分比（用于进度条文字显示）
   int get percent => total == 0 ? 0 : (lit / total * 100).floor();
 
-  static MindMapProgress calculate(List<TreeNode> allNodes, Map<String, bool> states) {
+  /// 加权百分比（用于进度条宽度）
+  int get weightedPercent => (weightedScore * 100).floor();
+
+  /// 综合进度（优先用后端三层计算值，否则用本地加权分数）
+  double get displayScore => overallProgress ?? weightedScore;
+
+  static MindMapProgress calculate(
+      List<TreeNode> allNodes, Map<String, bool> states) {
+    if (allNodes.isEmpty) return const MindMapProgress.empty();
+
     final total = allNodes.length;
     final lit = allNodes.where((n) => states[n.nodeId] == true).length;
-    return MindMapProgress(total: total, lit: lit);
+
+    // 加权分数：每个节点按权重贡献，点亮则计入分子
+    double weightSum = 0.0;
+    double litWeightSum = 0.0;
+    for (final node in allNodes) {
+      final w = _nodeWeight(node);
+      weightSum += w;
+      if (states[node.nodeId] == true) litWeightSum += w;
+    }
+    final weightedScore = weightSum == 0 ? 0.0 : litWeightSum / weightSum;
+
+    return MindMapProgress(
+      total: total,
+      lit: lit,
+      weightedScore: weightedScore,
+    );
+  }
+
+  /// 用后端三层进度数据合并，返回新实例
+  MindMapProgress withServerProgress(Map<String, dynamic> json) {
+    return MindMapProgress(
+      total: (json['total_nodes'] as num?)?.toInt() ?? total,
+      lit: (json['lit_nodes'] as num?)?.toInt() ?? lit,
+      weightedScore: weightedScore,
+      readProgress: (json['read_progress'] as num?)?.toDouble(),
+      practiceProgress: (json['practice_progress'] as num?)?.toDouble(),
+      masteryProgress: (json['mastery_progress'] as num?)?.toDouble(),
+      overallProgress: (json['overall_progress'] as num?)?.toDouble(),
+      mistakeCount: (json['mistake_count'] as num?)?.toInt(),
+      reviewedMistakeCount: (json['reviewed_mistake_count'] as num?)?.toInt(),
+    );
   }
 }
 

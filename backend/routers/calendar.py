@@ -428,15 +428,22 @@ def update_event(
     body: CalendarEventPatch,
     user=Depends(get_current_user),
 ) -> CalendarEventOut:
-    """更新事件（部分字段）。支持拖拽移动、打卡完成、更新实际时长等场景。"""
+    """更新事件（部分字段）。支持拖拽移动、打卡完成、更新实际时长等场景。
+    当事件 source='study-planner' 时，自动同步关联的 plan_item 状态。
+    """
     with db_session() as db:
-        # 验证归属
+        # 验证归属 + 获取 source/plan_id
         existing = db.execute(
-            text("SELECT id FROM calendar_events WHERE id = :id AND user_id = :uid"),
+            text("""SELECT id, source, plan_id, is_completed
+                    FROM calendar_events WHERE id = :id AND user_id = :uid"""),
             {"id": event_id, "uid": user["id"]},
         ).fetchone()
         if not existing:
             raise HTTPException(404, "事件不存在")
+
+        old_source = existing.source
+        old_completed = bool(existing.is_completed)
+        old_plan_id = existing.plan_id
 
         updates = {k: v for k, v in body.model_dump().items() if v is not None}
         if not updates:
@@ -455,19 +462,51 @@ def update_event(
                       is_completed, is_countdown, priority, source, routine_id,
                       created_at, updated_at
         """), updates).fetchone()
+
+        # ── study-planner 事件双向同步 ──
+        if old_source == "study-planner" and old_plan_id:
+            new_completed = updates.get("is_completed", old_completed)
+            new_event_date = updates.get("event_date")
+            new_start_time = updates.get("start_time")
+            new_duration = updates.get("duration_minutes")
+
+            # 完成状态同步
+            if new_completed != old_completed:
+                _sync_plan_item_completion(db, old_plan_id, event_id, new_completed)
+
+            # 日期/时间同步到 plan_items.planned_date
+            if new_event_date or new_start_time:
+                _sync_plan_item_date(db, old_plan_id, event_id, new_event_date, new_start_time)
+
+            # 时长同步
+            if new_duration:
+                _sync_plan_item_duration(db, old_plan_id, event_id, new_duration)
+
         return _row_to_event_out(row)
 
 
 @router.delete("/events/{event_id}", status_code=204)
 def delete_event(event_id: int, user=Depends(get_current_user)):
-    """删除事件。"""
+    """删除事件。当 source='study-planner' 时，自动标记关联 plan_item 为 skipped。"""
     with db_session() as db:
+        # 先查 source/plan_id
+        evt = db.execute(
+            text("""SELECT source, plan_id FROM calendar_events WHERE id = :id AND user_id = :uid"""),
+            {"id": event_id, "uid": user["id"]},
+        ).fetchone()
+        if not evt:
+            raise HTTPException(404, "事件不存在")
+
         result = db.execute(
             text("DELETE FROM calendar_events WHERE id = :id AND user_id = :uid RETURNING id"),
             {"id": event_id, "uid": user["id"]},
         )
         if not result.fetchone():
             raise HTTPException(404, "事件不存在")
+
+        # ── study-planner 事件删除同步 ──
+        if evt.source == "study-planner" and evt.plan_id:
+            _sync_plan_item_deleted(db, evt.plan_id, event_id)
 
 
 # ── 批量写入端点 ───────────────────────────────────────────────────────────────
@@ -748,3 +787,96 @@ def get_stats(period: str = "7d", user=Depends(get_current_user)) -> CalendarSta
             daily_stats=daily_stats,
             subject_stats=subject_stats,
         )
+
+
+# ── 日历 ↔ Plan 双向同步辅助函数 ──────────────────────────────────────────
+
+def _sync_plan_item_completion(db, plan_id: int, calendar_event_id: int, is_completed: bool):
+    """日历事件完成状态变更 → 同步 plan_item。"""
+    try:
+        if is_completed:
+            db.execute(text("""
+                UPDATE plan_items
+                SET status = 'done', completed_at = NOW()
+                WHERE plan_id = :plan_id
+                  AND status = 'pending'
+                  AND node_text = (
+                      SELECT title FROM calendar_events WHERE id = :evt_id
+                  )
+            """), {"plan_id": plan_id, "evt_id": calendar_event_id})
+        else:
+            db.execute(text("""
+                UPDATE plan_items
+                SET status = 'pending', completed_at = NULL
+                WHERE plan_id = :plan_id
+                  AND status = 'done'
+                  AND node_text = (
+                      SELECT title FROM calendar_events WHERE id = :evt_id
+                  )
+                  AND calendar_event_id = :evt_id
+            """), {"plan_id": plan_id, "evt_id": calendar_event_id})
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("同步 plan_item 完成状态失败：%s", e)
+
+
+def _sync_plan_item_date(db, plan_id: int, calendar_event_id: int, new_date: Optional[str], new_time: Optional[str]):
+    """日历事件日期/时间变更 → 同步 plan_item.planned_date。"""
+    try:
+        # 查 event 的完整信息
+        evt = db.execute(text("""
+            SELECT event_date, start_time FROM calendar_events WHERE id = :id
+        """), {"id": calendar_event_id}).fetchone()
+        if not evt:
+            return
+        ed = new_date or str(evt.event_date)
+        # 合并日期和时间
+        if new_time:
+            ed = f"{ed} {new_time}:00"
+        else:
+            ed = f"{ed} {evt.start_time}:00" if evt.start_time else f"{ed} 00:00:00"
+
+        db.execute(text("""
+            UPDATE plan_items
+            SET planned_date = :dt::timestamptz
+            WHERE plan_id = :plan_id
+              AND node_text = (
+                  SELECT title FROM calendar_events WHERE id = :evt_id
+              )
+        """), {"plan_id": plan_id, "evt_id": calendar_event_id, "dt": ed})
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("同步 plan_item 日期失败：%s", e)
+
+
+def _sync_plan_item_duration(db, plan_id: int, calendar_event_id: int, new_duration: int):
+    """日历事件时长变更 → 同步 plan_item.estimated_minutes。"""
+    try:
+        db.execute(text("""
+            UPDATE plan_items
+            SET estimated_minutes = :dur
+            WHERE plan_id = :plan_id
+              AND node_text = (
+                  SELECT title FROM calendar_events WHERE id = :evt_id
+              )
+        """), {"plan_id": plan_id, "evt_id": calendar_event_id, "dur": new_duration})
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("同步 plan_item 时长失败：%s", e)
+
+
+def _sync_plan_item_deleted(db, plan_id: int, calendar_event_id: int):
+    """日历事件删除 → 标记关联 plan_item 为 skipped。"""
+    try:
+        db.execute(text("""
+            UPDATE plan_items
+            SET status = 'skipped', completed_at = NULL
+            WHERE plan_id = :plan_id
+              AND status = 'pending'
+              AND node_text = (
+                  SELECT title FROM calendar_events WHERE id = :evt_id
+              )
+        """), {"plan_id": plan_id, "evt_id": calendar_event_id})
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("同步 plan_item 删除状态失败：%s", e)

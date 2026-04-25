@@ -635,3 +635,30 @@ def _default_feedback_signals(body: CompanionObserveIn, cfg=None) -> list[dict]:
             "message": f"今日专注时间不足（{body.focus_minutes}分钟），建议班主任关注",
         })
     return signals
+
+
+# ── 节点分析端点（供 Study Planner SubjectAgent 使用）────────────────────────
+
+
+@router.get("/subject/node-analysis")
+def subject_node_analysis(subject_id: int, user=Depends(get_current_user)):
+    """
+    获取指定学科的学习节点列表，供 Study Planner 规划使用。
+    双数据源：优先从 mindmap 未点亮节点提取，降级从文档 Chunks 用 LLM 提取。
+
+    返回：
+      {
+        has_mindmap: bool,
+        source: 'mindmap' | 'chunks' | 'none',
+        nodes: [{node_id, text, depth, parent_id, estimated_minutes, priority}]
+      }
+    """
+    from database import get_session as db_session
+    from services.study_planner_service import _run_subject_agent
+
+    user_id = int(user["id"])
+
+    with db_session() as db:
+        result = _run_subject_agent(subject_id, user_id, db)
+
+    return result

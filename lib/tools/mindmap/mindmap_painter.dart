@@ -306,6 +306,25 @@ List<NodeLayout> computeLayout({
 
 enum NodeDisplayState { normal, lit, halfLit, userCreated }
 
+/// 三维进度强度：0.0（未学）→ 1.0（完全掌握）
+/// 用于驱动节点光效强弱和边框粗细。
+class NodeIntensity {
+  /// 完成度：is_lit = 1.0，否则 0.0
+  final double completion;
+
+  /// 重要度：基于节点深度和是否为叶节点（0.0~1.0）
+  final double importance;
+
+  /// 综合强度 = completion × (0.4 + 0.6 × importance)
+  /// 未点亮时为 0，点亮后根据重要度在 0.4~1.0 之间
+  double get intensity => completion * (0.4 + 0.6 * importance);
+
+  const NodeIntensity({
+    required this.completion,
+    required this.importance,
+  });
+}
+
 NodeDisplayState resolveNodeState({
   required TreeNode node,
   required Map<String, bool> states,
@@ -318,6 +337,26 @@ NodeDisplayState resolveNodeState({
     return NodeDisplayState.halfLit;
   }
   return NodeDisplayState.normal;
+}
+
+/// 计算节点的三维强度，用于渲染光效。
+NodeIntensity resolveNodeIntensity({
+  required TreeNode node,
+  required Map<String, bool> states,
+}) {
+  final isLit = states[node.nodeId] == true;
+  final completion = isLit ? 1.0 : 0.0;
+
+  // 重要度：叶节点 = 1.0，depth 1 = 0.3，depth 2 = 0.6，depth 3+ = 0.85
+  final depthScore = switch (node.depth) {
+    1 => 0.3,
+    2 => 0.6,
+    _ => 0.85,
+  };
+  final isLeaf = node.children.isEmpty;
+  final importance = isLeaf ? 1.0 : depthScore;
+
+  return NodeIntensity(completion: completion, importance: importance);
 }
 
 // ── MindMapPainter ────────────────────────────────────────────────────────────
@@ -392,6 +431,7 @@ class MindMapPainter extends CustomPainter {
     final node = layout.node;
     final rect = layout.rect;
     final state = resolveNodeState(node: node, states: nodeStates);
+    final intensity = resolveNodeIntensity(node: node, states: nodeStates);
     final isRoot = node.parentId == null;
     final isGenerating = generatingNodeIds.contains(node.nodeId);
 
@@ -400,6 +440,7 @@ class MindMapPainter extends CustomPainter {
     Color textColor;
     Color? borderColor;
     bool dashedBorder = false;
+    double borderWidth = 1.5;
 
     if (isGenerating) {
       // 生成中：橙色脉冲边框
@@ -408,6 +449,7 @@ class MindMapPainter extends CustomPainter {
           const Color(0xFFFF9800).withValues(alpha: 0.15), pulse)!;
       textColor = colorScheme.onSurface;
       borderColor = Color.lerp(const Color(0xFFFF9800), const Color(0xFFFFCC02), pulse)!;
+      borderWidth = 1.5 + pulse * 1.0;
     } else if (layout.hasLecture && !isRoot) {
       // 有讲义：浅绿色
       bgColor = const Color(0xFFE8F5E9);
@@ -420,13 +462,29 @@ class MindMapPainter extends CustomPainter {
     } else {
       switch (state) {
         case NodeDisplayState.lit:
-          bgColor = colorScheme.primary;
-          textColor = colorScheme.onPrimary;
+          // 三维强度：intensity 越高，颜色越饱和，边框越粗
+          final i = intensity.intensity; // 0.4~1.0
+          bgColor = Color.lerp(
+            colorScheme.primaryContainer,
+            colorScheme.primary,
+            (i - 0.4) / 0.6, // 归一化到 0~1
+          )!;
+          textColor = Color.lerp(
+            colorScheme.onPrimaryContainer,
+            colorScheme.onPrimary,
+            (i - 0.4) / 0.6,
+          )!;
           borderColor = null;
+          // 叶节点（importance=1.0）边框更粗，体现重要度
+          if (intensity.importance >= 0.9) {
+            borderColor = colorScheme.primary.withValues(alpha: 0.5);
+            borderWidth = 2.0;
+          }
         case NodeDisplayState.halfLit:
           bgColor = colorScheme.primaryContainer;
           textColor = colorScheme.onPrimaryContainer;
-          borderColor = null;
+          borderColor = colorScheme.primary.withValues(alpha: 0.4);
+          borderWidth = 1.0;
         case NodeDisplayState.userCreated:
           bgColor = colorScheme.tertiaryContainer;
           textColor = colorScheme.onTertiaryContainer;
@@ -450,7 +508,7 @@ class MindMapPainter extends CustomPainter {
       final borderPaint = Paint()
         ..color = borderColor
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5;
+        ..strokeWidth = borderWidth;
       if (dashedBorder) {
         _drawDashedRRect(canvas, rRect, borderPaint);
       } else {

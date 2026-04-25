@@ -1,6 +1,6 @@
 """Property-based tests for BookExporter.
 
-# Feature: lecture-book-export, Property 2: 无讲义节点静默跳�?
+# Feature: lecture-book-export, Property 2: æ è®²ä¹èç¹éé»è·³è¿?
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def node_list_with_some_empty(draw):
     Returns
     -------
     tuple[list[NodeInfo], set[str]]
-        (nodes, empty_node_ids) �?the full list and the IDs of empty nodes.
+        (nodes, empty_node_ids) â?the full list and the IDs of empty nodes.
     """
     n = draw(st.integers(min_value=1, max_value=20))
     nodes = []
@@ -67,14 +67,14 @@ def node_list_with_some_empty(draw):
 
 
 # ---------------------------------------------------------------------------
-# Property 2: 无讲义节点静默跳�?
+# Property 2: æ è®²ä¹èç¹éé»è·³è¿?
 # Validates: Requirements 2.3
 # ---------------------------------------------------------------------------
 
 @given(node_list_with_some_empty())
 @settings(max_examples=100, deadline=None)
 def test_filter_nodes_silent_skip(node_data):
-    """Property 2: 无讲义节点静默跳�?
+    """Property 2: æ è®²ä¹èç¹éé»è·³è¿?
 
     For any list of NodeInfo objects where a random subset has empty blocks,
     _filter_nodes() must:
@@ -82,7 +82,7 @@ def test_filter_nodes_silent_skip(node_data):
     2. Not include any node whose blocks list was empty.
 
     Validates: Requirements 2.3
-    # Feature: lecture-book-export, Property 2: 无讲义节点静默跳�?
+    # Feature: lecture-book-export, Property 2: æ è®²ä¹èç¹éé»è·³è¿?
     """
     nodes, empty_ids = node_data
 

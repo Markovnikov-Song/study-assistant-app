@@ -111,6 +111,26 @@ final mindMapProgressProvider =
   );
 });
 
+// ── Session three-layer progress (from backend) ───────────────────────────────
+
+/// 从后端加载 session 三层进度（阅读/练习/掌握），懒加载，不阻塞 UI。
+final sessionProgressProvider =
+    FutureProvider.family<Map<String, dynamic>, int>((ref, sessionId) {
+  return ref.read(libraryServiceProvider).getSessionProgress(sessionId);
+});
+
+/// 合并本地加权进度 + 后端三层进度的完整 MindMapProgress。
+final fullMindMapProgressProvider =
+    Provider.family<MindMapProgress, int>((ref, sessionId) {
+  final local = ref.watch(mindMapProgressProvider(sessionId));
+  final serverAsync = ref.watch(sessionProgressProvider(sessionId));
+
+  return serverAsync.maybeWhen(
+    data: (json) => local.withServerProgress(json),
+    orElse: () => local,
+  );
+});
+
 List<TreeNode> _flattenNodes(List<TreeNode> nodes) {
   final result = <TreeNode>[];
   for (final node in nodes) {

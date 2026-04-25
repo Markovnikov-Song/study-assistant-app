@@ -4,6 +4,21 @@ import '../core/network/api_exception.dart';
 import '../core/network/dio_client.dart';
 import '../models/notebook.dart';
 
+int? _toIntOrNull(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v);
+  return null;
+}
+
+int _toInt(dynamic v, {int fallback = 0}) {
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v) ?? fallback;
+  return fallback;
+}
+
 class NotebookService {
   final Dio _dio = DioClient.instance.dio;
 
@@ -64,8 +79,7 @@ class NotebookService {
       final Map<int?, List<Note>> grouped = {};
       final sections = (res.data['sections'] as List);
       for (final section in sections) {
-        final rawKey = section['subject_id'];
-        final key = rawKey == null ? null : (rawKey as num).toInt();
+        final key = _toIntOrNull(section['subject_id']);
         grouped[key] = (section['notes'] as List)
             .map((e) => Note.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -98,15 +112,11 @@ class NotebookService {
     int noteId, {
     String? title,
     String? originalContent,
-    String? mistakeStatus,
-    Map<String, dynamic>? mistakeDetails,
   }) async {
     try {
       final res = await _dio.patch('${ApiConstants.notes}/$noteId', data: {
         'title': ?title,
         'original_content': ?originalContent,
-        'mistake_status': ?mistakeStatus,
-        'mistake_details': ?mistakeDetails,
       });
       return Note.fromJson(res.data);
     } on DioException catch (e) {
@@ -142,7 +152,7 @@ class NotebookService {
     try {
       final res =
           await _dio.post('${ApiConstants.notes}/$noteId/import-to-rag');
-      return (res.data['doc_id'] as num).toInt();
+      return _toInt(res.data['doc_id']);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

@@ -1,10 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/event_bus/app_event_bus.dart';
 import '../../core/event_bus/calendar_events.dart';
 import '../../core/mini_app/mini_app_contract.dart';
-import '../../core/theme/app_colors.dart';
 import '../../routes/app_router.dart';
 import 'models/calendar_models.dart';
 import 'providers/calendar_providers.dart';
@@ -42,7 +42,7 @@ class CalendarPage extends ConsumerStatefulWidget {
 }
 
 class _CalendarPageState extends ConsumerState<CalendarPage> {
-  final List<void Function()> _busUnsubs = [];
+  final List<StreamSubscription> _busUnsubs = [];
 
   @override
   void initState() {
@@ -71,26 +71,30 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     _busUnsubs.add(bus.on<CalendarEventCreated>().listen((_) {
       ref.invalidate(calendarEventsProvider);
       ref.invalidate(todayEventsProvider);
-    }).cancel);
+    }));
     _busUnsubs.add(bus.on<CalendarEventUpdated>().listen((e) {
       ref.invalidate(calendarEventsProvider(DateRange.month(e.eventDate)));
       ref.invalidate(todayEventsProvider);
-    }).cancel);
+    }));
     _busUnsubs.add(bus.on<CalendarEventCompleted>().listen((_) {
       ref.invalidate(todayEventsProvider);
       ref.invalidate(calendarStatsProvider('7d'));
-    }).cancel);
+    }));
     _busUnsubs.add(bus.on<CalendarEventsBatchCreated>().listen((e) {
       for (final month in e.affectedMonths) {
         ref.invalidate(calendarEventsProvider(DateRange.month(month)));
       }
-    }).cancel);
+    }));
+    _busUnsubs.add(bus.on<CalendarEventDeleted>().listen((e) {
+      ref.invalidate(calendarEventsProvider(DateRange.month(e.eventDate)));
+      ref.invalidate(todayEventsProvider);
+    }));
   }
 
   @override
   void dispose() {
     for (final unsub in _busUnsubs) {
-      unsub();
+      unsub.cancel();
     }
     super.dispose();
   }
@@ -128,18 +132,20 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         'event_date': '${newDate.year}-${newDate.month.toString().padLeft(2, '0')}-${newDate.day.toString().padLeft(2, '0')}',
       });
       AppEventBus.instance.fire(CalendarEventUpdated(eventId: event.id, eventDate: newDate));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[CalendarPage] 事件拖拽保存失败: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final viewMode = ref.watch(calendarViewModeProvider);
     final focused = ref.watch(calendarFocusedDateProvider);
     final pomodoroState = ref.watch(pomodoroTimerProvider);
 
     final isModal = widget.renderMode == 'modal';
 
+    // 用 Stack 让 TodayPanel 固定在底部，彻底避免月份行数变化导致的 overflow
     Widget body = Column(
       children: [
         _CountdownBanner(),
@@ -161,8 +167,26 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                   onEventDragged: (event, newDate) => _handleEventDragged(ref, event, newDate),
                 ),
         ),
-        if (viewMode == ViewMode.month) const TodayPanel(),
-        if (pomodoroState.isRunning) const PomodoroFloatingBar(),
+      ],
+    );
+
+    // TodayPanel 和 PomodoroBar 固定在 body 底部，不受月历高度影响
+    body = Stack(
+      children: [
+        body,
+        if (viewMode == ViewMode.month)
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(top: false, child: TodayPanel()),
+          ),
+        if (pomodoroState.isRunning) const Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: SafeArea(top: false, child: PomodoroFloatingBar()),
+        ),
       ],
     );
 
@@ -188,7 +212,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     }
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: const Text('学习日历'),
         centerTitle: false,
@@ -211,6 +235,7 @@ class _CountdownBanner extends ConsumerWidget {
     final focused = ref.watch(calendarFocusedDateProvider);
     final range = DateRange.month(focused);
     final eventsAsync = ref.watch(calendarEventsProvider(range));
+    final cs = Theme.of(context).colorScheme;
 
     return eventsAsync.maybeWhen(
       data: (events) {
@@ -222,7 +247,7 @@ class _CountdownBanner extends ConsumerWidget {
 
         final next = countdowns.first;
         final daysLeft = next.eventDate.difference(DateTime.now()).inDays;
-        final color = _countdownColor(daysLeft);
+        final color = _countdownColor(daysLeft, cs);
         final text = daysLeft == 0
             ? '今天是「${next.title}」，加油！'
             : '距「${next.title}」还有 $daysLeft 天';
@@ -244,11 +269,11 @@ class _CountdownBanner extends ConsumerWidget {
     );
   }
 
-  Color _countdownColor(int daysLeft) {
-    if (daysLeft == 0) return AppColors.error;
-    if (daysLeft < 10) return AppColors.error;
-    if (daysLeft <= 30) return AppColors.warning;
-    return AppColors.success;
+  Color _countdownColor(int daysLeft, ColorScheme cs) {
+    if (daysLeft == 0) return cs.error;
+    if (daysLeft < 10) return cs.error;
+    if (daysLeft <= 30) return cs.tertiary;
+    return cs.secondary;
   }
 }
 

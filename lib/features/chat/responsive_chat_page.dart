@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/utils/device_info.dart';
-import '../../core/theme/app_colors.dart';
 import '../../models/subject.dart';
 import '../../providers/subject_provider.dart';
 import '../../providers/chat_provider.dart';
@@ -59,22 +58,21 @@ class _DesktopChatPage extends ConsumerStatefulWidget {
 class _DesktopChatPageState extends ConsumerState<_DesktopChatPage> {
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenWidth = MediaQuery.of(context).size.width;
     final sidebarWidth = screenWidth > 1400 ? 320.0 : 280.0;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Row(
         children: [
           // 左侧边栏 - 会话列表
           Container(
             width: sidebarWidth,
             decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               border: Border(
                 right: BorderSide(
-                  color: isDark ? AppColors.borderDark : AppColors.border,
+                  color: Theme.of(context).colorScheme.outline,
                   width: 1,
                 ),
               ),
@@ -130,7 +128,7 @@ class _ChatSidebar extends ConsumerWidget {
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: isDark ? AppColors.borderDark : AppColors.border,
+                color: cs.outline,
               ),
             ),
           ),
@@ -141,14 +139,15 @@ class _ChatSidebar extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                  color: cs.onSurface,
                 ),
               ),
               const Spacer(),
               IconButton(
                 icon: Icon(Icons.add, color: cs.primary),
                 onPressed: () {
-                  // TODO: 新建会话
+                  // 清空当前通用对话，开始新会话
+                  ref.read(chatProvider(('general', 'qa')).notifier).newSession();
                 },
                 tooltip: '新建会话',
               ),
@@ -163,9 +162,7 @@ class _ChatSidebar extends ConsumerWidget {
               hintText: '搜索会话...',
               prefixIcon: const Icon(Icons.search, size: 20),
               filled: true,
-              fillColor: isDark
-                  ? AppColors.surfaceElevatedDark
-                  : AppColors.surfaceContainer,
+              fillColor: cs.surfaceContainerHighest,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,
@@ -175,7 +172,7 @@ class _ChatSidebar extends ConsumerWidget {
             ),
             style: TextStyle(
               fontSize: 14,
-              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+              color: cs.onSurface,
             ),
           ),
         ),
@@ -262,7 +259,7 @@ class _SessionTile extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                    color: cs.onSurface,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

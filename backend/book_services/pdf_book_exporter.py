@@ -413,7 +413,7 @@ class PdfBookExporter(BookExporter):
             flowables.extend(sub)
 
         elif btype == "quote":
-            flowables.append(HRFlowable(width="2pt", color=colors.grey, spaceAfter=0))
+            flowables.append(HRFlowable(width=2, color=colors.grey, spaceAfter=0))
             flowables.extend(
                 self._text_to_flowables(text, latex_renderer, styles["quote"], page_width_pt)
             )

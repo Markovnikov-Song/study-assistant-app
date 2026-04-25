@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/app_colors.dart';
 import '../models/calendar_models.dart';
 import '../providers/calendar_providers.dart';
 
@@ -21,16 +20,16 @@ class PomodoroFloatingBar extends ConsumerWidget {
     final timeStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     final isResting = state.phase == PomodoroPhase.resting;
     final isPaused = state.phase == PomodoroPhase.paused;
+    final cs = Theme.of(context).colorScheme;
+    final accentColor = isResting ? cs.secondary : cs.primary;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: isResting
-            ? AppColors.success.withValues(alpha: 0.15)
-            : AppColors.primary.withValues(alpha: 0.1),
+        color: accentColor.withValues(alpha: 0.1),
         border: Border(
           top: BorderSide(
-            color: isResting ? AppColors.success : AppColors.primary,
+            color: accentColor,
             width: 1,
           ),
         ),
@@ -40,7 +39,7 @@ class PomodoroFloatingBar extends ConsumerWidget {
           Icon(
             isResting ? Icons.coffee_outlined : Icons.timer_outlined,
             size: 18,
-            color: isResting ? AppColors.success : AppColors.primary,
+            color: accentColor,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -52,7 +51,7 @@ class PomodoroFloatingBar extends ConsumerWidget {
                   isResting ? '休息中' : (isPaused ? '已暂停' : '专注中'),
                   style: TextStyle(
                     fontSize: 11,
-                    color: isResting ? AppColors.success : AppColors.primary,
+                    color: accentColor,
                   ),
                 ),
                 if (state.currentEvent != null)
@@ -70,7 +69,7 @@ class PomodoroFloatingBar extends ConsumerWidget {
               fontSize: 18,
               fontWeight: FontWeight.bold,
               fontFeatures: const [FontFeature.tabularFigures()],
-              color: isResting ? AppColors.success : AppColors.primary,
+              color: accentColor,
             ),
           ),
           const SizedBox(width: 8),

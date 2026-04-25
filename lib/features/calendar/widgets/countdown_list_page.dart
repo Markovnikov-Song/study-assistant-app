@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/app_colors.dart';
 import '../models/calendar_models.dart';
 import '../providers/calendar_providers.dart';
 
@@ -74,9 +73,9 @@ class _CountdownCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final daysLeft = event.eventDate.difference(DateTime.now()).inDays;
-    final color = _countdownColor(daysLeft);
     final cs = Theme.of(context).colorScheme;
+    final daysLeft = event.eventDate.difference(DateTime.now()).inDays;
+    final color = _countdownColor(daysLeft, cs);
 
     return Card(
       elevation: 0,
@@ -145,10 +144,10 @@ class _CountdownCard extends StatelessWidget {
     );
   }
 
-  Color _countdownColor(int daysLeft) {
-    if (daysLeft <= 0) return AppColors.error;
-    if (daysLeft < 10) return AppColors.error;
-    if (daysLeft <= 30) return AppColors.warning;
-    return AppColors.success;
+  Color _countdownColor(int daysLeft, ColorScheme cs) {
+    if (daysLeft <= 0) return cs.error;
+    if (daysLeft < 10) return cs.error;
+    if (daysLeft <= 30) return cs.tertiary;
+    return cs.secondary;
   }
 }

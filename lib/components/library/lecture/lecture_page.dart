@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill/quill_delta.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../../models/mindmap_library.dart';
@@ -15,6 +16,7 @@ import '../../../widgets/markdown_latex_view.dart';
 import '../../../tools/document/block_converter.dart';
 import 'export_book_dialog.dart';
 import '../../../tools/document/lecture_exporter.dart';
+import '../../quiz/node_practice_sheet.dart';
 
 // ── LectureEditorState ────────────────────────────────────────────────────────
 
@@ -688,6 +690,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                       nodeId: _currentNodeId,
                       nodeText: currentNodeText,
                       sessionId: widget.sessionId,
+                      subjectId: widget.subjectId,
                       controller: _controllers.get(_currentNodeId),
                       markdown: _markdownCache.get(_currentNodeId),
                       editorState: editorState,
@@ -706,6 +709,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                 nodeId: _currentNodeId,
                 nodeText: currentNodeText,
                 sessionId: widget.sessionId,
+                subjectId: widget.subjectId,
                 controller: _controllers.get(_currentNodeId),
                 markdown: _markdownCache.get(_currentNodeId),
                 editorState: editorState,
@@ -1039,6 +1043,7 @@ class _RightPanel extends StatefulWidget {
   final String nodeId;
   final String nodeText;
   final int sessionId;
+  final int? subjectId;
   final QuillController? controller;
   final String? markdown; // 预览用
   final LectureEditorState editorState;
@@ -1054,6 +1059,7 @@ class _RightPanel extends StatefulWidget {
     required this.nodeId,
     required this.nodeText,
     required this.sessionId,
+    this.subjectId,
     required this.controller,
     required this.markdown,
     required this.editorState,
@@ -1240,66 +1246,72 @@ class _RightPanelState extends State<_RightPanel> {
           child: _LectureEditor(
               controller: ctrl, blocks: widget.editorState.blocks),
         ),
-      ],
+        // ── 底部练习入口 ────────────────────────────────────────────────────────
+        _PracticeEntryCard(nodeId: widget.nodeId, nodeText: widget.nodeText, subjectId: widget.subjectId),      ],
     );
   }
 
-  /// 弹出公式输入对话框，确认后插入 \[...\] 到编辑器
+  /// 弹出公式输入对话框，确认后插入 formula embed 到编辑器
   Future<void> _showFormulaDialog(
       BuildContext context, QuillController ctrl) async {
     final formulaCtrl = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('插入公式'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '输入 LaTeX 公式（不需要加 \$ 符号）',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: formulaCtrl,
-              autofocus: true,
-              maxLines: 4,
-              minLines: 2,
-              decoration: const InputDecoration(
-                hintText: r'例如：\frac{\pi d^4}{32}',
-                border: OutlineInputBorder(),
-                isDense: true,
+    String? result;
+    try {
+      result = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('插入公式'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '输入 LaTeX 公式（不需要加 \$ 符号）',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
               ),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
+              const SizedBox(height: 8),
+              TextField(
+                controller: formulaCtrl,
+                autofocus: false,
+                maxLines: 4,
+                minLines: 2,
+                decoration: const InputDecoration(
+                  hintText: r'例如：\frac{\pi d^4}{32}',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '提示：直接输入 LaTeX，例如 \\frac{a}{b}',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('取消'),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              '提示：行内公式用 \$...\$，块级公式用 \\[...\\]',
-              style: TextStyle(fontSize: 11, color: Colors.grey),
+            FilledButton(
+              onPressed: () {
+                final f = formulaCtrl.text.trim();
+                if (f.isNotEmpty) Navigator.pop(ctx, f);
+              },
+              child: const Text('插入'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final f = formulaCtrl.text.trim();
-              if (f.isNotEmpty) Navigator.pop(ctx, f);
-            },
-            child: const Text('插入'),
-          ),
-        ],
-      ),
-    );
-    formulaCtrl.dispose();
+      );
+    } finally {
+      formulaCtrl.dispose();
+    }
     if (result == null || result.isEmpty) return;
-    // 插入为块级公式（换行包裹）
-    final index = ctrl.selection.baseOffset;
-    ctrl.replaceText(index, 0, '\n\\[$result\\]\n', null);
+    if (!mounted) return;
+    // 插入为 Quill formula embed（可被 _FormulaEmbedBuilder 渲染）
+    final index = ctrl.selection.baseOffset.clamp(0, ctrl.document.length - 1);
+    ctrl.replaceText(index, 0, BlockEmbed.formula(result), null);
   }
 
   Widget _statusBar(BuildContext context) {
@@ -1388,6 +1400,7 @@ class _LectureEditorState extends State<_LectureEditor> {
       config: QuillEditorConfig(
         placeholder: '点击此处开始编写…',
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        embedBuilders: [_FormulaEmbedBuilder()],
         customStyles: DefaultStyles(
           // 正文
           paragraph: DefaultTextBlockStyle(
@@ -1548,6 +1561,91 @@ class _SaveErrorBanner extends StatelessWidget {
 }
 
 
+// ── 底部练习入口卡片 ─────────────────────────────────────────────────────────
+
+class _PracticeEntryCard extends StatelessWidget {
+  final String nodeId;
+  final String nodeText;
+  final int? subjectId;
+
+  const _PracticeEntryCard({
+    required this.nodeId,
+    required this.nodeText,
+    this.subjectId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        border: Border(top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.3))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '学完了？来练习巩固一下',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '基于「$nodeText」生成针对性练习',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton(
+              onPressed: () => _openPractice(context),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.quiz_outlined, size: 16),
+                  SizedBox(width: 6),
+                  Text('去练习'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openPractice(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => NodePracticeSheet(
+        nodeId: nodeId,
+        nodeText: nodeText,
+        subjectId: subjectId,
+      ),
+    );
+  }
+}
+
 // ── 保存讲义为笔记的笔记本选择面板 ────────────────────────────────────────────
 
 class _SaveToNotebookSheet extends ConsumerStatefulWidget {
@@ -1694,6 +1792,53 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Formula Embed Builder ─────────────────────────────────────────────────────
+
+class _FormulaEmbedBuilder extends EmbedBuilder {
+  @override
+  String get key => 'formula';
+
+  @override
+  Widget build(BuildContext context, EmbedContext embedContext) {
+    final formula = embedContext.node.value.data as String? ?? '';
+    if (formula.isEmpty) return const SizedBox.shrink();
+
+    final cs = Theme.of(context).colorScheme;
+    final fontSize = 15.0;
+
+    final math = Math.tex(
+      formula,
+      textStyle: TextStyle(fontSize: fontSize * 1.1, color: cs.onSurface),
+      mathStyle: MathStyle.display,
+      onErrorFallback: (err) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: cs.errorContainer,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          formula,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 13,
+            color: cs.onErrorContainer,
+          ),
+        ),
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Center(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: math,
+        ),
       ),
     );
   }

@@ -1,11 +1,11 @@
 {
-    "name": "study_assistant_app",
-    "short_name": "study_assistant_app",
+    "name": "伴学",
+    "short_name": "伴学",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "伴学 - AI 学习助手",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

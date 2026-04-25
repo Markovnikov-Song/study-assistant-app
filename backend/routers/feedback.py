@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from database import FeedbackSignal, get_session
 
-router = APIRouter(prefix="/api/feedback", tags=["feedback"])
+router = APIRouter(tags=["feedback"])
 
 
 # ============================================================================

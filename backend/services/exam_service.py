@@ -17,11 +17,12 @@ logger = logging.getLogger(__name__)
 class ExamService:
     """历年题处理与 AI 出题服务。"""
 
-    def __init__(self) -> None:
+    def __init__(self, user_id: Optional[int] = None) -> None:
         from services.llm_service import LLMService
         from services.ocr_service import OCRService
         self._llm_service = LLMService()
         self._ocr_service = OCRService()
+        self._user_id = user_id
 
     # ------------------------------------------------------------------
     # 13.1-13.4 历年题文件处理
@@ -155,7 +156,12 @@ class ExamService:
             },
         ]
 
-        result = self._llm_service.chat(messages)
+        result = self._llm_service.chat(
+            messages,
+            user_id=self._user_id,
+            endpoint="exam_parse",
+            track_token=True,
+        )
         result = result.strip()
 
         # 去除可能的 markdown 代码块
@@ -335,7 +341,7 @@ class ExamService:
     # 14.1-14.2 预测试卷生成
     # ------------------------------------------------------------------
 
-    def generate_predicted_paper(self, subject_id: int, user_id: int) -> str:
+    def generate_predicted_paper(self, subject_id: int) -> str:
         """
         生成预测试卷。有历年题时结合历年题分析考点，无历年题时基于学科资料出题。
         """
@@ -379,7 +385,12 @@ class ExamService:
                 },
                 {"role": "user", "content": "\n\n".join(raw_chunks[:4000])},
             ]
-            chunks_text = self._llm_service.chat(summary_messages)
+            chunks_text = self._llm_service.chat(
+                summary_messages,
+                user_id=self._user_id,
+                endpoint="exam_summary",
+                track_token=True,
+            )
         else:
             chunks_text = ""
 
@@ -415,7 +426,12 @@ class ExamService:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},
         ]
-        return self._llm_service.chat(messages)
+        return self._llm_service.chat(
+            messages,
+            user_id=self._user_id,
+            endpoint="exam_predicted",
+            track_token=True,
+        )
 
     # ------------------------------------------------------------------
     # 14.3-14.5 自定义出题
@@ -424,7 +440,6 @@ class ExamService:
     def generate_custom_questions(
         self,
         subject_id: int,
-        user_id: int,
         question_types: List[str],
         count: int,
         difficulty: str,
@@ -505,4 +520,10 @@ class ExamService:
             },
         ]
 
-        return self._llm_service.chat(messages)
+        return self._llm_service.chat(
+            messages,
+            user_id=self._user_id,
+            endpoint="exam_custom",
+            track_token=True,
+        )
+

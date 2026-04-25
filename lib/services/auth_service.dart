@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/api_exception.dart';
 import '../core/network/dio_client.dart';
@@ -43,7 +44,9 @@ class AuthService {
   Future<void> logout() async {
     try {
       await _dio.post(ApiConstants.logout);
-    } catch (_) {}
+    } on DioException catch (e) {
+      debugPrint('[AuthService] logout 请求失败: $e');
+    }
     await StorageService.instance.clearTokens();
   }
 }

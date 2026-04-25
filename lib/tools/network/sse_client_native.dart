@@ -10,10 +10,10 @@ Stream<String> ssePost(String url, Map<String, dynamic> body, String? token) {
       final uri = Uri.parse(url);
       final client = HttpClient();
       final request = await client.postUrl(uri);
-      request.headers.set('Content-Type', 'application/json');
+      request.headers.set('Content-Type', 'application/json; charset=utf-8');
       request.headers.set('Accept', 'text/event-stream');
       if (token != null) request.headers.set('Authorization', 'Bearer $token');
-      request.write(jsonEncode(body));
+      request.add(utf8.encode(jsonEncode(body)));
 
       final response = await request.close();
       String leftover = '';

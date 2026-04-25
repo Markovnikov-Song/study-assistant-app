@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../routes/app_router.dart';
 import '../models/calendar_models.dart';
 import '../providers/calendar_providers.dart';
@@ -22,14 +21,14 @@ class _TodayPanelState extends ConsumerState<TodayPanel> {
   @override
   Widget build(BuildContext context) {
     final todayAsync = ref.watch(todayEventsProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surface,
+        color: cs.surface,
         border: Border(
           top: BorderSide(
-            color: isDark ? AppColors.borderDark : AppColors.border,
+            color: cs.outline,
           ),
         ),
       ),
@@ -48,7 +47,7 @@ class _TodayPanelState extends ConsumerState<TodayPanel> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                      color: cs.onSurface,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -63,7 +62,7 @@ class _TodayPanelState extends ConsumerState<TodayPanel> {
                   ),
                   Icon(
                     _expanded ? Icons.expand_less : Icons.expand_more,
-                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
+                    color: cs.onSurfaceVariant,
                   ),
                 ],
               ),
@@ -87,7 +86,7 @@ class _TodayPanelState extends ConsumerState<TodayPanel> {
                     child: Text(
                       '今天还没有学习安排，点击 + 新建事件',
                       style: TextStyle(
-                        color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
+                        color: cs.onSurfaceVariant,
                         fontSize: 13,
                       ),
                     ),
@@ -99,7 +98,7 @@ class _TodayPanelState extends ConsumerState<TodayPanel> {
                   constraints: const BoxConstraints(maxHeight: 240),
                   child: ListView.builder(
                     shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 88),
                     itemCount: sorted.length,
                     itemBuilder: (_, i) => _EventTile(event: sorted[i]),
                   ),
@@ -118,16 +117,17 @@ class _ProgressChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final pct = (stats.completionRate * 100).toInt();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.1),
+        color: cs.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         '${stats.completed}/${stats.total}（$pct%）',
-        style: const TextStyle(fontSize: 12, color: AppColors.primary),
+        style: TextStyle(fontSize: 12, color: cs.primary),
       ),
     );
   }
@@ -139,8 +139,8 @@ class _EventTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = _parseColor(event.color);
+    final cs = Theme.of(context).colorScheme;
+    final color = _parseColor(event.color, cs);
 
     return Opacity(
       opacity: event.isCompleted ? 0.6 : 1.0,
@@ -168,14 +168,14 @@ class _EventTile extends ConsumerWidget {
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                       decoration: event.isCompleted ? TextDecoration.lineThrough : null,
-                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                      color: cs.onSurface,
                     ),
                   ),
                   Text(
                     '${event.startTime}  ·  ${event.durationMinutes} 分钟',
                     style: TextStyle(
                       fontSize: 12,
-                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -226,11 +226,11 @@ class _EventTile extends ConsumerWidget {
     }
   }
 
-  Color _parseColor(String hex) {
+  Color _parseColor(String hex, ColorScheme cs) {
     try {
       return Color(int.parse('FF${hex.replaceFirst('#', '')}', radix: 16));
     } catch (_) {
-      return AppColors.primary;
+      return cs.primary;
     }
   }
 }

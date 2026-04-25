@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../core/theme/app_colors.dart';
 
 /// 用户自定义的工具图标 Provider
 final toolIconsProvider = StateNotifierProvider<ToolIconsNotifier, Map<String, IconData>>((ref) {
@@ -95,16 +94,16 @@ const List<ToolItem> kDefaultTools = [
     icon: Icons.error_outline_rounded,
     filledIcon: Icons.error_rounded,
     gradientColors: [Color(0xFFEF4444), Color(0xFFF87171)],
-    label: '错题本',
-    description: '记录错题，巩固薄弱点',
-    route: '/toolkit/mistake-book',
+    label: '复盘中心',
+    description: '错题复盘，SM-2间隔复习',
+    route: '/toolkit/review',
     iconOptions: [
       Icons.error_outline_rounded,
       Icons.error_rounded,
       Icons.warning_amber_outlined,
-      Icons.gpp_bad_outlined,
-      Icons.report_outlined,
-      Icons.cancel_outlined,
+      Icons.update_outlined,
+      Icons.replay_outlined,
+      Icons.refresh_outlined,
     ],
   ),
   ToolItem(
@@ -217,7 +216,7 @@ class ToolkitPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     final screenWidth = MediaQuery.of(context).size.width;
     final isWideScreen = screenWidth > 600;
@@ -225,7 +224,7 @@ class ToolkitPage extends ConsumerWidget {
     final contentMaxWidth = isWideScreen ? 420.0 : double.infinity;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
+      backgroundColor: cs.surface,
       body: Stack(
         children: [
           // 主内容（SVG 背景由 ShellPage 提供）
@@ -247,7 +246,7 @@ class ToolkitPage extends ConsumerWidget {
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
-                          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                          color: cs.onSurface,
                         ),
                       ),
                     ),
@@ -325,6 +324,7 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     // 获取用户自定义图标或默认图标
     final currentIcon = ref.watch(toolIconsProvider.notifier).getIcon(
@@ -345,7 +345,7 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
         transform: Matrix4.identity()..scale(_isPressed ? 0.96 : 1.0),
         child: Container(
           decoration: BoxDecoration(
-            color: isDark ? AppColors.surfaceDark : AppColors.surface,
+            color: cs.surface,
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
@@ -357,7 +357,7 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
               ),
             ],
             border: Border.all(
-              color: isDark ? AppColors.borderDark : AppColors.border,
+              color: cs.outline,
               width: 0.5,
             ),
           ),
@@ -399,7 +399,7 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                    color: cs.onSurface,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -410,7 +410,7 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
                   widget.item.description,
                   style: TextStyle(
                     fontSize: 11,
-                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
+                    color: cs.onSurfaceVariant,
                     height: 1.3,
                   ),
                   maxLines: 2,
@@ -424,21 +424,19 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
                       Icon(
                         Icons.touch_app_outlined,
                         size: 12,
-                        color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiary,
+                        color: cs.onSurface.withValues(alpha: 0.6),
                       ),
                     const Spacer(),
                     Container(
                       padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.surfaceElevatedDark.withValues(alpha: 0.5)
-                            : AppColors.surfaceContainer,
+                        color: cs.surfaceContainerHighest.withValues(alpha: isDark ? 0.5 : 1.0),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Icon(
                         Icons.arrow_forward_rounded,
                         size: 12,
-                        color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiary,
+                        color: cs.onSurface.withValues(alpha: 0.6),
                       ),
                     ),
                   ],
@@ -468,12 +466,12 @@ class _IconPickerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
     final icons = item.iconOptions!;
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surface,
+        color: cs.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
@@ -486,7 +484,7 @@ class _IconPickerSheet extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: isDark ? AppColors.borderDark : AppColors.border,
+                color: cs.outline,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -520,14 +518,14 @@ class _IconPickerSheet extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                            color: cs.onSurface,
                           ),
                         ),
                         Text(
                           '长按卡片可随时更换',
                           style: TextStyle(
                             fontSize: 12,
-                            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -541,7 +539,7 @@ class _IconPickerSheet extends StatelessWidget {
                         '恢复默认',
                         style: TextStyle(
                           fontSize: 13,
-                          color: AppColors.primary,
+                          color: cs.primary,
                         ),
                       ),
                     ),
@@ -568,12 +566,12 @@ class _IconPickerSheet extends StatelessWidget {
                             : null,
                         color: isSelected
                             ? null
-                            : (isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceContainer),
+                            : cs.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: isSelected
                               ? Colors.transparent
-                              : (isDark ? AppColors.borderDark : AppColors.border),
+                              : cs.outline,
                           width: 1,
                         ),
                         boxShadow: isSelected
@@ -591,7 +589,7 @@ class _IconPickerSheet extends StatelessWidget {
                         size: 26,
                         color: isSelected
                             ? Colors.white
-                            : (isDark ? AppColors.textPrimaryDark : AppColors.textPrimary),
+                            : cs.onSurface,
                       ),
                     ),
                   );

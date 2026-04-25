@@ -11,16 +11,20 @@ import '../../providers/hint_provider.dart';
 import '../../providers/multi_select_provider.dart';
 import '../../providers/subject_provider.dart';
 import '../../services/intent_detector.dart';
+import '../../features/cas/cas_service.dart';
+import '../../features/cas/cas_intent_detector.dart';
 import '../../widgets/message_search_delegate.dart';
 import '../../widgets/scene_card.dart';
 import '../../widgets/session_history_sheet.dart';
 import '../../widgets/markdown_latex_view.dart';
 import '../../widgets/mcp_status_indicator.dart';
 import '../../components/notebook/widgets/notebook_picker_sheet.dart';
-import '../../core/theme/app_colors.dart';
 import '../calendar/calendar_page.dart';
 import '../../core/event_bus/app_event_bus.dart';
 import '../../core/event_bus/calendar_events.dart';
+import '../../tools/speech/speech_input_button.dart';
+import '../spec/widgets/today_task_card.dart';
+import '../../services/level2_monitor.dart';
 
 // ─── ChatPage（参数化，支持通用/学科/任务三种场景）────────────
 
@@ -40,7 +44,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final _scrollCtrl = ScrollController();
   bool _useHybrid = false;
   bool _sending = false;
-  final _intentDetector = RuleBasedIntentDetector();
+  final _intentDetector = CasIntentDetector(CasService());
 
   // chatKey：通用对话�?'general'，学科对话用 subjectId 字符串，任务对话�?chatId
   String get _chatKey {
@@ -98,8 +102,53 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final text = _inputCtrl.text.trim();
     if (text.isEmpty) return;
     _inputCtrl.clear();
-    _bindSendingCallback();
 
+    // 记录用户活跃（供 Level 2 监控使用）
+    Level2Monitor.recordActivity();
+
+    // 清除末尾残留的空白 AI 气泡（上次请求失败或跳转后留下的）
+    final msgs = ref.read(chatProvider(_key)).value;
+    if (msgs != null && msgs.isNotEmpty &&
+        msgs.last.role == MessageRole.assistant &&
+        msgs.last.content.isEmpty &&
+        msgs.last.type == MessageType.text) {
+      ref.read(chatProvider(_key).notifier).deleteMessage(msgs.length - 1);
+    }
+
+    // 仅通用对话做 CAS 意图识别，navigate 类型直接跳转，不发给 AI
+    if (widget.subjectId == null && widget.taskId == null) {
+      final subjects = ref.read(subjectsProvider).valueOrNull;
+      final intent = await _intentDetector.detect(text, subjects: subjects);
+      if (!mounted) return;
+
+      final actionId = intent.params['actionId'] as String?;
+      final renderType = intent.params['render_type'] as String?;
+
+      // navigate 类型：直接跳转，只在消息列表里显示用户消息，不调 AI
+      if (actionId != null && renderType == 'navigate') {
+        ref.read(chatProvider(_key).notifier).appendMessage(
+          ChatMessage.local(role: MessageRole.user, content: text),
+        );
+        _handleCasIntent(intent, text);
+        _scrollToBottom();
+        return;
+      }
+
+      // 其他意图：正常发给 AI，然后处理意图
+      _bindSendingCallback();
+      await ref.read(chatProvider(_key).notifier).sendMessage(
+        text,
+        mode: SessionType.qa,
+        useHybrid: _useHybrid,
+        overrideSubjectId: _autoDetectedSubjectId,
+      );
+      _scrollToBottom();
+      _handleIntentAfterSend(intent, text);
+      return;
+    }
+
+    // 学科/任务对话：直接发给 AI
+    _bindSendingCallback();
     await ref.read(chatProvider(_key).notifier).sendMessage(
       text,
       mode: SessionType.qa,
@@ -107,24 +156,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       overrideSubjectId: _autoDetectedSubjectId,
     );
     _scrollToBottom();
-
-    // 意图识别（仅通用对话触发）
-    if (widget.subjectId == null && widget.taskId == null) {
-      _detectSubjectSilently(text);
-    }
   }
 
-  void _detectSubjectSilently(String userInput) async {
-    final subjects = ref.read(subjectsProvider).valueOrNull;
-    final intent = await _intentDetector.detect(userInput, subjects: subjects);
-    if (!mounted) return;
-
+  /// 发送给 AI 后处理意图（subject 静默归类 / SceneCard）
+  void _handleIntentAfterSend(DetectedIntent intent, String userInput) {
     if (intent.type == IntentType.subject) {
       final subjectId = intent.params['subjectId'] as int?;
       final subjectName = intent.params['subjectName'] as String? ?? '';
       if (subjectId != null && subjectId != _autoDetectedSubjectId) {
         setState(() => _autoDetectedSubjectId = subjectId);
-        // 显示一个轻提示，不打断对话
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -136,19 +176,183 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           );
         }
       }
+      return;
     }
 
-    // 其他意图（规划/工具/spec）仍然弹 SceneCard
+    final actionId = intent.params['actionId'] as String?;
+    if (actionId != null && intent.type != IntentType.none) {
+      _handleCasIntent(intent, userInput);
+      return;
+    }
+
     if (intent.type != IntentType.subject && intent.type != IntentType.none) {
       final sceneCardData = _buildSceneCardData(intent);
       if (sceneCardData == null) return;
-      final sceneMsg = ChatMessage.local(
-        role: MessageRole.assistant,
-        content: '',
-        type: MessageType.sceneCard,
-        sceneCardData: sceneCardData,
+      ref.read(chatProvider(_key).notifier).appendMessage(
+        ChatMessage.local(
+          role: MessageRole.assistant,
+          content: '',
+          type: MessageType.sceneCard,
+          sceneCardData: sceneCardData,
+        ),
       );
-      ref.read(chatProvider(_key).notifier).appendMessage(sceneMsg);
+    }
+  }
+
+  /// CAS render_type 处理：navigate / card / modal / text / param_fill
+  void _handleCasIntent(DetectedIntent intent, String originalText) {
+    final renderType = intent.params['render_type'] as String? ?? 'text';
+    final route = intent.params['route'] as String?;
+    final text = intent.params['text'] as String?;
+    final actionId = intent.params['actionId'] as String?;
+
+    switch (renderType) {
+      case 'navigate':
+        if (route != null) {
+          // 先插入确认气泡，再跳转（气泡留在对话流里）
+          final confirmText = _navigateConfirmText(actionId, route);
+          ref.read(chatProvider(_key).notifier).appendMessage(
+            ChatMessage.local(role: MessageRole.assistant, content: confirmText),
+          );
+          // 短暂延迟让气泡渲染后再跳转，避免页面切换时气泡闪烁
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (mounted) context.push(route);
+          });
+        }
+      case 'text':
+        if (text != null && text.isNotEmpty) {
+          ref.read(chatProvider(_key).notifier).appendMessage(
+            ChatMessage.local(role: MessageRole.assistant, content: text),
+          );
+        }
+      case 'card':
+        // 结构化卡片：将 card 数据转为 Markdown 文本气泡展示
+        _handleCasCard(intent.params);
+      case 'modal':
+        if (text != null) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            useSafeArea: true,
+            builder: (_) => Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(text),
+            ),
+          );
+        }
+      case 'param_fill':
+        // 缺参时插入引导文字，再跳转到对应工具页
+        if (actionId != null) {
+          final guideText = _paramFillGuideText(actionId);
+          ref.read(chatProvider(_key).notifier).appendMessage(
+            ChatMessage.local(role: MessageRole.assistant, content: guideText),
+          );
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (mounted) _handleParamFillFallback(actionId);
+          });
+        }
+      default:
+        break;
+    }
+  }
+
+  /// navigate 跳转后的确认气泡文案（Markdown 链接格式）
+  String _navigateConfirmText(String? actionId, String route) {
+    switch (actionId) {
+      case 'open_calendar':
+        return '已为您打开 [学习日历]($route) ✓';
+      case 'open_notebook':
+        return '已为您打开 [笔记本]($route) ✓';
+      case 'open_course_space':
+        return '已为您打开 [课程空间]($route) ✓';
+      case 'make_quiz':
+        return '已为您跳转到 [出题页面]($route) ✓';
+      case 'recommend_mistake_practice':
+        return '已为您打开 [复盘中心]($route) ✓';
+      default:
+        // 通用兜底：从路由推断名称
+        final name = _routeDisplayName(route);
+        return '已为您打开 [$name]($route) ✓';
+    }
+  }
+
+  /// param_fill 引导文字
+  String _paramFillGuideText(String actionId) {
+    switch (actionId) {
+      case 'make_quiz':
+        return '好的，带你去出题页面，可以在那里选择学科和题型 →';
+      case 'make_plan':
+        return '好的，带你去规划页面，可以在那里制定学习计划 →';
+      case 'add_calendar_event':
+        return '好的，带你去日历，可以在那里添加学习事件 →';
+      case 'recommend_mistake_practice':
+        return '好的，带你去复盘中心，可以在那里选择要练习的错题 →';
+      default:
+        return '好的，带你去对应页面完成操作 →';
+    }
+  }
+
+  /// 从路由路径推断显示名称
+  String _routeDisplayName(String route) {
+    if (route.contains('calendar')) return '学习日历';
+    if (route.contains('notebook')) return '笔记本';
+    if (route.contains('course-space')) return '课程空间';
+    if (route.contains('quiz')) return '出题';
+    if (route.contains('mistake') || route.contains('review')) return '复盘中心';
+    if (route.contains('solve')) return '解题';
+    if (route.contains('spec')) return '学习规划';
+    return '目标页面';
+  }
+
+  /// 参数补全兜底：跳转到对应工具页让用户手动操作
+  void _handleParamFillFallback(String actionId) {
+    final routeMap = {
+      'make_quiz': '/toolkit/quiz',
+      'make_plan': '/spec',
+      'open_calendar': '/toolkit/calendar',
+      'add_calendar_event': '/toolkit/calendar',
+      'recommend_mistake_practice': '/toolkit/mistake-book',
+      'open_notebook': '/toolkit/notebooks',
+      'solve_problem': '/toolkit/solve',
+    };
+    final route = routeMap[actionId];
+    if (route != null) context.push(route);
+  }
+
+  /// CAS card 类型：将结构化卡片数据转为 Markdown 气泡 + 跳转链接
+  void _handleCasCard(Map<String, dynamic> params) {
+    final cardType = params['card_type'] as String? ?? '';
+    final title = params['title'] as String? ?? '';
+    final actionRoute = params['action_route'] as String?;
+
+    final buf = StringBuffer();
+    if (title.isNotEmpty) buf.writeln('**$title**\n');
+
+    switch (cardType) {
+      case 'mistake_list':
+        final items = params['items'] as List? ?? [];
+        for (int i = 0; i < items.length; i++) {
+          final item = items[i] as Map<String, dynamic>;
+          final itemTitle = item['title'] as String? ?? '错题 ${i + 1}';
+          final category = item['category'] as String? ?? '';
+          buf.writeln('${i + 1}. $itemTitle${category.isNotEmpty ? '（$category）' : ''}');
+        }
+        if (actionRoute != null) {
+          buf.writeln('\n[→ 前往复盘中心]($actionRoute)');
+        }
+      default:
+        // 通用卡片：直接显示 title + 跳转链接
+        if (actionRoute != null) {
+          final name = _routeDisplayName(actionRoute);
+          buf.writeln('[→ 前往$name]($actionRoute)');
+        }
+    }
+
+    final content = buf.toString().trim();
+    if (content.isNotEmpty) {
+      ref.read(chatProvider(_key).notifier).appendMessage(
+        ChatMessage.local(role: MessageRole.assistant, content: content),
+      );
     }
   }
 
@@ -173,9 +377,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           payload: intent.params,
         );
       case IntentType.tool:
+        final toolName = intent.params['toolName'] as String? ?? '工具';
         return SceneCardData(
           sceneType: SceneType.tool,
-          title: '跳转到${intent.params['toolName']}？',
+          title: '跳转到$toolName？',
           confirmLabel: '一键跳转',
           dismissLabel: '在对话中继续',
           payload: intent.params,
@@ -236,7 +441,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Widget build(BuildContext context) {
     final multiSelect = ref.watch(multiSelectProvider);
     final selectedCount = multiSelect.selectedMessageIds.length;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     PreferredSizeWidget? appBar;
     if (multiSelect.isActive) {
@@ -251,7 +455,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       // 多选模式用普通 AppBar
       appBar: appBar,
       body: multiSelect.isActive
@@ -335,8 +539,6 @@ class _ChatPageWithSliverAppBar extends ConsumerWidget {
       title = taskId!;
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return CustomScrollView(
       slivers: [
         // 统一样式的 AppBar（与图书馆保持一致）
@@ -356,7 +558,7 @@ class _ChatPageWithSliverAppBar extends ConsumerWidget {
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w700,
-                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),
@@ -662,13 +864,16 @@ class _Bubble extends ConsumerWidget {
           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
           decoration: BoxDecoration(
             gradient: isUser
-                ? const LinearGradient(
+                ? LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [AppColors.primary, AppColors.primaryLight],
+                    colors: [
+                      Theme.of(context).colorScheme.primary,
+                      Theme.of(context).colorScheme.secondary,
+                    ],
                   )
                 : null,
-            color: isUser ? null : (isDark ? AppColors.surfaceDark : AppColors.surface),
+            color: isUser ? null : Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(18),
               topRight: const Radius.circular(18),
@@ -676,16 +881,16 @@ class _Bubble extends ConsumerWidget {
               bottomRight: Radius.circular(isUser ? 6 : 18),
             ),
             border: isSelected
-                ? Border.all(color: AppColors.primary, width: 2)
+                ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
                 : (isUser
                     ? null
                     : Border.all(
-                        color: isDark ? AppColors.borderDark : AppColors.border,
+                        color: Theme.of(context).colorScheme.outline,
                       )),
             boxShadow: [
               BoxShadow(
                 color: isUser
-                    ? AppColors.primary.withValues(alpha: 0.25)
+                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.25)
                     : Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
@@ -717,13 +922,11 @@ class _Bubble extends ConsumerWidget {
                   : MarkdownLatexView(
                       data: message.content,
                       textStyle: TextStyle(
-                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                        color: Theme.of(context).colorScheme.onSurface,
                         height: 1.6,
                         fontSize: 15,
                       ),
-                      codeBackgroundColor: isDark
-                          ? AppColors.surfaceContainerHighDark
-                          : AppColors.surfaceContainerHigh,
+                      codeBackgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                     ),
               if (!isUser && message.sources != null && message.sources!.isNotEmpty)
                 _SourcesWidget(sources: message.sources!),
@@ -889,7 +1092,6 @@ class _EmptyHints extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final List<String> hints;
     if (subjectId == 0) {
       // 通用对话默认提示（不依赖知识库）
@@ -899,12 +1101,17 @@ class _EmptyHints extends ConsumerWidget {
       hints = hintsAsync.valueOrNull ??
           const ['这道题的解题思路是什么？', '帮我总结这章的重点', '这个概念怎么理解？'];
     }
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 今日任务卡片（仅通用对话显示）
+            if (subjectId == 0) ...[
+              const TodayTaskCard(),
+            ],
             // 装饰图标
             Container(
               width: 100,
@@ -913,8 +1120,7 @@ class _EmptyHints extends ConsumerWidget {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    (isDark ? AppColors.primaryDark : AppColors.primaryLight)
-                        .withValues(alpha: 0.15),
+                    cs.primaryContainer.withValues(alpha: 0.15),
                     Colors.transparent,
                   ],
                 ),
@@ -922,7 +1128,7 @@ class _EmptyHints extends ConsumerWidget {
               child: Icon(
                 Icons.lightbulb_outline_rounded,
                 size: 48,
-                color: isDark ? AppColors.primaryLight : AppColors.primary,
+                color: cs.primary,
               ),
             ),
             const SizedBox(height: 20),
@@ -931,7 +1137,7 @@ class _EmptyHints extends ConsumerWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                color: cs.onSurface,
               ),
             ),
             const SizedBox(height: 16),
@@ -939,10 +1145,10 @@ class _EmptyHints extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 10),
               child: Container(
                 decoration: BoxDecoration(
-                  color: (isDark ? AppColors.surfaceElevatedDark : AppColors.surface),
+                  color: cs.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isDark ? AppColors.borderDark : AppColors.border,
+                    color: cs.outline,
                   ),
                 ),
                 child: Material(
@@ -958,7 +1164,7 @@ class _EmptyHints extends ConsumerWidget {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 14,
-                          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                          color: cs.onSurface,
                         ),
                       ),
                     ),
@@ -992,15 +1198,15 @@ class _InputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surface,
+        color: cs.surface,
         border: Border(
           top: BorderSide(
-            color: isDark ? AppColors.borderDark : AppColors.border,
+            color: cs.outline.withValues(alpha: 0.5),
             width: 0.5,
           ),
         ),
@@ -1011,15 +1217,13 @@ class _InputBar extends StatelessWidget {
           // 拍照按钮
           Container(
             decoration: BoxDecoration(
-              color: isDark
-                  ? AppColors.surfaceElevatedDark.withValues(alpha: 0.5)
-                  : AppColors.surfaceContainer,
+              color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(10),
             ),
             child: IconButton(
               icon: Icon(
                 Icons.camera_alt_outlined,
-                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
+                color: cs.onSurfaceVariant,
               ),
               onPressed: sending ? null : onCamera,
               tooltip: '拍照识题',
@@ -1029,15 +1233,13 @@ class _InputBar extends StatelessWidget {
           // 图库按钮
           Container(
             decoration: BoxDecoration(
-              color: isDark
-                  ? AppColors.surfaceElevatedDark.withValues(alpha: 0.5)
-                  : AppColors.surfaceContainer,
+              color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(10),
             ),
             child: IconButton(
               icon: Icon(
                 Icons.image_outlined,
-                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
+                color: cs.onSurfaceVariant,
               ),
               onPressed: sending ? null : onGallery,
               tooltip: '图库识题',
@@ -1048,10 +1250,10 @@ class _InputBar extends StatelessWidget {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceContainer,
+                color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isDark ? AppColors.borderDark : AppColors.border,
+                  color: cs.outline,
                 ),
               ),
               child: TextField(
@@ -1060,12 +1262,12 @@ class _InputBar extends StatelessWidget {
                 minLines: 1,
                 enabled: !sending,
                 style: TextStyle(
-                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                  color: cs.onSurface,
                 ),
                 decoration: InputDecoration(
                   hintText: placeholder,
                   hintStyle: TextStyle(
-                    color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiary,
+                    color: cs.onSurfaceVariant.withValues(alpha: 0.7),
                   ),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1075,13 +1277,21 @@ class _InputBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
+          // 语音输入按钮
+          SpeechInputButton(
+            onResult: (text) {
+              controller.text = '${controller.text}$text';
+            },
+            color: cs.onSurfaceVariant,
+          ),
+          const SizedBox(width: 4),
           // 发送按钮
           Container(
             decoration: BoxDecoration(
               gradient: sending
                   ? null
-                  : const LinearGradient(
-                      colors: [AppColors.primary, AppColors.primaryLight],
+                  : LinearGradient(
+                      colors: [cs.primary, cs.secondary],
                     ),
               color: sending ? Colors.red.shade400 : null,
               borderRadius: BorderRadius.circular(20),
@@ -1089,7 +1299,7 @@ class _InputBar extends StatelessWidget {
                   ? null
                   : [
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.3),
+                        color: cs.primary.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),

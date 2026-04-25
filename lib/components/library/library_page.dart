@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../models/mindmap_library.dart';
 import '../../providers/library_provider.dart';
 import '../../routes/app_router.dart';
-import '../../core/theme/app_colors.dart';
 
 /// LibraryPage — 图书馆主页，展示学科课程卡片列表（含学习进度）
 /// 全新设计的「静谧学习」视觉风格
@@ -49,10 +48,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   @override
   Widget build(BuildContext context) {
     final subjectsAsync = ref.watch(schoolSubjectsProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.background,
+      backgroundColor: cs.surface,
       body: Stack(
         children: [
           // 主内容（SVG 背景由 ShellPage 提供）
@@ -71,7 +70,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                      color: cs.onSurface,
                     ),
                   ),
                 ),
@@ -82,11 +81,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.surfaceElevatedDark : AppColors.surface,
+                      color: cs.surface,
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                          color: Colors.black.withValues(alpha: cs.brightness == Brightness.dark ? 0.2 : 0.05),
                           blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
@@ -98,7 +97,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                         hintText: '搜索学科名称或分类…',
                         prefixIcon: Icon(
                           Icons.search_rounded,
-                          color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiary,
+                          color: cs.onSurface.withValues(alpha: 0.6),
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -157,7 +156,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Center(
       child: Padding(
@@ -172,8 +171,7 @@ class _EmptyState extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    (isDark ? AppColors.primaryDark : AppColors.primaryLight)
-                        .withValues(alpha: 0.1),
+                    cs.secondary.withValues(alpha: 0.1),
                     Colors.transparent,
                   ],
                 ),
@@ -181,7 +179,7 @@ class _EmptyState extends StatelessWidget {
               child: Icon(
                 Icons.menu_book_outlined,
                 size: 56,
-                color: isDark ? AppColors.primaryLight : AppColors.primary,
+                color: cs.primary,
               ),
             ),
             const SizedBox(height: 24),
@@ -190,7 +188,7 @@ class _EmptyState extends StatelessWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                color: cs.onSurface,
               ),
             ),
             const SizedBox(height: 8),
@@ -201,7 +199,7 @@ class _EmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
+                color: cs.onSurfaceVariant,
                 height: 1.6,
               ),
             ),
@@ -218,26 +216,26 @@ class _SubjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
     final subject = item.subject;
     final percent = item.totalNodes == 0 ? 0.0 : item.litNodes / item.totalNodes;
 
-    // 为不同学科生成独特颜色
+    // 为不同学科生成独特颜色（固定的8种预设）
     final subjectColors = _getSubjectColors(subject.name);
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surface,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
+            color: Colors.black.withValues(alpha: cs.brightness == Brightness.dark ? 0.2 : 0.06),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
         border: Border.all(
-          color: isDark ? AppColors.borderDark : AppColors.border,
+          color: cs.outline,
           width: 0.5,
         ),
       ),
@@ -297,9 +295,7 @@ class _SubjectCard extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 17,
                                     fontWeight: FontWeight.w600,
-                                    color: isDark
-                                        ? AppColors.textPrimaryDark
-                                        : AppColors.textPrimary,
+                                    color: cs.onSurface,
                                   ),
                                 ),
                               ),
@@ -307,13 +303,13 @@ class _SubjectCard extends StatelessWidget {
                                 Container(
                                   padding: const EdgeInsets.all(4),
                                   decoration: BoxDecoration(
-                                    color: AppColors.accent.withValues(alpha: 0.1),
+                                    color: cs.tertiary.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.push_pin,
                                     size: 14,
-                                    color: AppColors.accent,
+                                    color: cs.tertiary,
                                   ),
                                 ),
                             ],
@@ -325,9 +321,7 @@ class _SubjectCard extends StatelessWidget {
                                 subject.category!,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: isDark
-                                      ? AppColors.textTertiaryDark
-                                      : AppColors.textTertiary,
+                                  color: cs.onSurface.withValues(alpha: 0.6),
                                 ),
                               ),
                             ),
@@ -345,9 +339,7 @@ class _SubjectCard extends StatelessWidget {
                         height: 6,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(3),
-                          color: isDark
-                              ? AppColors.surfaceContainerHighDark
-                              : AppColors.surfaceContainerHigh,
+                          color: cs.surfaceContainerHighest,
                         ),
                         child: FractionallySizedBox(
                           alignment: Alignment.centerLeft,
@@ -393,13 +385,11 @@ class _SubjectCard extends StatelessWidget {
                     _StatChip(
                       icon: Icons.lightbulb_outline_rounded,
                       label: '${item.litNodes}/${item.totalNodes}',
-                      isDark: isDark,
                     ),
                     const SizedBox(width: 8),
                     _StatChip(
                       icon: Icons.account_tree_outlined,
                       label: '${item.sessionCount}份导图',
-                      isDark: isDark,
                     ),
                     const Spacer(),
                     Container(
@@ -441,7 +431,7 @@ class _SubjectCard extends StatelessWidget {
                     '最近访问：${_formatDate(item.lastVisitedAt!)}',
                     style: TextStyle(
                       fontSize: 11,
-                      color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiary,
+                      color: cs.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],
@@ -453,19 +443,20 @@ class _SubjectCard extends StatelessWidget {
     );
   }
 
+  static const List<List<Color>> _kSubjectGradients = [
+    [Color(0xFF6366F1), Color(0xFF818CF8)],
+    [Color(0xFF10B981), Color(0xFF34D399)],
+    [Color(0xFFF59E0B), Color(0xFFFBBF24)],
+    [Color(0xFFEC4899), Color(0xFFF472B6)],
+    [Color(0xFF8B5CF6), Color(0xFFA78BFA)],
+    [Color(0xFF06B6D4), Color(0xFF22D3EE)],
+    [Color(0xFFEF4444), Color(0xFFF87171)],
+    [Color(0xFF84CC16), Color(0xFFA3E635)],
+  ];
+
   List<Color> _getSubjectColors(String name) {
     final hash = name.hashCode;
-    final gradients = [
-      [AppColors.primary, AppColors.primaryLight],
-      [AppColors.secondary, AppColors.secondaryLight],
-      [AppColors.accent, AppColors.accentLight],
-      [const Color(0xFFEC4899), const Color(0xFFF472B6)],
-      [const Color(0xFF8B5CF6), const Color(0xFFA78BFA)],
-      [const Color(0xFF06B6D4), const Color(0xFF22D3EE)],
-      [const Color(0xFFEF4444), const Color(0xFFF87171)],
-      [const Color(0xFF84CC16), const Color(0xFFA3E635)],
-    ];
-    return gradients[hash.abs() % gradients.length];
+    return _kSubjectGradients[hash.abs() % _kSubjectGradients.length];
   }
 
   String _formatDate(DateTime dt) {
@@ -476,22 +467,20 @@ class _SubjectCard extends StatelessWidget {
 class _StatChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  final bool isDark;
 
   const _StatChip({
     required this.icon,
     required this.label,
-    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.surfaceElevatedDark.withValues(alpha: 0.5)
-            : AppColors.surfaceContainer,
+        color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -500,14 +489,14 @@ class _StatChip extends StatelessWidget {
           Icon(
             icon,
             size: 12,
-            color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiary,
+            color: cs.onSurface.withValues(alpha: 0.6),
           ),
           const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
               fontSize: 11,
-              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
+              color: cs.onSurfaceVariant,
             ),
           ),
         ],

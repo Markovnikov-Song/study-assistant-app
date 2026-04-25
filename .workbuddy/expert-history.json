@@ -14,16 +14,34 @@
     ],
     "80c7692b8aa94b42baafea6c42cfe81a": [
       {
+        "expertId": "AdortDesignExpert",
+        "name": "林觉初",
+        "profession": "Ardot 设计专家",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/01-Design/AdortDesignExpert/AdortDesignExpert.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/01-Design/AdortDesignExpert/AdortDesignExpert_zh.md",
+        "usedAt": 1777108652313,
+        "industryId": "01-Design"
+      },
+      {
         "expertId": "UiDesigner",
         "name": "像素君",
         "profession": "UI设计师",
         "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/01-Design/UiDesigner/UiDesigner.png",
         "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/01-Design/UiDesigner/UiDesigner_zh.md",
-        "usedAt": 1776872685865,
+        "usedAt": 1776966112606,
         "industryId": "01-Design"
       }
     ],
     "77496adfe3704f89aefaca6f58f7b771": [
+      {
+        "expertId": "TechnicalDocumentationEngineer",
+        "name": "文通通",
+        "profession": "技术文档工程师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/TechnicalDocumentationEngineer/TechnicalDocumentationEngineer.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/TechnicalDocumentationEngineer/TechnicalDocumentationEngineer_zh.md",
+        "usedAt": 1776966530883,
+        "industryId": "02-Engineering"
+      },
       {
         "expertId": "UiDesigner",
         "name": "像素君",
@@ -41,15 +59,6 @@
         "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/01-Design/UserExperienceArchitect/UserExperienceArchitect_zh.md",
         "usedAt": 1776954272986,
         "industryId": "01-Design"
-      },
-      {
-        "expertId": "FrontendDeveloper",
-        "name": "像素匠",
-        "profession": "前端开发工程师",
-        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/FrontendDeveloper/FrontendDeveloper.png",
-        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/FrontendDeveloper/FrontendDeveloper_zh.md",
-        "usedAt": 1776951571266,
-        "industryId": "02-Engineering"
       }
     ],
     "468ce593dd0b44718cfb3f50f317c54b": [
@@ -84,7 +93,80 @@
         "usedAt": 1776964290925,
         "industryId": "02-Engineering"
       }
+    ],
+    "f9baf81d9afc471e80be12b23ced6186": [
+      {
+        "expertId": "TechnicalDocumentationEngineer",
+        "name": "文通通",
+        "profession": "技术文档工程师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/TechnicalDocumentationEngineer/TechnicalDocumentationEngineer.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/TechnicalDocumentationEngineer/TechnicalDocumentationEngineer_zh.md",
+        "usedAt": 1776966554660,
+        "industryId": "02-Engineering"
+      }
+    ],
+    "5861fb43e84740e3bfe982e0c6260307": [
+      {
+        "expertId": "AutonomousOptimizationArchitect",
+        "name": "自进化",
+        "profession": "自主优化架构师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/AutonomousOptimizationArchitect/AutonomousOptimizationArchitect.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/AutonomousOptimizationArchitect/AutonomousOptimizationArchitect_zh.md",
+        "usedAt": 1777122554038,
+        "industryId": "02-Engineering"
+      },
+      {
+        "expertId": "AdortDesignExpert",
+        "name": "林觉初",
+        "profession": "Ardot 设计专家",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/01-Design/AdortDesignExpert/AdortDesignExpert.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/01-Design/AdortDesignExpert/AdortDesignExpert_zh.md",
+        "usedAt": 1777113860302,
+        "industryId": "01-Design"
+      },
+      {
+        "expertId": "FrontendDeveloper",
+        "name": "像素匠",
+        "profession": "前端开发工程师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/FrontendDeveloper/FrontendDeveloper.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/FrontendDeveloper/FrontendDeveloper_zh.md",
+        "usedAt": 1777028578782,
+        "industryId": "02-Engineering"
+      }
+    ],
+    "53523c85a7654e648e6455eae0f0616c": [
+      {
+        "expertId": "CodeReviewExpert",
+        "name": "火眼眼",
+        "profession": "代码审查专家",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/CodeReviewExpert/CodeReviewExpert.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/CodeReviewExpert/CodeReviewExpert_zh.md",
+        "usedAt": 1777119004570,
+        "industryId": "02-Engineering"
+      }
+    ],
+    "8e409a3d15ca4fa39f45d9a6301b7b76": [
+      {
+        "expertId": "SecurityEngineer",
+        "name": "盾甲甲",
+        "profession": "安全工程师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/SecurityEngineer/SecurityEngineer.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/SecurityEngineer/SecurityEngineer_zh.md",
+        "usedAt": 1777123959794,
+        "industryId": "02-Engineering"
+      }
+    ],
+    "d2c76888e9274d0bab110d13247092ad": [
+      {
+        "expertId": "AiEngineer",
+        "name": "深网网",
+        "profession": "AI工程师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/AiEngineer/AiEngineer.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/AiEngineer/AiEngineer_zh.md",
+        "usedAt": 1777125140668,
+        "industryId": "02-Engineering"
+      }
     ]
   },
-  "lastUpdated": 1776965205227
+  "lastUpdated": 1777125811274
 }

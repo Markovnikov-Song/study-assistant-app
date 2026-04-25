@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/event_bus/app_event_bus.dart';
 import '../../../core/event_bus/calendar_events.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../providers/subject_provider.dart';
 import '../models/calendar_models.dart';
 import '../services/calendar_api_service.dart';
+import '../../spec/services/study_planner_api_service.dart';
 
 enum _EventType { event, routine, task }
 
@@ -156,6 +156,49 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('保存失败：$e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    final e = widget.initialEvent;
+    if (e == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除事件'),
+        content: Text('确定要删除「${e.title}」吗？'
+            '${e.source == 'study-planner' ? '\n\n关联的学习计划任务也会被标记为跳过。' : ''}'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    setState(() => _saving = true);
+    try {
+      final api = ref.read(calendarApiServiceProvider);
+      await api.deleteEvent(e.id);
+      AppEventBus.instance.fire(CalendarEventDeleted(
+        eventId: e.id,
+        eventDate: e.eventDate,
+        source: e.source,
+      ));
+      if (mounted) Navigator.pop(context);
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('删除失败：$err')),
         );
       }
     } finally {
@@ -364,6 +407,22 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
                           )
                         : Text(widget.initialEvent != null ? '保存修改' : '保存'),
                   ),
+                  // 删除按钮（仅编辑 study-planner / agent 事件时显示）
+                  if (widget.initialEvent != null &&
+                      (widget.initialEvent!.source == 'study-planner' ||
+                       widget.initialEvent!.source == 'agent'))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: OutlinedButton.icon(
+                        onPressed: _saving ? null : _delete,
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        label: const Text('删除此事件'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.error,
+                          side: BorderSide(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.5)),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 24),
                 ],
               ),
@@ -378,7 +437,7 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
     try {
       return Color(int.parse('FF${hex.replaceFirst('#', '')}', radix: 16));
     } catch (_) {
-      return AppColors.primary;
+      return Theme.of(context).colorScheme.primary;
     }
   }
 }

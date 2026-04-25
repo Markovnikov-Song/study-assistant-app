@@ -45,7 +45,8 @@ def login(body: LoginIn):
     with get_session() as db:
         user = db.query(User).filter_by(username=body.username).first()
         if not user or not verify_password(body.password, user.password_hash):
-            raise HTTPException(401, "用户名或密码错误")
+            # 使用统一错误消息，防止用户名枚举攻击
+            raise HTTPException(401, "用户名或密码不正确")
         uid, uname = user.id, user.username
     token = create_token(uid, uname)
     return AuthOut(access_token=token, user_id=uid, username=uname)

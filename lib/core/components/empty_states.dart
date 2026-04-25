@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 
 /// ============================================================
@@ -30,9 +29,7 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? AppColors.textSecondaryDark : AppColors.textSecondary;
-    final titleColor = isDark ? AppColors.textPrimaryDark : AppColors.textPrimary;
+    final cs = Theme.of(context).colorScheme;
 
     return Center(
       child: Padding(
@@ -51,22 +48,17 @@ class EmptyState extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: isDark
-                        ? [
-                            AppColors.primaryDark.withValues(alpha: 0.2),
-                            AppColors.primaryLight.withValues(alpha: 0.1),
-                          ]
-                        : [
-                            AppColors.primaryLight.withValues(alpha: 0.1),
-                            AppColors.primary.withValues(alpha: 0.05),
-                          ],
+                    colors: [
+                      cs.primary.withValues(alpha: 0.2),
+                      cs.secondary.withValues(alpha: 0.1),
+                    ],
                   ),
                 ),
                 child: Center(
                   child: IconTheme(
                     data: IconThemeData(
                       size: iconSize * 0.6,
-                      color: isDark ? AppColors.primaryLight : AppColors.primary,
+                      color: cs.primary,
                     ),
                     child: icon!,
                   ),
@@ -78,7 +70,7 @@ class EmptyState extends StatelessWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: titleColor,
+                color: cs.onSurface,
               ),
               textAlign: TextAlign.center,
             ),
@@ -88,7 +80,7 @@ class EmptyState extends StatelessWidget {
                 subtitle!,
                 style: TextStyle(
                   fontSize: 14,
-                  color: textColor,
+                  color: cs.onSurfaceVariant,
                   height: 1.5,
                 ),
                 textAlign: TextAlign.center,
@@ -292,7 +284,7 @@ class LoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Center(
       child: Column(
@@ -304,7 +296,7 @@ class LoadingState extends StatelessWidget {
             height: size,
             child: CircularProgressIndicator(
               strokeWidth: 3,
-              color: isDark ? AppColors.primaryLight : AppColors.primary,
+              color: cs.primary,
             ),
           ),
           if (message != null) ...[
@@ -313,9 +305,7 @@ class LoadingState extends StatelessWidget {
               message!,
               style: TextStyle(
                 fontSize: 14,
-                color: isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondary,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ],

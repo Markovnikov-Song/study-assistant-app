@@ -23,7 +23,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 _REQUIRED = [
     "DATABASE_URL", "LLM_API_KEY", "LLM_BASE_URL",
-    "LLM_CHAT_MODEL", "LLM_EMBEDDING_MODEL",
+    "LLM_CHAT_MODEL", "LLM_EMBEDDING_MODEL", "JWT_SECRET",
 ]
 
 
@@ -154,7 +154,7 @@ class AppConfig:
     DEFAULT_SESSION_TYPE: str = "qa"
 
     # ── 认证配置 ──────────────────────────────────────────────────────────────
-    JWT_SECRET: str = "change-me-in-production"
+    JWT_SECRET: str = ""  # 必须在环境变量中设置
     JWT_EXPIRE_HOURS: int = 24 * 7
 
     # ── 便捷属性 ──────────────────────────────────────────────────────────────
@@ -178,6 +178,12 @@ def get_config() -> AppConfig:
         missing = [k for k in _REQUIRED if not os.getenv(k)]
         if missing:
             raise RuntimeError(f"缺少环境变量：{', '.join(missing)}")
+
+        # JWT_SECRET 强度验证
+        jwt_secret = os.getenv("JWT_SECRET", "")
+        if len(jwt_secret) < 32:
+            raise RuntimeError("JWT_SECRET 必须至少 32 个字符，请使用强随机密钥")
+
         _config = AppConfig(
             # LLM 基础
             DATABASE_URL=os.environ["DATABASE_URL"],
@@ -244,7 +250,7 @@ def get_config() -> AppConfig:
             DEFAULT_SKILL_PARSER_ADAPTER=os.getenv("DEFAULT_SKILL_PARSER_ADAPTER", "ai"),
             DEFAULT_SESSION_TYPE=os.getenv("DEFAULT_SESSION_TYPE", "qa"),
             # 认证
-            JWT_SECRET=os.getenv("JWT_SECRET", "change-me-in-production"),
+            JWT_SECRET=jwt_secret,
             JWT_EXPIRE_HOURS=int(os.getenv("JWT_EXPIRE_HOURS", str(24 * 7))),
         )
     return _config

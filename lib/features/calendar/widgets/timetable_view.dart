@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/app_colors.dart';
 import '../models/calendar_models.dart';
 import '../providers/calendar_providers.dart';
 
@@ -26,6 +25,7 @@ class TimetableView extends ConsumerWidget {
     final range = DateRange(start: start, end: end);
     final eventsAsync = ref.watch(calendarEventsProvider(range));
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return eventsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -36,6 +36,7 @@ class TimetableView extends ConsumerWidget {
         onEventTap: onEventTap,
         onEventDragged: onEventDragged,
         isDark: isDark,
+        cs: cs,
       ),
     );
   }
@@ -47,6 +48,7 @@ class _TimetableBody extends StatelessWidget {
   final ValueChanged<CalendarEvent> onEventTap;
   final void Function(CalendarEvent, DateTime) onEventDragged;
   final bool isDark;
+  final ColorScheme cs;
 
   static const double _hourHeight = 60.0;
   static const double _timeColWidth = 48.0;
@@ -59,6 +61,7 @@ class _TimetableBody extends StatelessWidget {
     required this.onEventTap,
     required this.onEventDragged,
     required this.isDark,
+    required this.cs,
   });
 
   @override
@@ -68,7 +71,7 @@ class _TimetableBody extends StatelessWidget {
     return Column(
       children: [
         // 日期标题行
-        _DateHeader(dates: visibleDates, isDark: isDark),
+        _DateHeader(dates: visibleDates, isDark: isDark, cs: cs),
         // 时间轴主体
         Expanded(
           child: SingleChildScrollView(
@@ -93,9 +96,7 @@ class _TimetableBody extends StatelessWidget {
                                 '$hour:00',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: isDark
-                                      ? AppColors.textTertiaryDark
-                                      : AppColors.textTertiary,
+                                  color: cs.onSurface.withValues(alpha: 0.6),
                                 ),
                               ),
                             ),
@@ -119,6 +120,7 @@ class _TimetableBody extends StatelessWidget {
                         onEventTap: onEventTap,
                         onEventDragged: onEventDragged,
                         isDark: isDark,
+                        cs: cs,
                         hourHeight: _hourHeight,
                         startHour: _startHour,
                         endHour: _endHour,
@@ -138,8 +140,9 @@ class _TimetableBody extends StatelessWidget {
 class _DateHeader extends StatelessWidget {
   final List<DateTime> dates;
   final bool isDark;
+  final ColorScheme cs;
 
-  const _DateHeader({required this.dates, required this.isDark});
+  const _DateHeader({required this.dates, required this.isDark, required this.cs});
 
   static const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -151,7 +154,7 @@ class _DateHeader extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: isDark ? AppColors.borderDark : AppColors.border,
+            color: cs.outline,
           ),
         ),
       ),
@@ -170,17 +173,15 @@ class _DateHeader extends StatelessWidget {
                     _weekdays[d.weekday - 1],
                     style: TextStyle(
                       fontSize: 11,
-                      color: isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondary,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                   Container(
                     width: 28,
                     height: 28,
                     decoration: isToday
-                        ? const BoxDecoration(
-                            color: AppColors.primary,
+                        ? BoxDecoration(
+                            color: cs.primary,
                             shape: BoxShape.circle,
                           )
                         : null,
@@ -192,9 +193,7 @@ class _DateHeader extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           color: isToday
                               ? Colors.white
-                              : (isDark
-                                  ? AppColors.textPrimaryDark
-                                  : AppColors.textPrimary),
+                              : cs.onSurface,
                         ),
                       ),
                     ),
@@ -215,6 +214,7 @@ class _DayColumn extends StatelessWidget {
   final ValueChanged<CalendarEvent> onEventTap;
   final void Function(CalendarEvent, DateTime) onEventDragged;
   final bool isDark;
+  final ColorScheme cs;
   final double hourHeight;
   final int startHour;
   final int endHour;
@@ -225,6 +225,7 @@ class _DayColumn extends StatelessWidget {
     required this.onEventTap,
     required this.onEventDragged,
     required this.isDark,
+    required this.cs,
     required this.hourHeight,
     required this.startHour,
     required this.endHour,
@@ -244,12 +245,11 @@ class _DayColumn extends StatelessWidget {
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(
-                    color: (isDark ? AppColors.borderDark : AppColors.border)
-                        .withValues(alpha: 0.5),
+                    color: cs.outline.withValues(alpha: 0.5),
                     width: 0.5,
                   ),
                   left: BorderSide(
-                    color: isDark ? AppColors.borderDark : AppColors.border,
+                    color: cs.outline,
                     width: 0.5,
                   ),
                 ),
@@ -260,9 +260,12 @@ class _DayColumn extends StatelessWidget {
         // 事件色块
         ...events.map((e) => _EventBlock(
               event: e,
+              date: date,
               onTap: () => onEventTap(e),
+              onEventDragged: onEventDragged,
               hourHeight: hourHeight,
               startHour: startHour,
+              cs: cs,
             )),
       ],
     );
@@ -271,15 +274,21 @@ class _DayColumn extends StatelessWidget {
 
 class _EventBlock extends StatelessWidget {
   final CalendarEvent event;
+  final DateTime date;
   final VoidCallback onTap;
+  final void Function(CalendarEvent, DateTime) onEventDragged;
   final double hourHeight;
   final int startHour;
+  final ColorScheme cs;
 
   const _EventBlock({
     required this.event,
+    required this.date,
     required this.onTap,
+    required this.onEventDragged,
     required this.hourHeight,
     required this.startHour,
+    required this.cs,
   });
 
   @override
@@ -291,6 +300,9 @@ class _EventBlock extends StatelessWidget {
     final topOffset = (hour - startHour + minute / 60) * hourHeight;
     final height = (event.durationMinutes / 60) * hourHeight;
 
+    final isFromPlanner = event.source == 'study-planner';
+    final isFromAgent = event.source == 'agent';
+
     return Positioned(
       top: topOffset,
       left: 2,
@@ -298,32 +310,99 @@ class _EventBlock extends StatelessWidget {
       height: height.clamp(20.0, double.infinity),
       child: GestureDetector(
         onTap: onTap,
+        onLongPressStart: isFromPlanner || isFromAgent
+            ? (_) => _showDragMenu(context)
+            : null,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           decoration: BoxDecoration(
-            color: _parseColor(event.color).withValues(alpha: event.isCompleted ? 0.4 : 0.85),
+            color: _parseColor(context, event.color).withValues(alpha: event.isCompleted ? 0.4 : 0.85),
             borderRadius: BorderRadius.circular(4),
+            border: isFromPlanner
+                ? Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5)
+                : null,
           ),
-          child: Text(
-            event.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          child: Row(
+            children: [
+              // 来源标签
+              if (isFromPlanner || isFromAgent)
+                Container(
+                  constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Icon(
+                    isFromPlanner ? Icons.auto_awesome : Icons.smart_toy,
+                    size: 10,
+                    color: Colors.white,
+                  ),
+                ),
+              if (isFromPlanner || isFromAgent) const SizedBox(width: 3),
+              // 标题
+              Expanded(
+                child: Text(
+                  event.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Color _parseColor(String hex) {
+  void _showDragMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('编辑详情'),
+              onTap: () { Navigator.pop(ctx); onTap(); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.event_available),
+              title: const Text('移动到...'),
+              subtitle: const Text('选择新的日期'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickNewDate(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickNewDate(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: event.eventDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null) {
+      onEventDragged(event, picked);
+    }
+  }
+
+  Color _parseColor(BuildContext context, String hex) {
     try {
       return Color(int.parse('FF${hex.replaceFirst('#', '')}', radix: 16));
     } catch (_) {
-      return AppColors.primary;
+      return cs.primary;
     }
   }
 }

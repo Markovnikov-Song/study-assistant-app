@@ -146,15 +146,15 @@ void main() {
       expect(empty.percent, equals(0));
 
       // Test with 1 node out of 3
-      final progress1 = MindMapProgress(total: 3, lit: 1);
+      final progress1 = MindMapProgress(total: 3, lit: 1, weightedScore: 0.0);
       expect(progress1.percent, equals(33)); // 33.33... floor to 33
 
       // Test with 2 nodes out of 3
-      final progress2 = MindMapProgress(total: 3, lit: 2);
+      final progress2 = MindMapProgress(total: 3, lit: 2, weightedScore: 0.0);
       expect(progress2.percent, equals(66)); // 66.66... floor to 66
 
       // Test with 0 total nodes
-      final progress3 = MindMapProgress(total: 0, lit: 0);
+      final progress3 = MindMapProgress(total: 0, lit: 0, weightedScore: 0.0);
       expect(progress3.percent, equals(0));
     });
   });

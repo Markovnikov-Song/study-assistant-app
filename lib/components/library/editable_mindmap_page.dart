@@ -10,8 +10,18 @@ import '../../providers/library_provider.dart';
 import '../../../tools/mindmap/mindmap_painter.dart';
 import '../../../tools/mindmap/mindmap_parser.dart';
 import '../../../tools/mindmap/mindmap_serializer.dart';
+
+// ── 知识关联类型颜色映射（全局唯一）────────────────────────────────────
+
+const _kLinkColors = {
+  'causal': Color(0xFFEF4444),      // 因果 — 红
+  'dependency': Color(0xFF3B82F6),  // 依赖 — 蓝
+  'contrast': Color(0xFFF97316),    // 对比 — 橙
+  'evolution': Color(0xFF22C55E),   // 演进 — 绿
+};
 import '../../routes/app_router.dart';
 import 'package:go_router/go_router.dart';
+import '../quiz/node_practice_sheet.dart';
 
 // ── Undo stack provider ───────────────────────────────────────────────────────
 
@@ -76,7 +86,7 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
   Widget build(BuildContext context) {
     final nodesAsync = ref.watch(mindMapNodesProvider(widget.sessionId));
     final nodeStates = ref.watch(nodeStatesProvider(widget.sessionId));
-    final progress = ref.watch(mindMapProgressProvider(widget.sessionId));
+    final progress = ref.watch(fullMindMapProgressProvider(widget.sessionId));
 
     // Initialize roots from provider on first load
     nodesAsync.whenData((roots) {
@@ -479,6 +489,7 @@ class _ProgressBar extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final pct = progress.percent;
     final isComplete = progress.total > 0 && progress.lit == progress.total;
+    final hasServerData = progress.overallProgress != null;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -496,21 +507,148 @@ class _ProgressBar extends StatelessWidget {
                   style: TextStyle(fontSize: 13, color: cs.onSurface),
                 ),
               ),
+              if (hasServerData)
+                Text(
+                  '综合 ${(progress.overallProgress! * 100).floor()}%',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: cs.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress.total == 0
-                  ? 0
-                  : progress.lit / progress.total,
-              minHeight: 6,
-              backgroundColor: cs.surfaceContainerHighest,
+          if (hasServerData) ...[
+            // 三层进度条
+            _ThreeLayerProgressBar(progress: progress, cs: cs),
+          ] else ...[
+            // 双层进度条（本地加权）
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress.total == 0 ? 0 : progress.lit / progress.total,
+                    minHeight: 6,
+                    backgroundColor: cs.surfaceContainerHighest,
+                    color: cs.primary.withValues(alpha: 0.3),
+                  ),
+                ),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress.weightedScore,
+                    minHeight: 6,
+                    backgroundColor: Colors.transparent,
+                    color: cs.primary,
+                  ),
+                ),
+              ],
             ),
-          ),
+          ],
+          // 错题提示
+          if (hasServerData && (progress.mistakeCount ?? 0) > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              '错题 ${progress.mistakeCount} 道，已复盘 ${progress.reviewedMistakeCount ?? 0} 道',
+              style: TextStyle(
+                fontSize: 11,
+                color: cs.error.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+// ── 三层进度条 ────────────────────────────────────────────────────────────────
+
+class _ThreeLayerProgressBar extends StatelessWidget {
+  final MindMapProgress progress;
+  final ColorScheme cs;
+
+  const _ThreeLayerProgressBar({required this.progress, required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _Layer(
+          label: '阅读',
+          value: progress.readProgress ?? 0,
+          color: cs.primary,
+          cs: cs,
+        ),
+        const SizedBox(height: 3),
+        _Layer(
+          label: '练习',
+          value: progress.practiceProgress ?? 0,
+          color: const Color(0xFF10B981), // 绿色
+          cs: cs,
+        ),
+        const SizedBox(height: 3),
+        _Layer(
+          label: '掌握',
+          value: progress.masteryProgress ?? 0,
+          color: const Color(0xFFF59E0B), // 琥珀色
+          cs: cs,
+        ),
+      ],
+    );
+  }
+}
+
+class _Layer extends StatelessWidget {
+  final String label;
+  final double value;
+  final Color color;
+  final ColorScheme cs;
+
+  const _Layer({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.cs,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 28,
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 10, color: cs.onSurface.withValues(alpha: 0.55)),
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: value,
+              minHeight: 5,
+              backgroundColor: cs.surfaceContainerHighest,
+              color: color,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        SizedBox(
+          width: 28,
+          child: Text(
+            '${(value * 100).floor()}%',
+            style: TextStyle(
+              fontSize: 10,
+              color: cs.onSurface.withValues(alpha: 0.55),
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -540,40 +678,45 @@ class _MindMapCanvas extends ConsumerStatefulWidget {
   ConsumerState<_MindMapCanvas> createState() => _MindMapCanvasState();
 }
 
-class _MindMapCanvasState extends ConsumerState<_MindMapCanvas> {
+class _MindMapCanvasState extends ConsumerState<_MindMapCanvas>
+    with SingleTickerProviderStateMixin {
   TransformationController? _transformCtrl;
   Size? _lastCanvasSize;
   Size? _lastViewSize;
   final Set<String> _generatingNodeIds = {};
   final Set<String> _completedNodeIds = {}; // 本次会话生成完成的节点
-  Timer? _pulseTimer;
-  double _pulseValue = 0.0;
+  late final AnimationController _pulseCtrl;
+
+  double get _pulseValue => _pulseCtrl.value;
 
   @override
   void initState() {
     super.initState();
     widget.onZoomReady?.call(zoom);
+    // AnimationController 替代 Timer，帧率由 Flutter 引擎控制，更流畅
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
   }
 
   @override
   void dispose() {
     _transformCtrl?.dispose();
-    _pulseTimer?.cancel();
+    _pulseCtrl.dispose();
     super.dispose();
   }
 
   void _startPulse() {
-    _pulseTimer?.cancel();
-    _pulseTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-      if (!mounted) return;
-      setState(() => _pulseValue = (_pulseValue + 0.05) % 1.0);
-    });
+    if (!_pulseCtrl.isAnimating) {
+      _pulseCtrl.repeat();
+    }
   }
 
   void _stopPulseIfIdle() {
     if (_generatingNodeIds.isEmpty) {
-      _pulseTimer?.cancel();
-      _pulseTimer = null;
+      _pulseCtrl.stop();
+      _pulseCtrl.reset();
     }
   }
 
@@ -685,14 +828,17 @@ class _MindMapCanvasState extends ConsumerState<_MindMapCanvas> {
                   final hit = MindMapPainter.nodeAt(layouts, details.localPosition);
                   if (hit != null) widget.onNodeLongPress(hit.node);
                 },
-                child: CustomPaint(
-                  size: canvasSize,
-                  painter: MindMapPainter(
-                    layouts: layouts,
-                    nodeStates: widget.nodeStates,
-                    colorScheme: cs,
-                    generatingNodeIds: _generatingNodeIds,
-                    pulseValue: _pulseValue,
+                child: AnimatedBuilder(
+                  animation: _pulseCtrl,
+                  builder: (_, _) => CustomPaint(
+                    size: canvasSize,
+                    painter: MindMapPainter(
+                      layouts: layouts,
+                      nodeStates: widget.nodeStates,
+                      colorScheme: cs,
+                      generatingNodeIds: _generatingNodeIds,
+                      pulseValue: _pulseValue,
+                    ),
                   ),
                 ),
               ),
@@ -745,6 +891,24 @@ class _NodeActionSheet extends ConsumerWidget {
               Navigator.pop(context);
               context.push(
                 AppRoutes.lecturePage(subjectId, sessionId, node.nodeId),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.quiz_outlined),
+            title: const Text('去练习'),
+            subtitle: const Text('针对该知识点出题'),
+            onTap: () {
+              Navigator.pop(context);
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => NodePracticeSheet(
+                  nodeId: node.nodeId,
+                  nodeText: node.text,
+                  subjectId: subjectId,
+                ),
               );
             },
           ),
@@ -879,14 +1043,6 @@ class _KnowledgeGraphPlaceholderState
     extends ConsumerState<_KnowledgeGraphPlaceholder> {
   bool _generating = false;
 
-  // 四种关联类型的颜色
-  static const _linkColors = {
-    'causal': Color(0xFFEF4444),      // 因果 — 红
-    'dependency': Color(0xFF3B82F6),  // 依赖 — 蓝
-    'contrast': Color(0xFFF97316),    // 对比 — 橙
-    'evolution': Color(0xFF22C55E),   // 演进 — 绿
-  };
-
   static const _linkLabels = {
     'causal': '因果',
     'dependency': '依赖',
@@ -969,7 +1125,7 @@ class _KnowledgeGraphPlaceholderState
               spacing: 12,
               runSpacing: 6,
               alignment: WrapAlignment.center,
-              children: _linkColors.entries.map((e) => Row(
+              children: _kLinkColors.entries.map((e) => Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(width: 12, height: 3, color: e.value),
@@ -1021,7 +1177,7 @@ class _KnowledgeGraphPlaceholderState
                   Container(
                     width: 10, height: 10,
                     decoration: BoxDecoration(
-                      color: _linkColors[link.linkType] ?? cs.primary,
+                      color: _kLinkColors[link.linkType] ?? cs.primary,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -1029,7 +1185,7 @@ class _KnowledgeGraphPlaceholderState
                   Text(_linkLabels[link.linkType] ?? link.linkType,
                       style: TextStyle(
                           fontSize: 13,
-                          color: _linkColors[link.linkType] ?? cs.primary,
+                          color: _kLinkColors[link.linkType] ?? cs.primary,
                           fontWeight: FontWeight.w600)),
                 ],
               ),
@@ -1302,13 +1458,6 @@ class _KnowledgeGraphPainter extends CustomPainter {
   final ColorScheme colorScheme;
   final Size canvasSize;
 
-  static const _linkColors = {
-    'causal': Color(0xFFEF4444),
-    'dependency': Color(0xFF3B82F6),
-    'contrast': Color(0xFFF97316),
-    'evolution': Color(0xFF22C55E),
-  };
-
   _KnowledgeGraphPainter({
     required this.links,
     required this.colorScheme,
@@ -1326,7 +1475,7 @@ class _KnowledgeGraphPainter extends CustomPainter {
       final dst = positions[link.targetNodeText];
       if (src == null || dst == null) continue;
 
-      final color = _linkColors[link.linkType] ?? colorScheme.primary;
+      final color = _kLinkColors[link.linkType] ?? colorScheme.primary;
       final linePaint = Paint()
         ..color = color.withValues(alpha: 0.65)
         ..strokeWidth = 1.8

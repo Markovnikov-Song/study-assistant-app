@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/app_colors.dart';
 import '../providers/calendar_providers.dart';
 
 class StatsPanel extends ConsumerWidget {
@@ -10,7 +9,7 @@ class StatsPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stats7dAsync = ref.watch(calendarStatsProvider('7d'));
     final stats30dAsync = ref.watch(calendarStatsProvider('30d'));
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -44,7 +43,7 @@ class StatsPanel extends ConsumerWidget {
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+              color: cs.onSurface,
             ),
           ),
           const SizedBox(height: 12),
@@ -73,7 +72,7 @@ class StatsPanel extends ConsumerWidget {
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+              color: cs.onSurface,
             ),
           ),
           const SizedBox(height: 12),
@@ -85,13 +84,13 @@ class StatsPanel extends ConsumerWidget {
                 return Text(
                   '暂无学习记录',
                   style: TextStyle(
-                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
+                    color: cs.onSurfaceVariant,
                   ),
                 );
               }
               return Column(
                 children: stats.subjectStats.map((s) {
-                  final color = _parseColor(s.color);
+                  final color = _parseColor(s.color, cs);
                   final hours = (s.durationMinutes / 60).toStringAsFixed(1);
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -113,7 +112,7 @@ class StatsPanel extends ConsumerWidget {
                           '$hours h  ${(s.percentage * 100).toInt()}%',
                           style: TextStyle(
                             fontSize: 12,
-                            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -141,11 +140,11 @@ class StatsPanel extends ConsumerWidget {
     );
   }
 
-  Color _parseColor(String hex) {
+  Color _parseColor(String hex, ColorScheme cs) {
     try {
       return Color(int.parse('FF${hex.replaceFirst('#', '')}', radix: 16));
     } catch (_) {
-      return AppColors.primary;
+      return cs.primary;
     }
   }
 }
@@ -156,12 +155,13 @@ class _StreakBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.primaryLight],
+        gradient: LinearGradient(
+          colors: [cs.primary, cs.secondary],
         ),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -228,10 +228,10 @@ class _StatCard extends StatelessWidget {
         children: [
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: AppColors.primary,
+              color: cs.primary,
             ),
           ),
           const SizedBox(height: 4),
@@ -255,6 +255,7 @@ class _BarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     if (items.isEmpty) {
       return const Text('暂无数据');
     }
@@ -279,7 +280,7 @@ class _BarChart extends StatelessWidget {
                     heightFactor: ratio.clamp(0.05, 1.0),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: AppColors.primary,
+                        color: cs.primary,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),

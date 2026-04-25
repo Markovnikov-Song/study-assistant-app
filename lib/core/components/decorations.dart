@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 
 /// ============================================================
@@ -32,7 +31,10 @@ class GradientBackground extends StatelessWidget {
             LinearGradient(
               begin: begin,
               end: end,
-              colors: colors ?? [AppColors.background, AppColors.background],
+              colors: colors ?? [
+                Theme.of(context).colorScheme.surface,
+                Theme.of(context).colorScheme.surface,
+              ],
             ),
       ),
       child: child,
@@ -99,16 +101,14 @@ class DotsPatternBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
     return Stack(
       children: [
         Positioned.fill(
           child: CustomPaint(
             painter: _DotsPatternPainter(
               dotColor: dotColor ??
-                  (isDark
-                      ? AppColors.textTertiaryDark.withValues(alpha: 0.1)
-                      : AppColors.textTertiary.withValues(alpha: 0.15)),
+                  cs.onSurface.withValues(alpha: 0.12),
               spacing: spacing,
               dotRadius: dotRadius,
             ),
@@ -165,7 +165,7 @@ class WaveDecoration extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
     return Stack(
       children: [
         child,
@@ -177,8 +177,7 @@ class WaveDecoration extends StatelessWidget {
           height: height,
           child: CustomPaint(
             painter: _WavePainter(
-              color: waveColor ??
-                  (isDark ? AppColors.surfaceDark : AppColors.surface),
+              color: waveColor ?? cs.surface,
             ),
             size: Size(double.infinity, height),
           ),
@@ -250,6 +249,7 @@ class GradientCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       width: width,
       height: height,
@@ -260,7 +260,7 @@ class GradientCard extends StatelessWidget {
             LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: colors ?? AppColors.primaryGradient.colors,
+              colors: colors ?? [cs.primary, cs.secondary],
             ),
         borderRadius: borderRadius ?? AppTheme.borderRadiusMd,
         boxShadow: AppTheme.shadowLg,
@@ -291,17 +291,16 @@ class ElevatedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     Widget card = Container(
       margin: margin,
       decoration: BoxDecoration(
-        color: backgroundColor ??
-            (isDark ? AppColors.surfaceDark : AppColors.surface),
+        color: backgroundColor ?? cs.surface,
         borderRadius: AppTheme.borderRadiusMd,
         boxShadow: elevation > 0 ? AppTheme.shadowMd : null,
         border: Border.all(
-          color: isDark ? AppColors.borderDark : AppColors.border,
+          color: cs.outline,
         ),
       ),
       child: Padding(
@@ -343,20 +342,17 @@ class AvatarDecoration extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: backgroundColor ??
-            (isDark
-                ? AppColors.primaryDark.withValues(alpha: 0.3)
-                : AppColors.primaryLight.withValues(alpha: 0.15)),
+        color: backgroundColor ?? cs.primary.withValues(alpha: 0.15),
         border: showBorder
             ? Border.all(
-                color: isDark ? AppColors.primaryDark : AppColors.primaryLight,
+                color: cs.primary,
                 width: 2,
               )
             : null,
@@ -385,7 +381,7 @@ class TagDecoration extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Container(
       padding: padding ??
@@ -394,18 +390,14 @@ class TagDecoration extends StatelessWidget {
             vertical: AppTheme.spaceXs,
           ),
       decoration: BoxDecoration(
-        color: backgroundColor ??
-            (isDark
-                ? AppColors.primaryDark.withValues(alpha: 0.2)
-                : AppColors.primaryLight.withValues(alpha: 0.1)),
+        color: backgroundColor ?? cs.primary.withValues(alpha: 0.1),
         borderRadius: borderRadius ?? AppTheme.borderRadiusSm,
       ),
       child: DefaultTextStyle(
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w500,
-          color: textColor ??
-              (isDark ? AppColors.primaryLight : AppColors.primary),
+          color: textColor ?? cs.primary,
         ),
         child: child,
       ),
@@ -432,15 +424,12 @@ class ProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: backgroundColor ??
-            (isDark
-                ? AppColors.surfaceContainerHighDark
-                : AppColors.surfaceContainerHigh),
+        color: backgroundColor ?? cs.surfaceContainerHighest,
         borderRadius: borderRadius ?? BorderRadius.circular(height / 2),
       ),
       child: FractionallySizedBox(
@@ -448,7 +437,9 @@ class ProgressBar extends StatelessWidget {
         widthFactor: value.clamp(0.0, 1.0),
         child: Container(
           decoration: BoxDecoration(
-            gradient: gradient ?? AppColors.primaryGradient,
+            gradient: gradient ?? LinearGradient(
+              colors: [cs.primary, cs.secondary],
+            ),
             borderRadius: borderRadius ?? BorderRadius.circular(height / 2),
           ),
         ),
@@ -474,11 +465,12 @@ class GradientText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ShaderMask(
       blendMode: BlendMode.srcIn,
       shaderCallback: (bounds) => (gradient ??
               LinearGradient(
-                colors: colors ?? [AppColors.primary, AppColors.primaryLight],
+                colors: colors ?? [cs.primary, cs.secondary],
               ))
           .createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
       child: Text(
@@ -508,11 +500,10 @@ class IconButtonDecoration extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Material(
-      color: backgroundColor ??
-          (isDark ? AppColors.surfaceElevatedDark : AppColors.surface),
+      color: backgroundColor ?? cs.surface,
       borderRadius: AppTheme.borderRadiusSm,
       elevation: showShadow ? 2 : 0,
       child: InkWell(

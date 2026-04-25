@@ -493,11 +493,163 @@ def upsert_node_states(session_id: int, body: NodeStatesIn, user=Depends(get_cur
                         is_lit=1 if item.is_lit else 0,
                     )
                 )
+
+        # 静默同步：节点点亮时自动更新对应 plan_item 状态
+        lit_node_ids = [item.node_id for item in body.states if item.is_lit]
+        if lit_node_ids:
+            try:
+                from services.study_planner_service import StudyPlannerService
+                svc = StudyPlannerService()
+                for node_id in lit_node_ids:
+                    svc.sync_node_completion(
+                        user_id=int(user["id"]),
+                        node_id=node_id,
+                        db=db,
+                    )
+            except Exception as _sync_err:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "study_planner sync_node_completion 失败（非致命）：%s", _sync_err
+                )
+
     return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
-# 讲义 CRUD
+# Session 三层学习进度
+# ---------------------------------------------------------------------------
+#
+# 学习链条：
+#   阅读层  (read)     — 节点点亮率（is_lit），权重 0.3
+#   练习层  (practice) — 该 session 节点关联的 SM-2 卡片完成率，权重 0.5
+#   掌握层  (mastery)  — SM-2 mastery_score 均值（0-5 → 0.0-1.0），权重 0.2
+#
+# 进度描述对象是单个 session（讲义/导图），不是学科。
+# ---------------------------------------------------------------------------
+
+
+class SessionProgressOut(BaseModel):
+    session_id: int
+    total_nodes: int
+    lit_nodes: int          # 已点亮节点数
+    lecture_nodes: int      # 已生成讲义的节点数
+    # 三层进度 0.0~1.0
+    read_progress: float    # 阅读层：lit_nodes / total_nodes
+    practice_progress: float  # 练习层：已复习卡片 / 总卡片
+    mastery_progress: float   # 掌握层：avg mastery_score / 5
+    overall_progress: float   # 综合：read×0.3 + practice×0.5 + mastery×0.2
+    # 错题统计
+    mistake_count: int
+    reviewed_mistake_count: int
+
+
+@router.get("/sessions/{session_id}/progress", response_model=SessionProgressOut)
+def get_session_progress(session_id: int, user=Depends(get_current_user)):
+    """
+    返回单个 session 的三层学习进度。
+    - 阅读层：节点点亮率
+    - 练习层：该 session 节点关联的 SM-2 复习卡片完成情况
+    - 掌握层：SM-2 mastery_score 均值
+    """
+    from database import NodeLecture, ReviewCard, Note as NoteModel
+
+    with db_session() as db:
+        sess = _assert_session_owner(db, session_id, user["id"])
+
+        # ── 阅读层 ──────────────────────────────────────────────────────────
+        node_states = (
+            db.query(MindmapNodeState)
+            .filter_by(user_id=user["id"], session_id=session_id)
+            .all()
+        )
+        lit_node_ids = {s.node_id for s in node_states if s.is_lit}
+
+        # 从 session content 字段解析总节点数
+        content_row = db.execute(
+            text("SELECT content FROM conversation_sessions WHERE id = :sid"),
+            {"sid": session_id},
+        ).fetchone()
+        total_nodes = _parse_node_count(content_row[0] if content_row and content_row[0] else "")
+        # fallback: 用已知节点数估算
+        if total_nodes == 0:
+            total_nodes = max(len(node_states), 1)
+
+        lit_nodes = len(lit_node_ids)
+        read_progress = lit_nodes / total_nodes if total_nodes > 0 else 0.0
+
+        # ── 讲义层（已生成讲义的节点数）────────────────────────────────────
+        lecture_nodes = (
+            db.query(NodeLecture)
+            .filter_by(user_id=user["id"], session_id=session_id)
+            .count()
+        )
+
+        # ── 练习层 + 掌握层：通过 node_id 关联 ReviewCard ──────────────────
+        # ReviewCard.node_id 与 MindmapNodeState.node_id 一致
+        if lit_node_ids:
+            review_cards = (
+                db.query(ReviewCard)
+                .filter(
+                    ReviewCard.user_id == user["id"],
+                    ReviewCard.node_id.in_(lit_node_ids),
+                )
+                .all()
+            )
+        else:
+            review_cards = []
+
+        total_cards = len(review_cards)
+        if total_cards > 0:
+            # 已复习 = total_reviews > 0
+            reviewed_cards = sum(1 for c in review_cards if c.total_reviews > 0)
+            # 练习进度：已复习卡片占比，加 0.3 基础分（有卡片就算开始练习）
+            practice_progress = min(
+                (reviewed_cards + total_cards * 0.3) / (total_cards * 1.3), 1.0
+            )
+            avg_mastery = sum(c.mastery_score for c in review_cards) / total_cards
+            mastery_progress = avg_mastery / 5.0
+        else:
+            practice_progress = 0.0
+            mastery_progress = 0.0
+
+        overall_progress = (
+            read_progress * 0.3
+            + practice_progress * 0.5
+            + mastery_progress * 0.2
+        )
+
+        # ── 错题统计 ────────────────────────────────────────────────────────
+        # 通过 node_id 关联该 session 的错题
+        if lit_node_ids:
+            mistake_notes = (
+                db.query(NoteModel)
+                .filter(
+                    NoteModel.user_id == user["id"],
+                    NoteModel.note_type == "mistake",
+                    NoteModel.node_id.in_(lit_node_ids),
+                )
+                .all()
+            )
+        else:
+            mistake_notes = []
+
+        mistake_count = len(mistake_notes)
+        reviewed_mistake_count = sum(
+            1 for n in mistake_notes if n.mistake_status == "reviewed"
+        )
+
+        return SessionProgressOut(
+            session_id=session_id,
+            total_nodes=total_nodes,
+            lit_nodes=lit_nodes,
+            lecture_nodes=lecture_nodes,
+            read_progress=round(read_progress, 3),
+            practice_progress=round(practice_progress, 3),
+            mastery_progress=round(mastery_progress, 3),
+            overall_progress=round(overall_progress, 3),
+            mistake_count=mistake_count,
+            reviewed_mistake_count=reviewed_mistake_count,
+        )
 # ---------------------------------------------------------------------------
 
 

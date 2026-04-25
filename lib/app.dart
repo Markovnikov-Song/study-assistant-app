@@ -7,28 +7,34 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'routes/app_router.dart';
-import 'core/theme/app_theme.dart';
+import 'providers/background_style_provider.dart';
 
-// ConsumerWidget：能读取 Riverpod 状态的 Widget
-// 普通 Widget 用 StatelessWidget，需要读全局状态时用 ConsumerWidget
-// 类比 Python：普通类 vs 继承了某个带状态基类的类
+/// App 根组件，支持多风格切换
+/// 
+/// 主题系统连接到 BackgroundStyle：
+/// - 浅色主题由 backgroundStyle.toLightColorScheme() 生成
+/// - 深色主题由 backgroundStyle.toDarkColorScheme() 生成
+/// 切换背景风格时，整个应用的组件颜色都会同步变化
 class App extends ConsumerWidget {
-  // super.key 是 Flutter Widget 的标识符，用于性能优化，固定写法
   const App({super.key});
 
-  // build() 是 Flutter 的核心方法，返回"这个组件长什么样"
-  // 每次状态变化时 Flutter 会重新调用 build() 重绘 UI
-  // context：当前组件在 Widget 树中的位置信息
-  // ref：Riverpod 提供的引用，用来读取全局状态
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 监听路由 provider，获取 GoRouter 实例
-    // ref.watch() 表示"订阅"这个状态，状态变化时自动重建
-    // 类比 Python：相当于 router = state_manager.get('router')，且自动更新
     final router = ref.watch(routerProvider);
 
-    // MaterialApp.router：使用路由配置的 Material Design 应用根组件
-    // .router 版本支持 GoRouter 这类声明式路由库
+    // 监听 BackgroundStyle，风格切换时自动重建主题
+    final style = ref.watch(backgroundStyleProvider);
+    
+    // 基于 BackgroundStyle.accentColor 动态生成主题
+    final lightTheme = ThemeData(
+      useMaterial3: true,
+      colorScheme: style.toLightColorScheme(),
+    );
+    final darkTheme = ThemeData(
+      useMaterial3: true,
+      colorScheme: style.toDarkColorScheme(),
+    );
+
     return MaterialApp.router(
       title: '伴学',
       routerConfig: router,
@@ -44,15 +50,13 @@ class App extends ConsumerWidget {
       ],
       locale: const Locale('zh', 'CN'),
 
-      // 使用全新的「静谧学习」设计系统主题
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      // 使用 BackgroundStyle 动态生成的主题
+      theme: lightTheme,
+      darkTheme: darkTheme,
       themeMode: ThemeMode.system,
 
-      // 统一字体配置
       builder: (context, child) {
         return MediaQuery(
-          // 支持系统字体缩放
           data: MediaQuery.of(context).copyWith(
             textScaler: TextScaler.noScaling,
           ),

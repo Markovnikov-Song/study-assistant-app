@@ -12,7 +12,6 @@ from database import get_session as db_session, ConversationHistory, Conversatio
 
 router = APIRouter()
 _rag = RAGPipeline()
-_mindmap = MindMapService()
 
 
 class QueryIn(BaseModel):
@@ -72,6 +71,7 @@ def query(body: QueryIn, user=Depends(get_current_user)):
         subject_id=body.subject_id,
         session_id=session_id,
         mode=body.mode,
+        user_id=user["id"],
     )
 
     if result.needs_confirmation:
@@ -119,7 +119,8 @@ def mindmap(body: MindMapIn, user=Depends(get_current_user)):
         )
 
     try:
-        content = _mindmap.generate_from_subject(body.subject_id, body.doc_id)
+        mindmap_svc = MindMapService(user_id=user["id"])
+        content = mindmap_svc.generate_from_subject(body.subject_id, body.doc_id)
     except Exception as e:
         raise HTTPException(500, str(e))
 

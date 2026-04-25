@@ -14,10 +14,9 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from database import Chunk, Document, Note, Notebook, get_session
@@ -44,14 +43,6 @@ class NoteOut(BaseModel):
     outline: Optional[List[str]]
     imported_to_doc_id: Optional[int]
     sources: Optional[Any]
-    note_type: str
-    mistake_status: Optional[str]
-    mistake_details: Optional[Any]
-    mastery_score: int = 0
-    review_count: int = 0
-    last_reviewed_at: Optional[str] = None
-    mistake_category: Optional[str] = None
-    mastery_history: Optional[List] = None
     created_at: str
     updated_at: str
 
@@ -69,14 +60,6 @@ class NoteOut(BaseModel):
             outline=note.outline,
             imported_to_doc_id=note.imported_to_doc_id,
             sources=note.sources,
-            note_type=note.note_type,
-            mistake_status=note.mistake_status,
-            mistake_details=note.mistake_details,
-            mastery_score=note.mastery_score,
-            review_count=note.review_count,
-            last_reviewed_at=note.last_reviewed_at.isoformat() if note.last_reviewed_at else None,
-            mistake_category=note.mistake_category,
-            mastery_history=note.mastery_history,
             created_at=note.created_at.isoformat(),
             updated_at=note.updated_at.isoformat(),
         )
@@ -90,9 +73,6 @@ class NoteCreateItem(BaseModel):
     sources: Optional[Any] = None
     notebook_id: int
     subject_id: Optional[int] = None
-    note_type: Optional[str] = None
-    mistake_status: Optional[str] = None
-    mistake_details: Optional[Any] = None
 
 
 class BatchCreateNotesIn(BaseModel):
@@ -102,25 +82,6 @@ class BatchCreateNotesIn(BaseModel):
 class NoteUpdateIn(BaseModel):
     title: Optional[str] = Field(default=None, max_length=64)
     original_content: Optional[str] = None
-    mistake_status: Optional[str] = None
-    mistake_details: Optional[Any] = None
-    mastery_score: Optional[int] = None
-    mistake_category: Optional[str] = None
-
-
-class MistakeReviewIn(BaseModel):
-    """错题复习评分请求"""
-    quality: int = Field(..., ge=0, le=3)  # 0-3: 忘了/模糊/想起/巩固
-    mistake_category: Optional[str] = None  # 错因分类
-
-
-class MistakeStatsOut(BaseModel):
-    """错题统计响应"""
-    total_mistakes: int
-    mastered_mistakes: int  # 掌握度>=4
-    pending_mistakes: int   # 待复习
-    average_mastery: float
-    by_category: dict
 
 
 class GenerateTitleOut(BaseModel):
@@ -164,14 +125,11 @@ def batch_create_notes(body: BatchCreateNotesIn, user=Depends(get_current_user))
         raise HTTPException(400, "至少需要一条笔记")
     with get_session() as db:
         notebook_ids = {item.notebook_id for item in body.notes}
-        # 批量查询验证笔记本所有权（优化 N+1 查询）
-        existing_notebooks = db.query(Notebook.id).filter(
-            Notebook.id.in_(notebook_ids),
-            Notebook.user_id == user["id"]
-        ).all()
-        existing_ids = {nb.id for nb in existing_notebooks}
         for nb_id in notebook_ids:
-            if nb_id not in existing_ids:
+            nb = db.query(Notebook).filter(
+                Notebook.id == nb_id, Notebook.user_id == user["id"]
+            ).first()
+            if not nb:
                 raise HTTPException(404, f"笔记本 {nb_id} 不存在或无权限")
         created = []
         for item in body.notes:
@@ -183,9 +141,6 @@ def batch_create_notes(body: BatchCreateNotesIn, user=Depends(get_current_user))
                 role=item.role,
                 original_content=item.original_content,
                 sources=item.sources,
-                note_type=item.note_type or "general",
-                mistake_status=item.mistake_status,
-                mistake_details=item.mistake_details,
             )
             db.add(note)
             db.flush()
@@ -211,16 +166,6 @@ def update_note(note_id: int, body: NoteUpdateIn, user=Depends(get_current_user)
             note.title = body.title
         if body.original_content is not None:
             note.original_content = body.original_content
-        if body.mistake_status is not None:
-            note.mistake_status = body.mistake_status
-            if note.note_type == "mistake":
-                details = note.mistake_details or {}
-                if not isinstance(details, dict):
-                    details = {}
-                details["last_reviewed_at"] = datetime.now(timezone.utc).isoformat()
-                note.mistake_details = details
-        if body.mistake_details is not None:
-            note.mistake_details = body.mistake_details
         db.flush()
         return NoteOut.from_orm(note)
 
@@ -386,172 +331,3 @@ def polish_note(note_id: int, user=Depends(get_current_user)):
         return PolishNoteOut(polished_content=result.strip())
     except Exception as e:
         raise HTTPException(500, f"AI 润色失败，请稍后重试。（{e}）")
-
-
-# ---------------------------------------------------------------------------
-# 错题本增强 API
-# ---------------------------------------------------------------------------
-
-@router.post("/notes/{note_id}/review", response_model=NoteOut)
-def submit_mistake_review(
-    note_id: int,
-    body: MistakeReviewIn,
-    user=Depends(get_current_user),
-):
-    """
-    提交错题复习评分。
-    
-    自动更新：
-    - 掌握度评分 (0-5)
-    - 复习次数
-    - 最后复习时间
-    - 错因分类
-    - 掌握度历史记录
-    """
-    with get_session() as db:
-        note = _get_note_for_user(note_id, user["id"], db)
-        
-        # 必须是错题
-        if note.note_type != "mistake":
-            raise HTTPException(400, "只有错题类型笔记支持此功能")
-        
-        now = datetime.now(timezone.utc)
-        
-        # 计算新的掌握度（基于复习历史）
-        quality = body.quality
-        old_mastery = note.mastery_score
-        
-        if quality >= 2:
-            # 正确：掌握度 +1，最高5分
-            new_mastery = min(5, old_mastery + 1)
-        else:
-            # 错误：掌握度 -1，最低0分
-            new_mastery = max(0, old_mastery - 1)
-        
-        note.mastery_score = new_mastery
-        note.review_count += 1
-        note.last_reviewed_at = now
-        
-        # 更新错因分类
-        if body.mistake_category:
-            note.mistake_category = body.mistake_category
-        
-        # 更新mistake_status
-        if new_mastery >= 4:
-            note.mistake_status = "reviewed"
-        else:
-            note.mistake_status = "pending"
-        
-        # 更新掌握度历史
-        history = note.mastery_history or []
-        history.append({
-            "date": now.isoformat(),
-            "quality": quality,
-            "score_before": old_mastery,
-            "score_after": new_mastery,
-        })
-        # 保留最近20条历史
-        note.mastery_history = history[-20:]
-        
-        # 更新 mistake_details
-        details = note.mistake_details or {}
-        if not isinstance(details, dict):
-            details = {}
-        details["last_reviewed_at"] = now.isoformat()
-        details["last_quality"] = quality
-        note.mistake_details = details
-        
-        db.flush()
-        return NoteOut.from_orm(note)
-
-
-@router.get("/notebooks/{notebook_id}/mistakes/stats", response_model=MistakeStatsOut)
-def get_mistake_stats(
-    notebook_id: int,
-    user=Depends(get_current_user),
-):
-    """
-    获取笔记本的错题统计。
-    
-    包含：
-    - 总错题数
-    - 已掌握数（掌握度>=4）
-    - 待复习数
-    - 平均掌握度
-    - 错因分类分布
-    """
-    with get_session() as db:
-        # 验证笔记本所有权
-        nb = db.query(Notebook).filter(
-            Notebook.id == notebook_id,
-            Notebook.user_id == user["id"],
-        ).first()
-        if not nb:
-            raise HTTPException(404, "笔记本不存在或无权限")
-        
-        # 查询所有错题
-        mistakes = db.query(Note).filter(
-            Note.notebook_id == notebook_id,
-            Note.note_type == "mistake",
-        ).all()
-        
-        total = len(mistakes)
-        if total == 0:
-            return MistakeStatsOut(
-                total_mistakes=0,
-                mastered_mistakes=0,
-                pending_mistakes=0,
-                average_mastery=0.0,
-                by_category={},
-            )
-        
-        mastered = sum(1 for m in mistakes if m.mastery_score >= 4)
-        pending = sum(1 for m in mistakes if m.mastery_status == "pending")
-        avg_mastery = sum(m.mastery_score for m in mistakes) / total
-        
-        # 错因分类统计
-        by_category = {}
-        for m in mistakes:
-            cat = m.mistake_category or "未分类"
-            by_category[cat] = by_category.get(cat, 0) + 1
-        
-        return MistakeStatsOut(
-            total_mistakes=total,
-            mastered_mistakes=mastered,
-            pending_mistakes=pending,
-            average_mastery=round(avg_mastery, 2),
-            by_category=by_category,
-        )
-
-
-@router.get("/notes/mistakes/due", response_model=List[NoteOut])
-def get_due_mistakes(
-    user_id: int,
-    subject_id: Optional[int] = None,
-    limit: int = Query(20, ge=1, le=100),
-    user=Depends(get_current_user),
-):
-    """
-    获取需要复习的错题列表。
-    
-    优先返回：
-    1. 待复习状态 (mistake_status = "pending")
-    2. 掌握度低的
-    3. 很久没复习的
-    """
-    with get_session() as db:
-        query = db.query(Note).join(Notebook).filter(
-            Notebook.user_id == user["id"],
-            Note.note_type == "mistake",
-            Note.mistake_status == "pending",
-        )
-        
-        if subject_id:
-            query = query.filter(Note.subject_id == subject_id)
-        
-        mistakes = query.order_by(
-            Note.mastery_score.asc(),  # 掌握度低的优先
-            Note.last_reviewed_at.asc().nullsfirst(),  # 很久没复习的优先
-        ).limit(limit).all()
-        
-        return [NoteOut.from_orm(m) for m in mistakes]

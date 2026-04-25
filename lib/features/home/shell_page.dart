@@ -10,7 +10,6 @@ import '../chat/chat_page.dart';
 import '../../components/library/library_page.dart';
 import '../toolkit/toolkit_page.dart';
 import '../profile/profile_page.dart';
-import '../../core/theme/app_colors.dart';
 
 class ShellPage extends ConsumerStatefulWidget {
   final Widget child;
@@ -44,7 +43,9 @@ class _ShellPageState extends ConsumerState<ShellPage> {
       final subjects = await ref.read(subjectsProvider.future);
       final ids = subjects.map((s) => s.id).toList();
       await triggerHintRefreshOnLogin(ref, ids);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[ShellPage] 提示词刷新失败: $e');
+    }
   }
 
   @override
@@ -105,13 +106,12 @@ class _ShellPageState extends ConsumerState<ShellPage> {
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
             decoration: BoxDecoration(
-              color: (isDark ? AppColors.surfaceDark : AppColors.surface)
+              color: Theme.of(context).colorScheme.surface
                   .withValues(alpha: 0.85),
               border: Border(
                 top: BorderSide(
-                  color: isDark
-                      ? AppColors.borderDark.withValues(alpha: 0.3)
-                      : AppColors.border.withValues(alpha: 0.5),
+                  color: Theme.of(context).colorScheme.outline
+                      .withValues(alpha: 0.5),
                   width: 0.5,
                 ),
               ),
@@ -150,25 +150,32 @@ class _PageBackground extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 从 Provider 获取当前背景风格
-    final bgAsset = ref.watch(currentPageBackgroundProvider(pageIndex));
+    // 从 Provider 获取当前背景风格（同时拿到底色 + SVG路径 + 透明度）
+    final style = ref.watch(backgroundStyleProvider);
+    final bgAsset = (pageIndex >= 0 && pageIndex < style.svgAssets.length)
+        ? style.svgAssets[pageIndex]
+        : style.svgAssets[0];
+    final bgColor = isDark ? style.darkBg : style.lightBg;
 
-    return Opacity(
-      opacity: isDark ? 0.55 : 0.25,
-      child: isDark
-          ? SvgPicture.asset(bgAsset, fit: BoxFit.cover)
-          : ColorFiltered(
-              colorFilter: const ColorFilter.mode(
-                Colors.white,
-                BlendMode.softLight,
-              ),
-              child: SvgPicture.asset(bgAsset, fit: BoxFit.cover),
-            ),
+    return Stack(
+      children: [
+        // 风格底色（随风格切换而变化）
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 400),
+          color: bgColor,
+        ),
+        // SVG 背景叠加层 - 使用风格配置的透明度
+        AnimatedOpacity(
+          duration: const Duration(milliseconds: 300),
+          opacity: style.svgOpacity,
+          child: SvgPicture.asset(bgAsset, fit: BoxFit.cover),
+        ),
+      ],
     );
   }
 }
 
-// 渐变选中图标
+// 渐变选中图标 - 使用 Theme API 动态获取主色
 class _GradientIcon extends StatelessWidget {
   final IconData icon;
   
@@ -176,9 +183,10 @@ class _GradientIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ShaderMask(
-      shaderCallback: (bounds) => const LinearGradient(
-        colors: [AppColors.primary, AppColors.primaryLight],
+      shaderCallback: (bounds) => LinearGradient(
+        colors: [cs.primary, cs.secondary],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ).createShader(bounds),

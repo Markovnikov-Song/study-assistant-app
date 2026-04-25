@@ -171,14 +171,6 @@ class NoteOut(BaseModel):
     outline: Optional[List[str]]
     imported_to_doc_id: Optional[int]
     sources: Optional[Any]
-    note_type: str
-    mistake_status: Optional[str]
-    mistake_details: Optional[Any]
-    mastery_score: int = 0
-    review_count: int = 0
-    last_reviewed_at: Optional[str] = None
-    mistake_category: Optional[str] = None
-    mastery_history: Optional[List] = None
     created_at: str
     updated_at: str
 
@@ -196,14 +188,6 @@ class NoteOut(BaseModel):
             outline=note.outline,
             imported_to_doc_id=note.imported_to_doc_id,
             sources=note.sources,
-            note_type=note.note_type,
-            mistake_status=note.mistake_status,
-            mistake_details=note.mistake_details,
-            mastery_score=note.mastery_score,
-            review_count=note.review_count,
-            last_reviewed_at=note.last_reviewed_at.isoformat() if note.last_reviewed_at else None,
-            mistake_category=note.mistake_category,
-            mastery_history=note.mastery_history,
             created_at=note.created_at.isoformat(),
             updated_at=note.updated_at.isoformat(),
         )

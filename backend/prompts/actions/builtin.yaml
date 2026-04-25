@@ -1,0 +1,155 @@
+# CAS 内置 Action 定义
+# 格式：每个 Action 包含 action_id / version / name / description / fallback_text / param_schema / executor_ref
+
+actions:
+
+  # ── 出题 ────────────────────────────────────────────────────────────────────
+  - action_id: make_quiz
+    version: "1.0.0"
+    name: 出题
+    description: 根据指定学科和题型生成练习题
+    fallback_text: 出题服务暂时不可用，请稍后再试
+    param_schema:
+      - name: subject
+        type: radio
+        label: 选择学科
+        required: true
+        options: []
+        dynamic_source: user_subjects   # 运行时从用户学科列表动态填充
+      - name: question_type
+        type: checkbox
+        label: 题型
+        required: true
+        options: ["选择题", "填空题", "解答题"]
+      - name: count
+        type: number
+        label: 题目数量
+        required: true
+        min: 1
+        max: 20
+        step: 1
+        default: 5
+    executor_ref: make_quiz
+
+  # ── 生成学习计划 ─────────────────────────────────────────────────────────────
+  - action_id: make_plan
+    version: "1.0.0"
+    name: 生成学习计划
+    description: 根据学科、考试时间和每日时长生成结构化学习计划
+    fallback_text: 学习计划生成失败，请稍后再试
+    param_schema:
+      - name: subject
+        type: radio
+        label: 选择学科
+        required: true
+        options: []
+        dynamic_source: user_subjects
+      - name: exam_date
+        type: date
+        label: 考试日期
+        required: true
+      - name: daily_hours
+        type: number
+        label: 每日学习时长（小时）
+        required: true
+        min: 0.5
+        max: 8
+        step: 0.5
+        default: 2
+    executor_ref: make_plan
+
+  # ── 打开日历 ─────────────────────────────────────────────────────────────────
+  - action_id: open_calendar
+    version: "1.0.0"
+    name: 打开学习日历
+    description: 跳转到学习日历页面
+    fallback_text: 无法打开日历，请手动进入工具箱
+    param_schema: []
+    executor_ref: open_calendar
+
+  # ── 添加日历事件 ─────────────────────────────────────────────────────────────
+  - action_id: add_calendar_event
+    version: "1.0.0"
+    name: 添加日历事件
+    description: 在学习日历中添加一个学习事件或提醒
+    fallback_text: 添加日历事件失败，请稍后再试
+    param_schema:
+      - name: title
+        type: text
+        label: 事件标题
+        required: true
+        max_length: 50
+      - name: date
+        type: date
+        label: 日期
+        required: true
+    executor_ref: add_calendar_event
+
+  # ── 推荐错题练习 ─────────────────────────────────────────────────────────────
+  - action_id: recommend_mistake_practice
+    version: "1.0.0"
+    name: 推荐错题练习
+    description: 根据错题本推荐针对性练习题
+    fallback_text: 暂时无法获取错题数据，请稍后再试
+    param_schema:
+      - name: subject
+        type: radio
+        label: 选择学科
+        required: true
+        options: []
+        dynamic_source: user_subjects
+      - name: topic
+        type: topic_tree
+        label: 选择知识点（可选）
+        required: false
+    executor_ref: recommend_mistake_practice
+
+  # ── 打开笔记本 ───────────────────────────────────────────────────────────────
+  - action_id: open_notebook
+    version: "1.0.0"
+    name: 打开笔记本
+    description: 跳转到笔记本页面
+    fallback_text: 无法打开笔记本，请手动进入工具箱
+    param_schema: []
+    executor_ref: open_notebook
+
+  # ── 解释概念 ─────────────────────────────────────────────────────────────────
+  - action_id: explain_concept
+    version: "1.0.0"
+    name: 解释概念
+    description: 用通俗易懂的方式解释一个知识点或概念
+    fallback_text: 概念解释服务暂时不可用，请稍后再试
+    param_schema:
+      - name: concept
+        type: text
+        label: 要解释的概念
+        required: true
+        max_length: 100
+    executor_ref: explain_concept
+
+  # ── 解题 ─────────────────────────────────────────────────────────────────────
+  - action_id: solve_problem
+    version: "1.0.0"
+    name: 解题
+    description: 跳转到解题页面，AI 辅助解答题目
+    fallback_text: 无法打开解题页面，请手动进入工具箱
+    param_schema: []
+    executor_ref: solve_problem
+
+  # ── 打开课程空间 ─────────────────────────────────────────────────────────────
+  - action_id: open_course_space
+    version: "1.0.0"
+    name: 打开课程空间
+    description: 跳转到课程空间（图书馆），查看讲义、大纲和思维导图
+    fallback_text: 无法打开课程空间，请手动进入图书馆
+    param_schema: []
+    executor_ref: open_course_space
+
+  # ── 未知意图（兜底）─────────────────────────────────────────────────────────
+  - action_id: unknown_intent
+    version: "1.0.0"
+    name: 未知意图
+    description: 用户意图无法识别时的兜底 Action，引导用户澄清需求
+    fallback_text: 暂时无法理解您的请求，请换一种方式描述
+    param_schema: []
+    executor_ref: unknown_intent

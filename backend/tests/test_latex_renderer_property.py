@@ -1,6 +1,6 @@
 """Property-based tests for LatexRenderer.
 
-# Feature: lecture-book-export, Property 5: LaTeX 缓存幂等�?
+# Feature: lecture-book-export, Property 5: LaTeX ç¼å­å¹ç­æ?
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from book_services.latex_renderer import LatexRenderer
 # ---------------------------------------------------------------------------
 
 def _make_png_bytes() -> bytes:
-    """Return minimal valid PNG bytes (1×1 white pixel) for mock returns."""
+    """Return minimal valid PNG bytes (1Ã1 white pixel) for mock returns."""
     import struct, zlib
 
     def _chunk(name: bytes, data: bytes) -> bytes:
@@ -53,28 +53,28 @@ _latex_chars = st.text(
 )
 
 # Build a list that is guaranteed to have duplicates:
-# pick 1�? unique strings, then repeat them to form a list of 2�?5 items.
+# pick 1â? unique strings, then repeat them to form a list of 2â?5 items.
 @st.composite
 def latex_list_with_duplicates(draw):
     unique_strings = draw(
         st.lists(_latex_chars, min_size=1, max_size=5, unique=True)
     )
     # Repeat each string at least once so duplicates are present
-    repeated = unique_strings * 2  # guarantees every string appears �?2 times
+    repeated = unique_strings * 2  # guarantees every string appears â?2 times
     # Optionally shuffle
     order = draw(st.permutations(repeated))
     return order, unique_strings
 
 
 # ---------------------------------------------------------------------------
-# Property 5: LaTeX 渲染缓存幂等�?
+# Property 5: LaTeX æ¸²æç¼å­å¹ç­æ?
 # Validates: Requirements 6.4
 # ---------------------------------------------------------------------------
 
 @given(latex_list_with_duplicates())
 @settings(max_examples=100, deadline=None)
 def test_latex_cache_idempotency(latex_data):
-    """Property 5: LaTeX 渲染缓存幂等�?
+    """Property 5: LaTeX æ¸²æç¼å­å¹ç­æ?
 
     For any list of LaTeX strings that contains duplicates, the number of
     *actual* render calls (matplotlib figure creations) must equal the number
@@ -82,7 +82,7 @@ def test_latex_cache_idempotency(latex_data):
     the cache without triggering a second render.
 
     Validates: Requirements 6.4
-    # Feature: lecture-book-export, Property 5: LaTeX 缓存幂等�?
+    # Feature: lecture-book-export, Property 5: LaTeX ç¼å­å¹ç­æ?
     """
     latex_list, unique_strings = latex_data
 

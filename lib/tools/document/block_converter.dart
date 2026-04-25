@@ -25,6 +25,8 @@ class BlockConverter {
           _addList(ops, block);
         case 'quote':
           _addQuote(ops, block);
+        case 'formula':
+          _addFormula(ops, block);
         default:
           // Fallback: treat as paragraph
           ops.add({'insert': block.text});
@@ -151,6 +153,14 @@ class BlockConverter {
     });
   }
 
+  static void _addFormula(List<Map<String, dynamic>> ops, LectureBlock block) {
+    // 公式用 Quill embed 插入，key 为 'formula'
+    ops.add({
+      'insert': {'formula': block.text},
+    });
+    ops.add({'insert': '\n'});
+  }
+
   static void _addInlineOps(
       List<Map<String, dynamic>> ops, String text, List<LectureSpan> spans) {
     if (spans.isEmpty) {
@@ -221,6 +231,15 @@ class BlockConverter {
     for (final op in ops) {
       if (op is! Map) continue;
       final insert = op['insert'];
+      if (insert is Map) {
+        // Embed（公式等）
+        final formula = insert['formula'];
+        if (formula is String && formula.isNotEmpty) {
+          final id = 'block_${DateTime.now().microsecondsSinceEpoch}';
+          blocks.add(LectureBlock(id: id, type: 'formula', text: formula, source: 'user'));
+        }
+        continue;
+      }
       if (insert is! String) continue;
       final attrs = (op['attributes'] as Map?)?.cast<String, dynamic>() ?? {};
 

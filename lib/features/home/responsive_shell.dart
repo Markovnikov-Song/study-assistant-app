@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/utils/device_info.dart';
 import '../chat/responsive_chat_page.dart';
 import '../../components/library/library_page.dart';
@@ -52,7 +51,9 @@ class _ResponsiveShellState extends ConsumerState<ResponsiveShell> {
       final subjects = await ref.read(subjectsProvider.future);
       final ids = subjects.map((s) => s.id).toList();
       await triggerHintRefreshOnLogin(ref, ids);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[ResponsiveShell] 提示词刷新失败: $e');
+    }
   }
 
   @override
@@ -125,6 +126,8 @@ class _MobileShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -150,13 +153,10 @@ class _MobileShell extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
             decoration: BoxDecoration(
-              color: (isDark ? AppColors.surfaceDark : AppColors.surface)
-                  .withValues(alpha: 0.85),
+              color: cs.surface.withValues(alpha: 0.85),
               border: Border(
                 top: BorderSide(
-                  color: isDark
-                      ? AppColors.borderDark.withValues(alpha: 0.3)
-                      : AppColors.border.withValues(alpha: 0.5),
+                  color: cs.outline.withValues(alpha: isDark ? 0.3 : 0.5),
                   width: 0.5,
                 ),
               ),
@@ -203,6 +203,8 @@ class _DesktopShell extends ConsumerStatefulWidget {
 class _DesktopShellState extends ConsumerState<_DesktopShell> {
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
       body: Row(
         children: [
@@ -216,7 +218,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
           VerticalDivider(
             width: 1,
             thickness: 1,
-            color: widget.isDark ? AppColors.borderDark.withValues(alpha: 0.3) : AppColors.border.withValues(alpha: 0.5),
+            color: cs.outline.withValues(alpha: widget.isDark ? 0.3 : 0.5),
           ),
           // 内容区 - 桌面端使用分栏布局
           Expanded(
@@ -255,7 +257,7 @@ class _DesktopNavigationRail extends StatelessWidget {
 
     return Container(
       width: 200,
-      color: isDark ? AppColors.surfaceDark : AppColors.surface,
+      color: cs.surface,
       child: Column(
         children: [
           const SizedBox(height: 24),
@@ -268,8 +270,8 @@ class _DesktopNavigationRail extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.primary, AppColors.primaryLight],
+                    gradient: LinearGradient(
+                      colors: [cs.primary, cs.secondary],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -283,7 +285,7 @@ class _DesktopNavigationRail extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                    color: cs.onSurface,
                   ),
                 ),
               ],
@@ -348,6 +350,8 @@ class _DesktopNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(12),
@@ -358,11 +362,11 @@ class _DesktopNavItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppColors.primary.withValues(alpha: 0.1)
+                ? cs.primary.withValues(alpha: 0.1)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: isSelected
-                ? Border.all(color: AppColors.primary.withValues(alpha: 0.3))
+                ? Border.all(color: cs.primary.withValues(alpha: 0.3))
                 : null,
           ),
           child: Row(
@@ -371,8 +375,8 @@ class _DesktopNavItem extends StatelessWidget {
                 icon,
                 size: 22,
                 color: isSelected
-                    ? AppColors.primary
-                    : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondary),
+                    ? cs.primary
+                    : cs.onSurfaceVariant,
               ),
               const SizedBox(width: 12),
               Text(
@@ -381,8 +385,8 @@ class _DesktopNavItem extends StatelessWidget {
                   fontSize: 14,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                   color: isSelected
-                      ? AppColors.primary
-                      : (isDark ? AppColors.textPrimaryDark : AppColors.textPrimary),
+                      ? cs.primary
+                      : cs.onSurface,
                 ),
               ),
             ],
@@ -402,19 +406,27 @@ class _PageBackground extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bgAsset = ref.watch(currentPageBackgroundProvider(pageIndex));
+    // 从 BackgroundStyle 获取底色 + SVG路径 + 透明度
+    final style = ref.watch(backgroundStyleProvider);
+    final bgAsset = (pageIndex >= 0 && pageIndex < style.svgAssets.length)
+        ? style.svgAssets[pageIndex]
+        : style.svgAssets[0];
+    final bgColor = isDark ? style.darkBg : style.lightBg;
 
-    return Opacity(
-      opacity: isDark ? 0.55 : 0.25,
-      child: isDark
-          ? SvgPicture.asset(bgAsset, fit: BoxFit.cover)
-          : ColorFiltered(
-              colorFilter: const ColorFilter.mode(
-                Colors.white,
-                BlendMode.softLight,
-              ),
-              child: SvgPicture.asset(bgAsset, fit: BoxFit.cover),
-            ),
+    return Stack(
+      children: [
+        // 风格底色（随风格切换而变化）
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 400),
+          color: bgColor,
+        ),
+        // SVG 背景叠加层 - 使用风格配置的透明度
+        AnimatedOpacity(
+          duration: const Duration(milliseconds: 300),
+          opacity: style.svgOpacity,
+          child: SvgPicture.asset(bgAsset, fit: BoxFit.cover),
+        ),
+      ],
     );
   }
 }
@@ -427,9 +439,11 @@ class _GradientIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return ShaderMask(
-      shaderCallback: (bounds) => const LinearGradient(
-        colors: [AppColors.primary, AppColors.primaryLight],
+      shaderCallback: (bounds) => LinearGradient(
+        colors: [cs.primary, cs.secondary],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ).createShader(bounds),

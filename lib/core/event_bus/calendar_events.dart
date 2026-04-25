@@ -42,6 +42,18 @@ class CalendarEventUncompleted extends AppEvent {
   const CalendarEventUncompleted({required this.eventId});
 }
 
+/// 事件被删除
+class CalendarEventDeleted extends AppEvent {
+  final int eventId;
+  final DateTime eventDate;
+  final String? source;
+  const CalendarEventDeleted({
+    required this.eventId,
+    required this.eventDate,
+    this.source,
+  });
+}
+
 /// 批量事件创建完成（study-planner 等外部写入）
 class CalendarEventsBatchCreated extends AppEvent {
   final int createdCount;

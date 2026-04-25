@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/notebook.dart';
 import '../../providers/notebook_provider.dart';
 import 'widgets/notebook_card.dart';
+import 'note_create_page.dart';
 
 class NotebookListPage extends ConsumerWidget {
   const NotebookListPage({super.key});
@@ -15,8 +16,8 @@ class NotebookListPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('笔记本'),
         actions: [
-          TextButton.icon(
-            onPressed: () => _showCreateDialog(context, ref),
+                    TextButton.icon(
+                      onPressed: () => _openNotePage(context, ref),
             icon: const Icon(Icons.add),
             label: const Text('新建'),
           ),
@@ -30,35 +31,22 @@ class NotebookListPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _showCreateDialog(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
-    String? errorText;
+    void _openNotePage(BuildContext context, WidgetRef ref) {
+    // 逻辑：如果已经有笔记本列表，优先打开第一个非系统的笔记本；如果没有，则使用 ID 1
+    final notebooks = ref.read(notebookListProvider).maybeWhen(
+      data: (list) => list,
+      orElse: () => <Notebook>[],
+    );
+    
+        final targetId = notebooks.where((n) => !n.isSystem).firstOrNull?.id 
+        ?? notebooks.firstOrNull?.id 
+        ?? 1;
 
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('新建笔记本'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            maxLength: 64,
-            decoration: InputDecoration(hintText: '笔记本名称', errorText: errorText),
-            onChanged: (_) { if (errorText != null) setState(() => errorText = null); },
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
-            TextButton(
-              onPressed: () async {
-                final name = controller.text.trim();
-                if (name.isEmpty) { setState(() => errorText = '名称不能为空'); return; }
-                if (name.length > 64) { setState(() => errorText = '名称不能超过 64 个字符'); return; }
-                Navigator.of(ctx).pop();
-                await ref.read(notebookListProvider.notifier).createNotebook(name);
-              },
-              child: const Text('创建'),
-            ),
-          ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NoteCreatePage(
+          notebookId: targetId,
         ),
       ),
     );

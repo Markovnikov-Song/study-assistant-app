@@ -138,7 +138,7 @@ class ChatService {
     required SessionType mode,
     bool useHybrid = false,
   }) async* {
-    final modeStr = useHybrid ? 'hybrid' : mode.name;
+    final modeStr = useHybrid ? 'hybrid' : _toBackendMode(mode);
     final token = await _getAuthToken();
     final url = '${_dio.options.baseUrl}${ApiConstants.chatQueryStream}';
 
@@ -151,6 +151,16 @@ class ChatService {
     };
 
     yield* ssePost(url, body, token);
+  }
+
+  /// SessionType → 后端 mode 字符串映射
+  String _toBackendMode(SessionType mode) {
+    switch (mode) {
+      case SessionType.qa:      return 'strict';
+      case SessionType.solve:   return 'solve';
+      case SessionType.mindmap: return 'strict';
+      case SessionType.exam:    return 'strict';
+    }
   }
 
   Future<String?> _getAuthToken() async {

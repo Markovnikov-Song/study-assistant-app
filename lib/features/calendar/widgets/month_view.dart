@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
-import '../../../core/theme/app_colors.dart';
 import '../models/calendar_models.dart';
 import '../providers/calendar_providers.dart';
 
@@ -21,7 +20,7 @@ class MonthView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final range = DateRange.month(focusedDay);
     final eventsAsync = ref.watch(calendarEventsProvider(range));
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     final events = eventsAsync.valueOrNull ?? [];
 
@@ -49,30 +48,30 @@ class MonthView extends ConsumerWidget {
       calendarStyle: CalendarStyle(
         outsideDaysVisible: false,
         todayDecoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.2),
+          color: cs.primary.withValues(alpha: 0.2),
           shape: BoxShape.circle,
         ),
-        todayTextStyle: const TextStyle(
-          color: AppColors.primary,
+        todayTextStyle: TextStyle(
+          color: cs.primary,
           fontWeight: FontWeight.bold,
         ),
-        selectedDecoration: const BoxDecoration(
-          color: AppColors.primary,
+        selectedDecoration: BoxDecoration(
+          color: cs.primary,
           shape: BoxShape.circle,
         ),
         selectedTextStyle: const TextStyle(color: Colors.white),
-        markerDecoration: const BoxDecoration(
-          color: AppColors.primary,
+        markerDecoration: BoxDecoration(
+          color: cs.primary,
           shape: BoxShape.circle,
         ),
         markerSize: 5,
         markersMaxCount: 3,
         markerMargin: const EdgeInsets.symmetric(horizontal: 0.5),
         defaultTextStyle: TextStyle(
-          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+          color: cs.onSurface,
         ),
         weekendTextStyle: TextStyle(
-          color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondary,
+          color: cs.onSurfaceVariant,
         ),
       ),
       headerStyle: HeaderStyle(
@@ -81,15 +80,15 @@ class MonthView extends ConsumerWidget {
         titleTextStyle: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
-          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+          color: cs.onSurface,
         ),
         leftChevronIcon: Icon(
           Icons.chevron_left,
-          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+          color: cs.onSurface,
         ),
         rightChevronIcon: Icon(
           Icons.chevron_right,
-          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
+          color: cs.onSurface,
         ),
       ),
       calendarBuilders: CalendarBuilders(
@@ -98,7 +97,7 @@ class MonthView extends ConsumerWidget {
           if (dayEvents.isEmpty) return null;
           final colors = dayEvents
               .take(3)
-              .map((e) => _parseColor(e.color))
+              .map((e) => _parseColor(e.color, cs))
               .toList();
           return Positioned(
             bottom: 2,
@@ -119,12 +118,12 @@ class MonthView extends ConsumerWidget {
     );
   }
 
-  Color _parseColor(String hex) {
+  Color _parseColor(String hex, ColorScheme cs) {
     try {
       final h = hex.replaceFirst('#', '');
       return Color(int.parse('FF$h', radix: 16));
     } catch (_) {
-      return AppColors.primary;
+      return cs.primary;
     }
   }
 }

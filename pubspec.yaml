@@ -1,5 +1,5 @@
 name: study_assistant_app
-description: "AI-powered study assistant app."
+description: "伴学 - AI 学习助手"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -84,6 +84,10 @@ dependencies:
   # 日历
   table_calendar: ^3.2.0
   flutter_local_notifications: ^18.0.0
+  timezone: ^0.10.0
+
+  # 语音识别
+  speech_to_text: ^7.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -92,7 +96,6 @@ dev_dependencies:
   freezed: ^2.5.7
   json_serializable: ^6.8.0
   riverpod_generator: ^2.6.1
-  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
@@ -108,10 +111,4 @@ flutter:
       fonts:
         - asset: assets/fonts/NotoSansSC-Regular.ttf
 
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: "assets/images/icons/app_icon.png"
-  min_sdk_android: 21
-  web:
-    generate: false
+

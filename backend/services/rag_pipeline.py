@@ -190,6 +190,7 @@ class RAGPipeline:
         subject_id: int,
         session_id: int,
         mode: str = "strict",
+        user_id: Optional[int] = None,
     ) -> RAGResult:
         """
         RAG 检索 + LLM 问答主流程。
@@ -254,7 +255,13 @@ class RAGPipeline:
         ]
 
         llm = LLMService()
-        answer = llm.chat(messages)
+        answer = llm.chat(
+            messages,
+            user_id=user_id,
+            session_id=session_id,
+            endpoint="rag_query",
+            track_token=True,
+        )
 
         # 5. 保存对话历史
         self._save_history(
@@ -350,7 +357,13 @@ def _patch_rag_pipeline():
 
         llm = LLMService()
         full_answer = ""
-        for token in llm.stream_chat(messages):
+        for token in llm.stream_chat(
+            messages,
+            user_id=user_id,
+            session_id=session_id,
+            endpoint="rag_stream",
+            track_token=True,
+        ):
             full_answer += token
             yield token
 
@@ -372,7 +385,7 @@ def _patch_rag_pipeline():
     _orig_query = RAGPipeline.query
 
     def query_with_user_id(self, question, subject_id, session_id, mode="strict", user_id=None):
-        return _orig_query(self, question, subject_id, session_id, mode)
+        return _orig_query(self, question, subject_id, session_id, mode, user_id)
 
     RAGPipeline.query = query_with_user_id
 
