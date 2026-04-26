@@ -37,7 +37,7 @@ class AiSkillParser implements SkillParser {
 
     try {
       final res = await _dio.post(
-        '/api/skills/parse',
+        '/api/agent/parse',
         data: {'text': text},
       );
 

@@ -420,6 +420,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
         selection: const TextSelection.collapsed(offset: 0),
       );
       ctrl.addListener(() {
+        if (!mounted) return;
         ref
             .read(lectureEditorProvider(_keyFor(nodeId)).notifier)
             .onContentChanged(ctrl.document.toDelta());
@@ -444,6 +445,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
       // 节点无讲义，创建空白编辑器供用户直接编辑
       final ctrl = QuillController.basic();
       ctrl.addListener(() {
+        if (!mounted) return;
         ref
             .read(lectureEditorProvider(_keyFor(nodeId)).notifier)
             .onContentChanged(ctrl.document.toDelta());
@@ -498,6 +500,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
       bool hasError = false;
       String? errorMsg;
       await for (final event in stream) {
+        if (!mounted) return; // 页面已销毁，立即停止，不再操作任何状态
         if (event == '[DONE]') break;
         if (event.startsWith('[ERROR]')) {
           hasError = true;
@@ -506,11 +509,9 @@ class _LecturePageState extends ConsumerState<LecturePage> {
         }
         // 反转义换行符
         final token = event.replaceAll(r'\n', '\n');
-        if (mounted) {
-          setState(() {
-            _streamingText[nodeId] = (_streamingText[nodeId] ?? '') + token;
-          });
-        }
+        setState(() {
+          _streamingText[nodeId] = (_streamingText[nodeId] ?? '') + token;
+        });
       }
       if (hasError) {
         if (mounted) {
@@ -525,6 +526,12 @@ class _LecturePageState extends ConsumerState<LecturePage> {
         return;
       }
       _checkedNodeIds.remove(nodeId);
+      if (!mounted) {
+        // 页面已销毁：只清除缓存标记，下次进入时会重新加载
+        _generatingNodeIds.remove(nodeId);
+        _streamingText.remove(nodeId);
+        return;
+      }
       await _loadLectureForNode(nodeId);
       if (mounted) {
         setState(() {

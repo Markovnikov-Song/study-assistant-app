@@ -79,6 +79,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   @override
   void deactivate() {
+    // widget 离开树时清除回调，防止流式接收完成后调用已销毁的 setState
+    ref.read(chatProvider(_key).notifier).detachCallbacks();
     super.deactivate();
   }
 
@@ -539,55 +541,37 @@ class _ChatPageWithSliverAppBar extends ConsumerWidget {
       title = taskId!;
     }
 
-    return CustomScrollView(
-      slivers: [
-        // 统一样式的 AppBar（与图书馆保持一致）
-        SliverAppBar(
-          expandedHeight: 80,
-          floating: true,
-          pinned: false,
-          backgroundColor: Colors.transparent,
-          automaticallyImplyLeading: subjectId != null || taskId != null,
-          flexibleSpace: FlexibleSpaceBar(
-            titlePadding: EdgeInsets.only(
-              left: subjectId != null || taskId != null ? 56 : 20,
-              bottom: 16,
-            ),
-            title: Text(
-              title,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-          ),
-          actions: subjectId == null && taskId == null
-              ? [
-                  const McpStatusIndicator(),
-                  const SizedBox(width: 8),
-                ]
-              : null,
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      appBar: AppBar(
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
         ),
-        // 聊天内容
-        SliverFillRemaining(
-          child: _ChatBody(
-            chatKey: chatKey,
-            sessionType: sessionType,
-            subjectId: subjectId ?? 0,
-            isGeneral: subjectId == null && taskId == null,
-            useHybrid: useHybrid,
-            sending: sending,
-            inputCtrl: inputCtrl,
-            scrollCtrl: scrollCtrl,
-            onHybridChanged: onHybridChanged,
-            onSubmit: onSubmit,
-            onCancel: onCancel,
-            onCamera: onCamera,
-            onGallery: onGallery,
-          ),
-        ),
-      ],
+        centerTitle: false,
+        automaticallyImplyLeading: subjectId != null || taskId != null,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        actions: subjectId == null && taskId == null
+            ? [const McpStatusIndicator(), const SizedBox(width: 8)]
+            : null,
+      ),
+      body: _ChatBody(
+        chatKey: chatKey,
+        sessionType: sessionType,
+        subjectId: subjectId ?? 0,
+        isGeneral: subjectId == null && taskId == null,
+        useHybrid: useHybrid,
+        sending: sending,
+        inputCtrl: inputCtrl,
+        scrollCtrl: scrollCtrl,
+        onHybridChanged: onHybridChanged,
+        onSubmit: onSubmit,
+        onCancel: onCancel,
+        onCamera: onCamera,
+        onGallery: onGallery,
+      ),
     );
   }
 }
@@ -741,8 +725,7 @@ void _handleSceneCardConfirm(
         context.push('/chat/${DateTime.now().millisecondsSinceEpoch}/subject/$subjectId');
       }
     case SceneType.planning:
-      // 暂时跳转到通用对话，后续实现规划流程
-      break;
+      context.push('/spec');
     case SceneType.tool:
       final route = data.payload['toolRoute'] as String?;
       if (route != null) context.push(route);

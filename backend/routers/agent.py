@@ -470,3 +470,102 @@ def dialog_skill_delete(session_id: str, user=Depends(get_current_user)):
     except KeyError:
         raise HTTPException(404, "Dialog session not found")
     return {"deleted": True, "session_id": session_id}
+
+
+# ── Skill 文本解析端点 ─────────────────────────────────────────────────────────
+
+
+class SkillParseIn(BaseModel):
+    text: str
+
+
+class SkillParseStepOut(BaseModel):
+    prompt: str
+    input_mapping: dict[str, str] = {}
+
+
+class SkillParseOut(BaseModel):
+    name: str
+    description: str
+    tags: list[str]
+    steps: list[SkillParseStepOut]
+
+
+@router.post("/parse", response_model=SkillParseOut)
+def parse_skill_text(body: SkillParseIn, user=Depends(get_current_user)):
+    """
+    将用户粘贴的学习经验文本解析为 Skill 草稿结构。
+    挂载路径：POST /api/agent/parse
+    """
+    text = body.text.strip()
+    if not text or len(text) < 50:
+        raise HTTPException(400, "文本太短，请提供至少 50 个字符的学习经验描述")
+
+    from services.llm_service import LLMService
+    from backend_config import get_config
+
+    cfg = get_config()
+    llm = LLMService()
+
+    prompt = f"""你是一个学习方法提取专家。请将以下学习经验文本解析为结构化的学习方法（Skill）。
+
+学习经验文本：
+{text}
+
+请以 JSON 格式返回，结构如下（只返回 JSON，不要 markdown 代码块）：
+{{
+  "name": "学习方法名称（10字以内）",
+  "description": "方法简介（50字以内）",
+  "tags": ["标签1", "标签2"],
+  "steps": [
+    {{
+      "prompt": "步骤描述（告诉 AI 要做什么，可包含 {{topic}} 占位符）",
+      "input_mapping": {{}}
+    }}
+  ]
+}}
+
+要求：
+1. steps 至少包含 1 个步骤，最多 6 个步骤
+2. 每个步骤的 prompt 要具体可执行
+3. tags 从以下选择：通用、记忆、复习、解题、考试、理工科、可视化
+4. 如果步骤需要引用上一步输出，input_mapping 格式为 {{"input_key": "prev_node_id.output"}}
+"""
+
+    try:
+        raw = llm.chat(
+            [{"role": "user", "content": prompt}],
+            max_tokens=getattr(cfg, "LLM_SKILL_RECOMMEND_MAX_TOKENS", 1000),
+        )
+        raw = raw.strip()
+        if raw.startswith("```"):
+            lines = raw.splitlines()
+            raw = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+
+        data = json.loads(raw)
+
+        steps = [
+            SkillParseStepOut(
+                prompt=s.get("prompt", ""),
+                input_mapping=s.get("input_mapping", {}),
+            )
+            for s in (data.get("steps") or [])
+            if s.get("prompt")
+        ]
+
+        if not steps:
+            raise HTTPException(422, "未能从文本中提取到有效的学习步骤，请补充更多内容")
+
+        return SkillParseOut(
+            name=data.get("name", "我的学习方法"),
+            description=data.get("description", ""),
+            tags=[t for t in (data.get("tags") or []) if isinstance(t, str)],
+            steps=steps,
+        )
+
+    except HTTPException:
+        raise
+    except json.JSONDecodeError:
+        raise HTTPException(422, "AI 返回格式异常，请重试")
+    except RuntimeError as e:
+        raise HTTPException(500, f"AI 服务暂时不可用：{e}")

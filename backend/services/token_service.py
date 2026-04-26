@@ -279,7 +279,7 @@ class TokenService:
         """
         获取用户配额信息
         """
-        from database import UserTokenQuota, TierDefinition
+        from database import UserTokenQuota
         
         with self._get_db_session() as db:
             quota = db.query(UserTokenQuota).filter_by(user_id=user_id).first()
@@ -289,7 +289,6 @@ class TokenService:
                 quota = self._create_default_quota(db, user_id)
             
             tier_config = TIER_CONFIG.get(quota.tier, TIER_CONFIG["free"])
-            tier_def = db.query(TierDefinition).filter_by(tier=quota.tier).first()
             
             remaining_today = max(0, quota.quota_daily - quota.used_today)
             remaining_monthly = max(0, quota.quota_monthly - quota.used_this_month)
@@ -513,13 +512,15 @@ class TokenService:
         today = date.today()
         
         # 检查是否需要重置
-        if quota.last_reset_date < today:
+        last_reset = quota.last_reset_date
+        last_reset_date = last_reset.date() if hasattr(last_reset, 'date') else last_reset
+        if last_reset_date < today:
             quota.used_today = 0
-            quota.last_reset_date = today
+            quota.last_reset_date = datetime.now()
             
             # 检查是否新月份
-            if (quota.last_reset_date.month != today.month or 
-                quota.last_reset_date.year != today.year):
+            if (last_reset_date.month != today.month or 
+                last_reset_date.year != today.year):
                 quota.used_this_month = 0
     
     # --------------------------------------------------------------------------

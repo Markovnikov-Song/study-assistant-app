@@ -12,9 +12,9 @@ import 'learning_os_mode_section.dart';
 
 // App 图标配置：alias 名 → 显示名称
 const _kIconConfigs = {
-  'Icon1': '经典蓝',
-  'Icon2': '山红',
-  'Icon3': '星空',
+  'Icon1': '星河',
+  'Icon2': '朱砂',
+  'Icon3': '丹霞',
 };
 
 // 当前 App 图标 Provider

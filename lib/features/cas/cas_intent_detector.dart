@@ -41,8 +41,6 @@ class CasIntentDetector implements IntentDetector {
     // 根据 action_id 映射到 IntentType
     switch (actionId) {
       case 'make_quiz':
-      case 'explain_concept':
-      case 'solve_problem':
         return DetectedIntent(
           type: IntentType.tool,
           params: {'actionId': actionId, ...result.data},

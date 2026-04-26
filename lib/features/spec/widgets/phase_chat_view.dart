@@ -116,7 +116,7 @@ class _PhaseChatViewState extends ConsumerState<PhaseChatView> {
       final missingSlots = (data['missing_slots'] as List?)?.cast<String>();
 
       if (ready && collected != null) {
-        // 参数齐全，显示确认卡片
+        if (!mounted) return;
         _addBubble(_Bubble.assistant(reply));
         _addBubble(_Bubble.confirm(
           subjectIds: List<int>.from(collected['subject_ids'] ?? []),
@@ -125,16 +125,14 @@ class _PhaseChatViewState extends ConsumerState<PhaseChatView> {
           dailyMinutes: collected['daily_minutes'] as int,
         ));
       } else {
-        // 参数不齐，继续对话
+        if (!mounted) return;
         _addBubble(_Bubble.assistant(reply));
-
-        // 如果 LLM 完全失败且本地规则也没提取到，显示降级选项
         if (missingSlots != null && missingSlots.isNotEmpty) {
           _addBubble(_Bubble.fallbackHint());
         }
       }
     } catch (e) {
-      _addBubble(_Bubble.assistant('网络出了点问题，请稍后再试 🙏'));
+      if (mounted) _addBubble(_Bubble.assistant('网络出了点问题，请稍后再试 🙏'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

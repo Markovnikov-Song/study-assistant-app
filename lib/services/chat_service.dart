@@ -177,7 +177,7 @@ class ChatService {
         'session_id': ?sessionId, // null 时不包含这个键
         'doc_id': ?docId,
       });
-      return res.data['content'] as String; // 返回 markmap 格式的 Markdown 文本
+      return (res.data as Map<String, dynamic>)['content'] as String? ?? ''; // 返回 markmap 格式的 Markdown 文本
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -190,7 +190,7 @@ class ChatService {
         'topic': topic,
         'subject_id': ?subjectId,
       });
-      return res.data['content'] as String;
+      return (res.data as Map<String, dynamic>)['content'] as String? ?? '';
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -211,7 +211,7 @@ class ChatService {
     try {
       // 把 base64 编码的图片发给后端，后端调用视觉模型识别文字
       final res = await _dio.post(ApiConstants.ocrImage, data: {'image': imageBase64});
-      return OcrResult(text: res.data['text'] as String);
+      return OcrResult(text: (res.data as Map<String, dynamic>)['text'] as String? ?? '');
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

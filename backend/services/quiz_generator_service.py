@@ -136,30 +136,19 @@ class ChoiceQuestionGenerator(QuestionGenerator):
     """选择题生成器"""
     _question_type = "choice"
 
-    def generate(
-        self,
-        question_id: str,
-        content: str,
-        node_id: str,
-        node_title: str,
-        zone: str,
-    ) -> Question:
-        """生成选择题"""
-        # 模板化题目生成（实际会由 LLM 生成）
+    def generate(self, question_id, content, node_id, node_title, zone) -> Question:
+        content = content or ""
         question_text = f"关于「{node_title}」，以下说法正确的是？"
         explanation = f"本题考察{self.label}难度的「{node_title}」知识点。"
-
-        # 生成选项
+        snippet = content[:20] if len(content) >= 20 else content
+        snippet2 = content[20:40] if len(content) >= 40 else "错误选项"
         options = [
-            ChoiceOption(key="A", content=f"选项A：{content[:20]}...", is_correct=True),
-            ChoiceOption(key="B", content=f"选项B：{content[20:40] if len(content) > 20 else '错误选项'}"),
-            ChoiceOption(key="C", content=f"选项C：相关但错误的说法"),
-            ChoiceOption(key="D", content=f"选项D：另一个干扰项"),
+            ChoiceOption(key="A", content=f"{snippet}（正确）" if snippet else f"{node_title}的正确描述", is_correct=True),
+            ChoiceOption(key="B", content=snippet2 if snippet2 else "与上述相反的说法"),
+            ChoiceOption(key="C", content="相关但错误的说法"),
+            ChoiceOption(key="D", content="另一个干扰项"),
         ]
-
-        base = self._create_base_question(
-            question_id, question_text, "A", explanation, node_id, node_title, zone
-        )
+        base = self._create_base_question(question_id, question_text, "A", explanation, node_id, node_title, zone)
         base["options"] = [o.model_dump() for o in options]
         return Question(**base)
 
@@ -168,22 +157,12 @@ class FillQuestionGenerator(QuestionGenerator):
     """填空题生成器"""
     _question_type = "fill"
 
-    def generate(
-        self,
-        question_id: str,
-        content: str,
-        node_id: str,
-        node_title: str,
-        zone: str,
-    ) -> Question:
-        """生成填空题"""
-        # 简单模板
+    def generate(self, question_id, content, node_id, node_title, zone) -> Question:
+        content = content or ""
         question_text = f"「{node_title}」是指什么？请填写空白处：_____"
         explanation = f"本题考察对「{node_title}」概念的理解。"
-
-        base = self._create_base_question(
-            question_id, question_text, content[:20], explanation, node_id, node_title, zone
-        )
+        answer = content[:20] if content else node_title
+        base = self._create_base_question(question_id, question_text, answer, explanation, node_id, node_title, zone)
         return Question(**base)
 
 
@@ -191,22 +170,12 @@ class JudgeQuestionGenerator(QuestionGenerator):
     """判断题生成器"""
     _question_type = "judge"
 
-    def generate(
-        self,
-        question_id: str,
-        content: str,
-        node_id: str,
-        node_title: str,
-        zone: str,
-    ) -> Question:
-        """生成判断题"""
-        import random
+    def generate(self, question_id, content, node_id, node_title, zone) -> Question:
         is_true = random.choice([True, False])
         question_text = f"「{node_title}」的相关说法：正确还是错误？"
         explanation = f"本题考察{self.label}难度的「{node_title}」。"
-
         base = self._create_base_question(
-            question_id, question_text, "正确" if is_true else "错误",
+            question_id, question_text, "T" if is_true else "F",
             explanation, node_id, node_title, zone
         )
         return Question(**base)
@@ -216,21 +185,10 @@ class CalcQuestionGenerator(QuestionGenerator):
     """计算题生成器"""
     _question_type = "calc"
 
-    def generate(
-        self,
-        question_id: str,
-        content: str,
-        node_id: str,
-        node_title: str,
-        zone: str,
-    ) -> Question:
-        """生成计算题"""
+    def generate(self, question_id, content, node_id, node_title, zone) -> Question:
         question_text = f"根据「{node_title}」的原理，计算以下问题："
         explanation = f"本题考察{self.label}难度的「{node_title}」应用。"
-
-        base = self._create_base_question(
-            question_id, question_text, "略", explanation, node_id, node_title, zone
-        )
+        base = self._create_base_question(question_id, question_text, "略", explanation, node_id, node_title, zone)
         return Question(**base)
 
 
@@ -323,16 +281,28 @@ class QuizGeneratorService:
                     {"role": "user", "content": prompt}
                 ],
                 user_id=user_id,
-                endpoint="quiz_generate"
+                endpoint="quiz_generate",
+                track_token=False,  # 出题不走 token 统计，避免统计服务异常影响出题
             )
             
-            # 清洗并解析 JSON
-            if "```json" in response_text:
-                response_text = response_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in response_text:
-                response_text = response_text.split("```")[1].split("```")[0].strip()
+            # 清洗并解析 JSON — 兼容多种 LLM 输出格式
+            text = response_text.strip()
+            # 去除 markdown 代码块
+            if "```json" in text:
+                text = text.split("```json", 1)[1]
+                text = text.rsplit("```", 1)[0].strip()
+            elif "```" in text:
+                text = text.split("```", 1)[1]
+                text = text.rsplit("```", 1)[0].strip()
+            # 找到第一个 [ 和最后一个 ]
+            start = text.find('[')
+            end = text.rfind(']')
+            if start != -1 and end != -1 and end > start:
+                text = text[start:end+1]
             
-            questions_data = json.loads(response_text)
+            questions_data = json.loads(text)
+            if not isinstance(questions_data, list):
+                raise ValueError("LLM 返回的不是 JSON 数组")
             
             # 转换为 Question 模型列表
             questions = []
@@ -341,6 +311,17 @@ class QuizGeneratorService:
             for idx, q in enumerate(questions_data):
                 # 注入 ID
                 q["id"] = f"q_{idx + 1}"
+                # 补全缺失字段
+                if "difficulty_label" not in q:
+                    q["difficulty_label"] = {"L1": "基础", "L2": "中等", "L3": "进阶"}.get(q.get("difficulty", "L1"), "基础")
+                if "source_node_id" not in q:
+                    q["source_node_id"] = request.node_id
+                if "source_node_title" not in q:
+                    q["source_node_title"] = request.node_title
+                if "knowledge_zone" not in q:
+                    q["knowledge_zone"] = "current"
+                if q.get("options") is None:
+                    q["options"] = []
                 # 统计覆盖情况
                 zone = q.get("knowledge_zone", "current")
                 knowledge_coverage[zone] = knowledge_coverage.get(zone, 0) + 1
@@ -356,13 +337,12 @@ class QuizGeneratorService:
             )
 
         except Exception as e:
-            logger.error(f"AI Quiz Generation failed: {e}")
+            logger.error(f"AI Quiz Generation failed: {type(e).__name__}: {e}", exc_info=True)
             # 降级方案：使用原有模板逻辑生成
             return self._generate_fallback(request)
 
     def _generate_fallback(self, request: QuizGenerateIn) -> QuizGenerateOut:
         """原有模板逻辑作为降级方案"""
-        # ... 原有的逻辑移到这里 ...
         questions: List[Question] = []
         knowledge_coverage = {"pre": 0, "current": 0, "post": 0}
         
@@ -383,10 +363,11 @@ class QuizGeneratorService:
             q_type = random.choice(request.question_types) if request.question_types else "choice"
             generator_class = self.GENERATOR_MAP.get(q_type, ChoiceQuestionGenerator)
             generator = generator_class(difficulty="L1")
+            content = node.get("node_content") or node.get("node_title", "")
             
             q = generator.generate(
                 f"fallback_{i}",
-                node.get("node_content", ""),
+                content,
                 node["node_id"],
                 node["node_title"],
                 node["zone"]

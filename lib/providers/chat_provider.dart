@@ -89,6 +89,11 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   // 类比 Python：on_sending_changed: Optional[Callable[[bool], None]] = None
   void Function(bool)? onSendingChanged;
 
+  // 清除回调（widget dispose 时调用，防止悬空引用）
+  void detachCallbacks() {
+    onSendingChanged = null;
+  }
+
   // 构造函数
   ChatNotifier(this._service, {required String chatKey, required int subjectId})
       : _chatKey = chatKey,

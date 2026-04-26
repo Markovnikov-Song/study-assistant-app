@@ -64,6 +64,7 @@ class _DialogCreationPageState extends ConsumerState<DialogCreationPage> {
       final turn = await _service.startSession();
       _sessionId = turn.sessionId;
       _lastTurn = turn;
+      if (!mounted) return;
       setState(() {
         _bubbles.add(_ChatBubble(
           role: _BubbleRole.assistant,
@@ -74,7 +75,7 @@ class _DialogCreationPageState extends ConsumerState<DialogCreationPage> {
     } catch (e) {
       _showError('启动失败：$e');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -92,6 +93,7 @@ class _DialogCreationPageState extends ConsumerState<DialogCreationPage> {
     try {
       final turn = await _service.sendAnswer(_sessionId!, answer);
       _lastTurn = turn;
+      if (!mounted) return;
       setState(() {
         _bubbles.add(_ChatBubble(
           role: _BubbleRole.assistant,

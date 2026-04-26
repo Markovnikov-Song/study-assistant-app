@@ -25,8 +25,6 @@ _RULES: list[tuple[str, list[str]]] = [
     ("add_calendar_event",        ["加到日历", "添加到日历", "记到日历", "日历提醒", "安排"]),
     ("recommend_mistake_practice",["错题", "复盘", "薄弱", "针对练习", "错误"]),
     ("open_notebook",             ["笔记", "笔记本", "打开笔记"]),
-    ("explain_concept",           ["解释", "什么是", "讲解", "说明", "介绍一下"]),
-    ("solve_problem",             ["解题", "解答", "帮我做", "这道题", "解这道"]),
     ("open_course_space",         ["讲义", "课程", "大纲", "思维导图", "图书馆", "打开课程"]),
 ]
 
@@ -93,12 +91,17 @@ class IntentMapper:
         registry = get_action_registry()
         summaries = registry.summaries()
 
-        prompt = f"""你是一个意图识别助手。根据用户输入，从以下 Action 列表中选择最匹配的一个，并提取参数。
+        prompt = f"""你是一个操作意图识别助手。根据用户输入，判断用户是否在发出"操作指令"，并从以下 Action 列表中选择最匹配的一个。
 
-可用 Action 列表：
+可用 Action 列表（均为工具/导航类操作）：
 {summaries}
 
 用户输入：{text}
+
+【重要规则】
+- 这些 Action 只对应明确的"操作指令"，例如：出题、加日历、打开某页面、生成计划等
+- 如果用户是在"提问"、"求解释"、"问概念"、"问原理"、"让AI回答问题"，一律返回 unknown_intent
+- 只有用户明确要求执行某个操作时，才映射到对应 Action
 
 请以 JSON 格式返回，结构如下（只返回 JSON，不要 markdown 代码块）：
 {{
@@ -111,7 +114,7 @@ class IntentMapper:
 1. action_id 必须是上面列表中的某一个
 2. params 中只包含能从用户输入中提取到的参数，无法提取的参数不要填
 3. confidence 在 0.0-1.0 之间
-4. 如果无法匹配任何 Action，使用 unknown_intent"""
+4. 如果无法匹配任何操作 Action，使用 unknown_intent"""
 
         loop = asyncio.get_event_loop()
         raw = await loop.run_in_executor(

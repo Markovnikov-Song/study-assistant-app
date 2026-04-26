@@ -113,29 +113,6 @@ actions:
     param_schema: []
     executor_ref: open_notebook
 
-  # ── 解释概念 ─────────────────────────────────────────────────────────────────
-  - action_id: explain_concept
-    version: "1.0.0"
-    name: 解释概念
-    description: 用通俗易懂的方式解释一个知识点或概念
-    fallback_text: 概念解释服务暂时不可用，请稍后再试
-    param_schema:
-      - name: concept
-        type: text
-        label: 要解释的概念
-        required: true
-        max_length: 100
-    executor_ref: explain_concept
-
-  # ── 解题 ─────────────────────────────────────────────────────────────────────
-  - action_id: solve_problem
-    version: "1.0.0"
-    name: 解题
-    description: 跳转到解题页面，AI 辅助解答题目
-    fallback_text: 无法打开解题页面，请手动进入工具箱
-    param_schema: []
-    executor_ref: solve_problem
-
   # ── 打开课程空间 ─────────────────────────────────────────────────────────────
   - action_id: open_course_space
     version: "1.0.0"

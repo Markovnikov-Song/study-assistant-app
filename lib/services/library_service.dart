@@ -142,7 +142,8 @@ class LibraryService {
         data['resource_scope'] = resourceScope;
       }
       final res = await _dio.post('$_base/lectures', data: data);
-      return res.data['id'] as int;
+      final d = res.data as Map<String, dynamic>;
+      return (d['id'] as num).toInt();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

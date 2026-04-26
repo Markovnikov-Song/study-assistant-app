@@ -119,16 +119,16 @@ class ReviewItem {
 
   factory ReviewItem.fromJson(Map<String, dynamic> json) {
     return ReviewItem(
-      id: json['id'] as int,
-      noteId: json['note_id'] as int?,
-      nodeId: json['node_id'] as String,
+      id: _toInt(json['id']),
+      noteId: _toIntOrNull(json['note_id']),
+      nodeId: json['node_id'] as String? ?? '',
       nodeTitle: json['node_title'] as String?,
-      subjectId: json['subject_id'] as int?,
-      masteryScore: json['mastery_score'] as int? ?? 0,
-      difficulty: json['difficulty'] as int? ?? 2,
+      subjectId: _toIntOrNull(json['subject_id']),
+      masteryScore: _toInt(json['mastery_score']),
+      difficulty: _toInt(json['difficulty'], fallback: 2),
       nextReview: DateTime.parse(json['next_review'] as String),
-      interval: json['interval'] as int? ?? 0,
-      repetitions: json['repetitions'] as int? ?? 0,
+      interval: _toInt(json['interval']),
+      repetitions: _toInt(json['repetitions']),
       isOverdue: json['is_overdue'] as bool? ?? false,
     );
   }
@@ -167,12 +167,12 @@ class ReviewQueue {
 
   factory ReviewQueue.fromJson(Map<String, dynamic> json) {
     return ReviewQueue(
-      totalCount: json['total_count'] as int? ?? 0,
-      todayCount: json['today_count'] as int? ?? 0,
-      overdueCount: json['overdue_count'] as int? ?? 0,
-      overdueDays: json['overdue_days'] as int? ?? 0,
-      masteredCount: json['mastered_count'] as int? ?? 0,
-      todayDone: json['today_done'] as int? ?? 0,
+      totalCount: _toInt(json['total_count']),
+      todayCount: _toInt(json['today_count']),
+      overdueCount: _toInt(json['overdue_count']),
+      overdueDays: _toInt(json['overdue_days']),
+      masteredCount: _toInt(json['mastered_count']),
+      todayDone: _toInt(json['today_done']),
       recallRate: (json['recall_rate'] as num?)?.toDouble() ?? 0.0,
       items: (json['items'] as List? ?? [])
           .map((e) => ReviewItem.fromJson(e as Map<String, dynamic>))
@@ -201,10 +201,10 @@ class SubjectMastery {
 
   factory SubjectMastery.fromJson(Map<String, dynamic> json) {
     return SubjectMastery(
-      subjectId: json['subject_id'] as int,
-      subjectName: json['subject_name'] as String,
-      totalCards: json['total_cards'] as int? ?? 0,
-      masteredCards: json['mastered_cards'] as int? ?? 0,
+      subjectId: _toInt(json['subject_id']),
+      subjectName: json['subject_name'] as String? ?? '',
+      totalCards: _toInt(json['total_cards']),
+      masteredCards: _toInt(json['mastered_cards']),
       avgMastery: (json['avg_mastery'] as num?)?.toDouble() ?? 0.0,
       avgEaseFactor: (json['avg_ease_factor'] as num?)?.toDouble() ?? 2.5,
     );
@@ -227,15 +227,15 @@ class ReviewSubmitResult {
 
   factory ReviewSubmitResult.fromJson(Map<String, dynamic> json) {
     return ReviewSubmitResult(
-      noteId: json['note_id'] as int,
-      mistakeStatus: json['mistake_status'] as String,
+      noteId: _toInt(json['note_id']),
+      mistakeStatus: json['mistake_status'] as String? ?? '',
       sm2Result: json['sm2_result'] as Map<String, dynamic>? ?? {},
       message: json['message'] as String? ?? '',
     );
   }
 
-  int get newInterval => sm2Result['interval_days'] as int? ?? 0;
-  int get newMastery => sm2Result['mastery_score'] as int? ?? 0;
+  int get newInterval => _toInt(sm2Result['interval_days']);
+  int get newMastery => _toInt(sm2Result['mastery_score']);
   double get newEase => (sm2Result['ease_factor'] as num?)?.toDouble() ?? 2.5;
 }
 
@@ -267,11 +267,11 @@ class LearningProgress {
 
   factory LearningProgress.fromJson(Map<String, dynamic> json) {
     return LearningProgress(
-      subjectId: json['subject_id'] as int,
-      subjectName: json['subject_name'] as String,
-      sessionCount: json['session_count'] as int? ?? 0,
-      litNodes: json['lit_nodes'] as int? ?? 0,
-      totalNodes: json['total_nodes'] as int? ?? 0,
+      subjectId: _toInt(json['subject_id']),
+      subjectName: json['subject_name'] as String? ?? '',
+      sessionCount: _toInt(json['session_count']),
+      litNodes: _toInt(json['lit_nodes']),
+      totalNodes: _toInt(json['total_nodes']),
       overallProgress: (json['overall_progress'] as num?)?.toDouble() ?? 0.0,
       readProgress: (json['read_progress'] as num?)?.toDouble() ?? 0.0,
       practiceProgress: (json['practice_progress'] as num?)?.toDouble() ?? 0.0,
@@ -297,8 +297,8 @@ class ReviewStats {
 
   factory ReviewStats.fromJson(Map<String, dynamic> json) {
     return ReviewStats(
-      totalCards: json['total_cards'] as int? ?? 0,
-      masteredCards: json['mastered_cards'] as int? ?? 0,
+      totalCards: _toInt(json['total_cards']),
+      masteredCards: _toInt(json['mastered_cards']),
       avgMastery: (json['avg_mastery'] as num?)?.toDouble() ?? 0.0,
     );
   }

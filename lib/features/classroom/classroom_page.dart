@@ -6,6 +6,7 @@ import '../../components/mindmap/mindmap_page.dart';
 import '../../components/quiz/quiz_page.dart';
 import '../skill_runner/skill_runner_page.dart';
 import '../../core/network/dio_client.dart';
+import '../../providers/current_subject_provider.dart';
 
 /// 全局 provider：记录答疑室应该跳转到哪个 tab（0=问答,1=解题,2=导图,3=出题）
 /// 由历史记录页、session_history_sheet 等在跳转前写入，ClassroomPage 监听后跳转并重置
@@ -90,11 +91,14 @@ class _ClassroomPageState extends ConsumerState<ClassroomPage>
       body: TabBarView(
         controller: _tabCtrl,
         physics: const NeverScrollableScrollPhysics(),
-        children: const [
-          ChatPage(),
-          SolvePage(),
-          MindMapPage(),
-          QuizPage(),
+        children: [
+          Consumer(builder: (context, ref, _) {
+            final subject = ref.watch(currentSubjectProvider);
+            return ChatPage(subjectId: subject?.id);
+          }),
+          const SolvePage(),
+          const MindMapPage(),
+          const QuizPage(),
         ],
       ),
     );

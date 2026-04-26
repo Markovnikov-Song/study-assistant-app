@@ -56,7 +56,10 @@ class ExamService {
   Future<String> generatePredictedPaper(int subjectId, {bool useBroad = false}) async {
     try {
       final res = await _dio.post(ApiConstants.examPredicted, data: {'subject_id': subjectId, 'use_broad': useBroad});
-      return res.data['result'] as String;
+      final data = res.data is String ? (res.data as String) : null;
+      if (data != null) return data;
+      final map = res.data as Map<String, dynamic>;
+      return map['result'] as String? ?? '';
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -78,10 +81,13 @@ class ExamService {
         'type_counts': typeCounts,
         'type_scores': typeScores,
         'difficulty': difficulty,
-        'topic': ?topic,
+        if (topic != null) 'topic': topic,
         'use_broad': useBroad,
       });
-      return res.data['result'] as String;
+      final data = res.data is String ? (res.data as String) : null;
+      if (data != null) return data;
+      final map = res.data as Map<String, dynamic>;
+      return map['result'] as String? ?? '';
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

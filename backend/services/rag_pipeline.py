@@ -41,12 +41,14 @@ class RAGResult:
 _STRICT_SYSTEM = (
     "你是一位严谨的学科辅导助手。"
     "请仅基于以下提供的资料内容回答用户问题，不得引用或推断任何外部知识。"
+    "使用 Markdown 格式输出，结构清晰。"
     "若资料中没有相关信息，请如实告知用户。"
 )
 
 _BROAD_SYSTEM = (
     "你是一位学科辅导助手。"
     "请结合以下提供的资料内容以及你自身的通用知识回答用户问题。"
+    "使用 Markdown 格式输出，结构清晰，适当使用标题、列表、加粗等。"
     "在回答中，必须明确区分每段内容的来源：\n"
     "- 来自上传资料的内容，请在段落前标注【来自上传资料】\n"
     "- 来自通用知识的内容，请在段落前标注【来自通用知识】"
@@ -208,28 +210,30 @@ class RAGPipeline:
         threshold = cfg.SIMILARITY_THRESHOLD
         top_k = cfg.TOP_K
 
-        # 1. 向量检索 Top-K，带相似度分数
-        vector_store = self.get_vector_store(subject_id)
-        docs_with_scores = vector_store.similarity_search_with_score(question, k=top_k)
-
-        # 2. 构建 Source 列表
+        # 1. 向量检索 Top-K，带相似度分数（无 subject_id 时跳过检索，降级为 broad）
         sources: List[Source] = []
-        for doc, score in docs_with_scores:
-            metadata = doc.metadata or {}
-            sources.append(
-                Source(
-                    filename=metadata.get("filename", ""),
-                    chunk_index=int(metadata.get("chunk_index", 0)),
-                    content=doc.page_content,
-                    score=float(score),
+        if subject_id:
+            vector_store = self.get_vector_store(subject_id)
+            docs_with_scores = vector_store.similarity_search_with_score(question, k=top_k)
+            for doc, score in docs_with_scores:
+                metadata = doc.metadata or {}
+                sources.append(
+                    Source(
+                        filename=metadata.get("filename", ""),
+                        chunk_index=int(metadata.get("chunk_index", 0)),
+                        content=doc.page_content,
+                        score=float(score),
+                    )
                 )
-            )
+        else:
+            mode = "broad"  # 无学科上下文，自动切换通用知识模式
+
+        # 2. 构建 Source 列表（已在上方完成）
 
         top_score = max((s.score for s in sources), default=0.0)
 
-        # 3. 相关性阈值判断（PGVector cosine 距离：0=完全相同，2=完全相反，越小越相关）
-        # 距离大于阈值则认为相关性不足（默认 threshold=0.3 即距离超过 0.3 视为不相关）
-        if not sources or all(s.score > threshold for s in sources):
+        # 3. 相关性阈值判断（strict 模式且有 subject_id 时才检查）
+        if mode == "strict" and (not sources or all(s.score > threshold for s in sources)):
             return RAGResult(
                 needs_confirmation=True,
                 top_score=top_score,
@@ -245,13 +249,14 @@ class RAGPipeline:
             )
         context = "\n\n".join(context_parts)
 
-        system_prompt = _SYSTEM_PROMPTS.get(mode, _STRICT_SYSTEM)
+        system_prompt = _SYSTEM_PROMPTS.get(mode, _BROAD_SYSTEM if not subject_id else _STRICT_SYSTEM)
+        if context:
+            user_content = f"参考资料：\n{context}\n\n问题：{question}"
+        else:
+            user_content = question
         messages = [
             {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": f"参考资料：\n{context}\n\n问题：{question}",
-            },
+            {"role": "user", "content": user_content},
         ]
 
         llm = LLMService()
@@ -327,7 +332,7 @@ def _patch_rag_pipeline():
 
         # 向量检索
         sources = []
-        if mode in ("strict", "hybrid", "solve"):
+        if mode in ("strict", "hybrid", "solve") and subject_id:
             vector_store = self.get_vector_store(subject_id)
             docs_with_scores = vector_store.similarity_search_with_score(question, k=cfg.TOP_K)
             for doc, score in docs_with_scores:
@@ -338,6 +343,10 @@ def _patch_rag_pipeline():
                     content=doc.page_content,
                     score=float(score),
                 ))
+
+        # 没有 subject_id 时自动降级为 broad 模式（通用知识回答）
+        if not subject_id:
+            mode = "broad"
 
         if mode == "strict" and (not sources or all(s.score > cfg.SIMILARITY_THRESHOLD for s in sources)):
             raise RAGNeedsConfirmation()

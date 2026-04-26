@@ -78,7 +78,7 @@ class _SpecPageState extends ConsumerState<SpecPage> {
           );
       final planId = result['plan_id'] as int?;
       if (planId == null) throw Exception('未获取到 plan_id');
-
+      if (!mounted) return;
       setState(() => _generatingPlanId = planId);
       ref.read(specPhaseProvider.notifier).state = SpecPhase.progress;
     } catch (e) {

@@ -102,11 +102,12 @@ class Level2Monitor {
 
   Timer? _timer;
   final WidgetRef _ref;
-  final BuildContext Function() _contextGetter;
+  BuildContext Function()? _contextGetter; // 可空，stop 时置空释放引用
   Level2MonitorSettings _settings = const Level2MonitorSettings();
   bool _initialized = false;
 
-  Level2Monitor(this._ref, this._contextGetter);
+  Level2Monitor(this._ref, BuildContext Function() contextGetter)
+      : _contextGetter = contextGetter;
 
   Future<void> _ensureInit() async {
     if (_initialized) return;
@@ -135,6 +136,7 @@ class Level2Monitor {
   void stop() {
     _timer?.cancel();
     _timer = null;
+    _contextGetter = null; // 释放对 BuildContext 的引用，允许 GC 回收
   }
 
   /// 记录用户活跃（在 ChatPage / LecturePage 等页面调用）
@@ -146,7 +148,9 @@ class Level2Monitor {
   Future<void> _check() async {
     await _ensureInit();
 
-    final context = _contextGetter();
+    final getter = _contextGetter;
+    if (getter == null) return; // 已 stop，不再执行
+    final context = getter();
     if (!context.mounted) return;
 
     // 检查是否有 active 计划
@@ -243,7 +247,7 @@ class Level2Monitor {
     if (!context.mounted) return;
 
     // Level 1: App 内气泡（前台显示）
-    _CompanionBubble.show(context, message);
+    _CompanionBubbleOverlay.show(context, message);
 
     // Level 2: 系统通知（后台也推送）
     final notificationTitle = triggerType == 'completion'
@@ -260,11 +264,11 @@ class Level2Monitor {
 
 // ── 助教气泡 Widget ───────────────────────────────────────────────────────────
 
-class _CompanionBubble extends StatefulWidget {
+class _CompanionBubbleOverlay extends StatefulWidget {
   final String message;
   final VoidCallback onClose;
 
-  const _CompanionBubble({required this.message, required this.onClose});
+  const _CompanionBubbleOverlay({required this.message, required this.onClose});
 
   static OverlayEntry? _entry;
 
@@ -281,16 +285,6 @@ class _CompanionBubble extends StatefulWidget {
     );
     Overlay.of(context).insert(_entry!);
   }
-
-  @override
-  State<_CompanionBubble> createState() => _CompanionBubbleOverlayState();
-}
-
-class _CompanionBubbleOverlay extends StatefulWidget {
-  final String message;
-  final VoidCallback onClose;
-
-  const _CompanionBubbleOverlay({required this.message, required this.onClose});
 
   @override
   State<_CompanionBubbleOverlay> createState() => _CompanionBubbleOverlayState();

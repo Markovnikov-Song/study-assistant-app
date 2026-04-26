@@ -35,14 +35,12 @@ class MarkdownLatexView extends StatelessWidget {
         // 正文
         p: base.copyWith(height: 1.7),
         // 标题
-        h1: base.copyWith(
-            fontSize: 22, fontWeight: FontWeight.bold, height: 1.4),
-        h2: base.copyWith(
-            fontSize: 19, fontWeight: FontWeight.bold, height: 1.4),
-        h3: base.copyWith(
-            fontSize: 17, fontWeight: FontWeight.w600, height: 1.4),
-        h4: base.copyWith(
-            fontSize: 15, fontWeight: FontWeight.w600, height: 1.4),
+        h1: base.copyWith(fontSize: 22, fontWeight: FontWeight.bold, height: 1.4),
+        h2: base.copyWith(fontSize: 19, fontWeight: FontWeight.bold, height: 1.4),
+        h3: base.copyWith(fontSize: 17, fontWeight: FontWeight.w600, height: 1.4),
+        h4: base.copyWith(fontSize: 15, fontWeight: FontWeight.w600, height: 1.4),
+        h5: base.copyWith(fontSize: 14, fontWeight: FontWeight.w600, height: 1.4),
+        h6: base.copyWith(fontSize: 13, fontWeight: FontWeight.w600, height: 1.4),
         // 行内代码
         code: base.copyWith(
           fontFamily: 'monospace',
@@ -55,24 +53,19 @@ class MarkdownLatexView extends StatelessWidget {
           color: codeBg,
           borderRadius: BorderRadius.circular(6),
         ),
-        codeblockPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        codeblockPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         // 列表
         listBullet: base.copyWith(height: 1.7),
         // 引用块
-        blockquote: base.copyWith(
-            color: cs.onSurfaceVariant, fontStyle: FontStyle.italic),
+        blockquote: base.copyWith(color: cs.onSurfaceVariant, fontStyle: FontStyle.italic),
         blockquoteDecoration: BoxDecoration(
-          border: Border(
-              left: BorderSide(color: cs.outlineVariant, width: 3)),
+          border: Border(left: BorderSide(color: cs.outlineVariant, width: 3)),
           color: cs.surfaceContainerLow,
         ),
-        blockquotePadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        blockquotePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         // 分隔线
         horizontalRuleDecoration: BoxDecoration(
-          border: Border(
-              top: BorderSide(color: cs.outlineVariant, width: 1)),
+          border: Border(top: BorderSide(color: cs.outlineVariant, width: 1)),
         ),
       ),
       builders: {'latex': _LatexElementBuilder(baseStyle: base)},
@@ -85,8 +78,6 @@ class MarkdownLatexView extends StatelessWidget {
 
 // ── LaTeX 行内语法：$...$ 和 \(...\) ─────────────────────────────────────────
 class _InlineLatexSyntax extends md.InlineSyntax {
-  // 匹配 $...$ (非空，不跨行) 或 \(...\)
-  // 注意：用非贪婪匹配，避免吃掉多个公式
   _InlineLatexSyntax()
       : super(r'\$([^\$\n]+?)\$|\\\((.+?)\\\)', caseSensitive: true);
 
@@ -104,8 +95,7 @@ class _InlineLatexSyntax extends md.InlineSyntax {
 // ── LaTeX 块级语法：$$...$$、\[...\]、\begin{...}...\end{...} ────────────────
 class _BlockLatexSyntax extends md.BlockSyntax {
   @override
-  RegExp get pattern =>
-      RegExp(r'^\s*(\$\$|\\\[|\\begin\{)');
+  RegExp get pattern => RegExp(r'^\s*(\$\$|\\\[|\\begin\{)');
 
   @override
   md.Node? parse(md.BlockParser parser) {
@@ -115,8 +105,8 @@ class _BlockLatexSyntax extends md.BlockSyntax {
 
     if (startLine.startsWith(r'$$')) {
       endPattern = r'$$';
+      final rest = startLine.substring(2).trimLeft();
       // 单行 $$...$$ 处理
-      final rest = startLine.substring(2);
       if (rest.contains(r'$$')) {
         final formula = rest.substring(0, rest.indexOf(r'$$')).trim();
         parser.advance();
@@ -127,12 +117,19 @@ class _BlockLatexSyntax extends md.BlockSyntax {
       buffer.write(rest);
     } else if (startLine.startsWith(r'\[')) {
       endPattern = r'\]';
-      buffer.write(startLine.substring(2));
+      final rest = startLine.substring(2).trimLeft();
+      // 单行 \[...\] 处理
+      if (rest.contains(r'\]')) {
+        final formula = rest.substring(0, rest.indexOf(r'\]')).trim();
+        parser.advance();
+        final el = md.Element('latex', [md.Text(formula)]);
+        el.attributes['display'] = 'block';
+        return el;
+      }
+      buffer.write(rest);
     } else {
-      final envMatch =
-          RegExp(r'\\begin\{(\w+\*?)\}').firstMatch(startLine);
-      endPattern =
-          envMatch != null ? '\\end{${envMatch.group(1)}}' : r'\end';
+      final envMatch = RegExp(r'\\begin\{(\w+\*?)\}').firstMatch(startLine);
+      endPattern = envMatch != null ? '\\end{${envMatch.group(1)}}' : r'\end';
       buffer.write(startLine);
     }
     parser.advance();
@@ -140,7 +137,6 @@ class _BlockLatexSyntax extends md.BlockSyntax {
     while (!parser.isDone) {
       final line = parser.current.content;
       if (line.contains(endPattern)) {
-        // 取 endPattern 之前的内容
         final idx = line.indexOf(endPattern);
         if (idx > 0) buffer.writeln(line.substring(0, idx));
         parser.advance();
@@ -169,7 +165,6 @@ class _LatexElementBuilder extends MarkdownElementBuilder {
     if (formula.isEmpty) return const SizedBox.shrink();
 
     final isBlock = element.attributes['display'] == 'block';
-    // 行内公式字号与正文一致；块级公式稍大
     final fontSize = isBlock
         ? (baseStyle.fontSize ?? 15) * 1.1
         : (baseStyle.fontSize ?? 15);
@@ -197,7 +192,6 @@ class _LatexElementBuilder extends MarkdownElementBuilder {
         ),
       );
     }
-    // 行内：用 Wrap 避免溢出
     return math;
   }
 }

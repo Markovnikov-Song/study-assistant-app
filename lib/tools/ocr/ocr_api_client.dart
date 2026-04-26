@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -28,14 +29,10 @@ class OcrApiClient {
 
   OcrApiClient(this._dio);
 
-  /// Upload [imageBytes] to `POST /api/ocr/recognize` as multipart form data.
+  /// Upload [imageBytes] to `POST /api/ocr/image` as JSON with base64 encoding.
   ///
-  /// The field name is `"image"` and the filename defaults to [filename].
-  ///
-  /// Returns the decoded JSON body:
-  /// ```json
-  /// { "lines": [{ "text": "...", "confidence": 0.9, "indent_level": 0 }] }
-  /// ```
+  /// Request body: `{"image": "<base64>"}` — matches backend `OcrIn(image: str)`.
+  /// Response body: `{"text": "..."}` — matches backend `OcrOut(text: str)`.
   ///
   /// Throws [OcrTimeoutException] on send/receive/connection timeout.
   /// Throws [OcrException] for any other Dio error.
@@ -44,12 +41,10 @@ class OcrApiClient {
     String filename,
   ) async {
     try {
-      final formData = FormData.fromMap({
-        'image': MultipartFile.fromBytes(imageBytes, filename: filename),
-      });
+      final base64Image = base64Encode(imageBytes);
       final response = await _dio.post(
-        '/api/ocr/recognize',
-        data: formData,
+        '/api/ocr/image',
+        data: {'image': base64Image},
         options: Options(sendTimeout: _timeout, receiveTimeout: _timeout),
       );
       return response.data as Map<String, dynamic>;

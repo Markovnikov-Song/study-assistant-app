@@ -463,6 +463,121 @@ class FeedbackSignal(Base):
     subject = relationship("Subject")
 
 
+class UserTokenQuota(Base):
+    """用户 Token 配额：记录每个用户的档位和用量。"""
+    __tablename__ = "user_token_quotas"
+    __table_args__ = (
+        Index("idx_user_token_quotas_user", "user_id", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    tier = Column(String(32), nullable=False, default="free")
+    quota_daily = Column(Integer, nullable=False, default=50_000)
+    quota_monthly = Column(Integer, nullable=False, default=0)
+    used_today = Column(Integer, nullable=False, default=0)
+    used_this_month = Column(Integer, nullable=False, default=0)
+    bonus_tokens = Column(Integer, nullable=False, default=0)
+    bonus_used = Column(Integer, nullable=False, default=0)
+    total_tokens_all_time = Column(Integer, nullable=False, default=0)
+    total_cost_all_time = Column(Integer, nullable=False, default=0)  # 放大1000000倍
+    rate_limit_per_min = Column(Integer, nullable=False, default=10)
+    rate_limit_per_hour = Column(Integer, nullable=False, default=100)
+    payg_enabled = Column(Integer, nullable=False, default=1)
+    is_blocked = Column(Integer, nullable=False, default=0)
+    last_reset_date = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+
+    user = relationship("User")
+
+
+class TokenUsageLog(Base):
+    """Token 使用日志：记录每次 LLM 调用的 token 消耗。"""
+    __tablename__ = "token_usage_logs"
+    __table_args__ = (
+        Index("idx_token_usage_logs_user_date", "user_id", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    session_id = Column(Integer, ForeignKey("conversation_sessions.id", ondelete="SET NULL"), nullable=True)
+    model_name = Column(String(128), nullable=False, default="default")
+    input_tokens = Column(Integer, nullable=False, default=0)
+    output_tokens = Column(Integer, nullable=False, default=0)
+    total_tokens = Column(Integer, nullable=False, default=0)
+    api_cost = Column(Integer, nullable=False, default=0)  # 放大1000000倍
+    endpoint = Column(String(64), nullable=False, default="chat")
+    request_id = Column(String(64), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+
+    user = relationship("User")
+
+
+class MindmapKnowledgeLink(Base):
+    """知识关联图：存储 LLM 从思维导图中提取的跨节点关联关系。"""
+    __tablename__ = "mindmap_knowledge_links"
+    __table_args__ = (
+        Index("idx_knowledge_links_user_session", "user_id", "session_id"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    session_id = Column(Integer, ForeignKey("conversation_sessions.id", ondelete="CASCADE"), nullable=False)
+    source_node_id = Column(String(512), nullable=False)
+    target_node_id = Column(String(512), nullable=False)
+    source_node_text = Column(String(512), nullable=False)
+    target_node_text = Column(String(512), nullable=False)
+    link_type = Column(String(16), nullable=False)  # causal / dependency / contrast / evolution
+    rationale = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+
+    user = relationship("User")
+    session = relationship("ConversationSession")
+
+
+class TierDefinition(Base):
+    """档位定义表：存储各档位的配置（与 TIER_CONFIG 同步）。"""
+    __tablename__ = "tier_definitions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tier = Column(String(32), unique=True, nullable=False)
+    name = Column(String(64), nullable=False)
+    price_monthly = Column(Integer, nullable=False, default=0)  # 放大100倍
+    daily_quota = Column(Integer, nullable=False, default=50_000)
+    monthly_quota = Column(Integer, nullable=False, default=0)
+    rate_limit_per_min = Column(Integer, nullable=False, default=10)
+    rate_limit_per_hour = Column(Integer, nullable=False, default=100)
+    payg_enabled = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+
+
+class PaymentOrder(Base):
+    """支付订单：记录用户的充值/订阅订单。"""
+    __tablename__ = "payment_orders"
+    __table_args__ = (
+        Index("idx_payment_orders_user_id", "user_id"),
+        Index("idx_payment_orders_order_no", "order_no", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_no = Column(String(64), unique=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    product_type = Column(String(32), nullable=False)       # subscription | bonus
+    product_id = Column(String(32), nullable=False)         # 档位名或充值包 ID
+    amount = Column(Integer, nullable=False, default=0)     # 应付金额（分）
+    actual_amount = Column(Integer, nullable=True)          # 实付金额（分）
+    payment_channel = Column(String(16), nullable=False, default="free")  # free | alipay | wechat
+    status = Column(String(16), nullable=False, default="pending")        # pending | paid | cancelled | refunded | expired
+    expire_at = Column(DateTime(timezone=True), nullable=True)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+    external_no = Column(String(128), nullable=True)        # 第三方支付单号
+    callback_time = Column(DateTime(timezone=True), nullable=True)
+    callback_raw = Column(Text, nullable=True)              # 回调原始数据
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+
+    user = relationship("User")
+
+
 # ---------------------------------------------------------------------------
 # 懒加载 Engine 与 Session 工厂
 # ---------------------------------------------------------------------------

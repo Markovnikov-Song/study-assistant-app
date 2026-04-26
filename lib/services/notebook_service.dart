@@ -77,7 +77,7 @@ class NotebookService {
     try {
       final res = await _dio.get('${ApiConstants.notebooks}/$notebookId/notes');
       final Map<int?, List<Note>> grouped = {};
-      final sections = (res.data['sections'] as List);
+      final sections = (res.data as Map<String, dynamic>)['sections'] as List? ?? [];
       for (final section in sections) {
         final key = _toIntOrNull(section['subject_id']);
         grouped[key] = (section['notes'] as List)
@@ -139,9 +139,10 @@ class NotebookService {
     try {
       final res = await _dio
           .post('${ApiConstants.notes}/$noteId/generate-title');
+      final map = res.data as Map<String, dynamic>;
       return (
-        title: res.data['title'] as String,
-        outline: (res.data['outline'] as List).map((e) => e as String).toList(),
+        title: map['title'] as String? ?? '',
+        outline: (map['outline'] as List? ?? []).map((e) => e as String).toList(),
       );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -161,7 +162,8 @@ class NotebookService {
   Future<String> polishNote(int noteId) async {
     try {
       final res = await _dio.post('${ApiConstants.notes}/$noteId/polish');
-      return res.data['polished_content'] as String;
+      final map = res.data as Map<String, dynamic>;
+      return map['polished_content'] as String? ?? '';
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

@@ -550,9 +550,26 @@ def get_progress_summary(
                 )
             ).count()
             
-            # 获取总节点数（估算）
-            total_nodes = lit_nodes * 2  # 简化估算
-            
+            # 获取总叶子节点数：从最新思维导图 session 的 content 解析
+            from routers.library import _parse_leaf_node_ids
+            latest_mindmap = db.query(ConversationSession).filter(
+                ConversationSession.subject_id == subject.id,
+                ConversationSession.user_id == user["id"],
+                ConversationSession.session_type == "mindmap",
+            ).order_by(ConversationSession.created_at.desc()).first()
+
+            leaf_texts = set()
+            if latest_mindmap:
+                from sqlalchemy import text as sa_text
+                row = db.execute(
+                    sa_text("SELECT content FROM conversation_sessions WHERE id = :sid"),
+                    {"sid": latest_mindmap.id},
+                ).fetchone()
+                if row and row[0]:
+                    leaf_texts = _parse_leaf_node_ids(row[0])
+
+            total_leaves = len(leaf_texts)
+
             # 获取复习统计
             queue = ReviewQueue(db)
             mastery_data = queue.get_subject_mastery(user["id"])
@@ -560,24 +577,55 @@ def get_progress_summary(
                 (m for m in mastery_data if m["subject_id"] == subject.id),
                 None
             )
-            
-            # 计算三层进度
-            read_progress = total_nodes > 0 and lit_nodes / total_nodes or 0
-            practice_progress = (subject_mastery["total_cards"] > 0 and 
-                (subject_mastery["mastered_cards"] + subject_mastery["total_cards"] * 0.3) / 
-                (subject_mastery["total_cards"] * 2) if subject_mastery else 0
-            )
-            mastery_progress = (subject_mastery["avg_mastery"] / 5.0 if subject_mastery else 0)
-            
-            # 综合进度
-            overall_progress = read_progress * 0.3 + practice_progress * 0.5 + mastery_progress * 0.2
+            total_cards = subject_mastery["total_cards"] if subject_mastery else 0
+
+            if total_leaves == 0:
+                total_leaves = max(total_cards, lit_nodes, 1)
+
+            # 讲义节点数（已生成讲义的叶子节点）
+            from database import NodeLecture
+            subject_session_ids = [
+                r[0] for r in db.query(ConversationSession.id).filter(
+                    ConversationSession.subject_id == subject.id,
+                    ConversationSession.user_id == user["id"],
+                ).all()
+            ]
+            lecture_node_ids = set()
+            if subject_session_ids:
+                lecture_node_ids = {
+                    r.node_id for r in db.query(NodeLecture.node_id).filter(
+                        NodeLecture.user_id == user["id"],
+                        NodeLecture.session_id.in_(subject_session_ids),
+                    ).all()
+                }
+            lecture_leaves = len(lecture_node_ids & leaf_texts) if leaf_texts else len(lecture_node_ids)
+
+            # 练习节点数（已做过练习的叶子节点）
+            from database import ReviewCard
+            practiced_node_ids = set()
+            if subject_session_ids:
+                practiced_node_ids = {
+                    r.node_id for r in db.query(ReviewCard.node_id).filter(
+                        ReviewCard.user_id == user["id"],
+                        ReviewCard.subject_id == subject.id,
+                        ReviewCard.total_reviews > 0,
+                    ).all()
+                }
+            practiced_leaves = len(practiced_node_ids & leaf_texts) if leaf_texts else len(practiced_node_ids)
+
+            # 进度计算：讲义占50%，练习占50%
+            lecture_progress = lecture_leaves / total_leaves if total_leaves > 0 else 0.0
+            practice_progress = practiced_leaves / total_leaves if total_leaves > 0 else 0.0
+            overall_progress = min(lecture_progress * 0.5 + practice_progress * 0.5, 1.0)
+            read_progress = lit_nodes / total_leaves if total_leaves > 0 else 0.0
+            mastery_progress = subject_mastery["avg_mastery"] / 5.0 if subject_mastery else 0.0
             
             result.append({
                 "subject_id": subject.id,
                 "subject_name": subject.name,
                 "session_count": session_count,
                 "lit_nodes": lit_nodes,
-                "total_nodes": total_nodes,
+                "total_nodes": total_leaves,
                 "overall_progress": round(overall_progress, 2),
                 "read_progress": round(read_progress, 2),
                 "practice_progress": round(practice_progress, 2),

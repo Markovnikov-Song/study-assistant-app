@@ -7,9 +7,12 @@ import 'package:vector_math/vector_math_64.dart' show Vector3;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/mindmap_library.dart';
 import '../../providers/library_provider.dart';
+import '../../routes/app_router.dart';
+import '../quiz/node_practice_sheet.dart';
 import '../../../tools/mindmap/mindmap_painter.dart';
 import '../../../tools/mindmap/mindmap_parser.dart';
 import '../../../tools/mindmap/mindmap_serializer.dart';
+import 'package:go_router/go_router.dart';
 
 // ── 知识关联类型颜色映射（全局唯一）────────────────────────────────────
 
@@ -19,9 +22,6 @@ const _kLinkColors = {
   'contrast': Color(0xFFF97316),    // 对比 — 橙
   'evolution': Color(0xFF22C55E),   // 演进 — 绿
 };
-import '../../routes/app_router.dart';
-import 'package:go_router/go_router.dart';
-import '../quiz/node_practice_sheet.dart';
 
 // ── Undo stack provider ───────────────────────────────────────────────────────
 

@@ -26,8 +26,8 @@ class NoteDetailPage extends ConsumerStatefulWidget {
 }
 
 class _NoteDetailPageState extends ConsumerState<NoteDetailPage> {
-  // 默认进入编辑模式（全屏，参考讲义）
-  bool _isEditing = true;
+  // 默认进入预览模式，点击"编辑"再切换
+  bool _isEditing = false;
   bool _isSaving = false;
 
   late final TextEditingController _titleCtrl;

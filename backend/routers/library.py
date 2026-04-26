@@ -118,8 +118,33 @@ class ExportBookIn(BaseModel):
 
 
 def _parse_node_count(markdown: str) -> int:
-    """统计 Markdown 中 # 开头的节点行数。"""
+    """统计 Markdown 中 # 开头的节点行数（含父节点，兼容旧逻辑）。"""
     return sum(1 for line in markdown.splitlines() if re.match(r"^#{1,4}\s+\S", line))
+
+
+def _parse_leaf_node_ids(markdown: str) -> set[str]:
+    """
+    解析 Markdown 思维导图，返回叶子节点（无子节点）的文本集合。
+    规则：某行的 # 级别 >= 下一行的 # 级别，则该行是叶子节点。
+    """
+    lines = [l for l in markdown.splitlines() if re.match(r"^(#{1,6})\s+\S", l)]
+    if not lines:
+        return set()
+
+    def level(line: str) -> int:
+        m = re.match(r"^(#{1,6})\s", line)
+        return len(m.group(1)) if m else 0
+
+    def text(line: str) -> str:
+        return re.sub(r"^#{1,6}\s+", "", line).strip()
+
+    leaves = set()
+    for i, line in enumerate(lines):
+        lv = level(line)
+        # 叶子节点：下一行不存在，或下一行级别 <= 当前级别
+        if i == len(lines) - 1 or level(lines[i + 1]) <= lv:
+            leaves.add(text(line))
+    return leaves
 
 
 def _get_mindmap_content(db, session_id: int) -> Optional[str]:
@@ -556,77 +581,84 @@ def get_session_progress(session_id: int, user=Depends(get_current_user)):
     with db_session() as db:
         sess = _assert_session_owner(db, session_id, user["id"])
 
-        # ── 阅读层 ──────────────────────────────────────────────────────────
+        # ── 叶子节点总数（分母）──────────────────────────────────────────────
+        content_row = db.execute(
+            text("SELECT content FROM conversation_sessions WHERE id = :sid"),
+            {"sid": session_id},
+        ).fetchone()
+        mindmap_md = content_row[0] if content_row and content_row[0] else ""
+        leaf_texts = _parse_leaf_node_ids(mindmap_md)
+        total_leaves = len(leaf_texts) if leaf_texts else 0
+
+        # 叶子节点 node_id 集合（MindmapNodeState 存的是节点文本作为 node_id）
         node_states = (
             db.query(MindmapNodeState)
             .filter_by(user_id=user["id"], session_id=session_id)
             .all()
         )
         lit_node_ids = {s.node_id for s in node_states if s.is_lit}
+        # 只统计叶子节点中已点亮的
+        lit_leaves = lit_node_ids & leaf_texts if leaf_texts else lit_node_ids
+        lit_nodes = len(lit_leaves)
 
-        # 从 session content 字段解析总节点数
-        content_row = db.execute(
-            text("SELECT content FROM conversation_sessions WHERE id = :sid"),
-            {"sid": session_id},
-        ).fetchone()
-        total_nodes = _parse_node_count(content_row[0] if content_row and content_row[0] else "")
-        # fallback: 用已知节点数估算
-        if total_nodes == 0:
-            total_nodes = max(len(node_states), 1)
+        # fallback：没有导图时用已点亮节点数作为分母
+        if total_leaves == 0:
+            total_leaves = max(len(node_states), 1)
 
-        lit_nodes = len(lit_node_ids)
-        read_progress = lit_nodes / total_nodes if total_nodes > 0 else 0.0
-
-        # ── 讲义层（已生成讲义的节点数）────────────────────────────────────
-        lecture_nodes = (
-            db.query(NodeLecture)
+        # ── 讲义层：已生成讲义的叶子节点数 ─────────────────────────────────
+        lecture_node_ids = {
+            r.node_id for r in db.query(NodeLecture.node_id)
             .filter_by(user_id=user["id"], session_id=session_id)
-            .count()
-        )
+            .all()
+        }
+        lecture_nodes = len(lecture_node_ids & leaf_texts) if leaf_texts else len(lecture_node_ids)
 
-        # ── 练习层 + 掌握层：通过 node_id 关联 ReviewCard ──────────────────
-        # ReviewCard.node_id 与 MindmapNodeState.node_id 一致
+        # ── 练习层：已完成"去练习"的叶子节点数 ──────────────────────────────
+        # ReviewCard.total_reviews > 0 表示做过练习
         if lit_node_ids:
             review_cards = (
                 db.query(ReviewCard)
                 .filter(
                     ReviewCard.user_id == user["id"],
                     ReviewCard.node_id.in_(lit_node_ids),
+                    ReviewCard.total_reviews > 0,
                 )
                 .all()
             )
         else:
             review_cards = []
+        practiced_node_ids = {c.node_id for c in review_cards}
+        practiced_leaves = len(practiced_node_ids & leaf_texts) if leaf_texts else len(practiced_node_ids)
 
-        total_cards = len(review_cards)
-        if total_cards > 0:
-            # 已复习 = total_reviews > 0
-            reviewed_cards = sum(1 for c in review_cards if c.total_reviews > 0)
-            # 练习进度：已复习卡片占比，加 0.3 基础分（有卡片就算开始练习）
-            practice_progress = min(
-                (reviewed_cards + total_cards * 0.3) / (total_cards * 1.3), 1.0
-            )
-            avg_mastery = sum(c.mastery_score for c in review_cards) / total_cards
-            mastery_progress = avg_mastery / 5.0
-        else:
-            practice_progress = 0.0
-            mastery_progress = 0.0
+        # ── 进度计算：每个叶子节点贡献 100/N %，讲义占一半，练习占一半 ──────
+        # lecture_progress = 讲义叶子数 / 总叶子数 * 0.5
+        # practice_progress = 练习叶子数 / 总叶子数 * 0.5
+        # overall = lecture_progress + practice_progress（上限 1.0）
+        lecture_progress = lecture_nodes / total_leaves if total_leaves > 0 else 0.0
+        practice_progress = practiced_leaves / total_leaves if total_leaves > 0 else 0.0
+        overall_progress = min(lecture_progress * 0.5 + practice_progress * 0.5, 1.0)
 
-        overall_progress = (
-            read_progress * 0.3
-            + practice_progress * 0.5
-            + mastery_progress * 0.2
+        # 兼容旧字段（read_progress 用点亮率，mastery_progress 用 SM-2 均值）
+        read_progress = lit_nodes / total_leaves if total_leaves > 0 else 0.0
+        all_cards = (
+            db.query(ReviewCard)
+            .filter(ReviewCard.user_id == user["id"], ReviewCard.node_id.in_(lit_node_ids))
+            .all()
+        ) if lit_node_ids else []
+        mastery_progress = (
+            sum(c.mastery_score for c in all_cards) / (len(all_cards) * 5.0)
+            if all_cards else 0.0
         )
 
         # ── 错题统计 ────────────────────────────────────────────────────────
-        # 通过 node_id 关联该 session 的错题
         if lit_node_ids:
             mistake_notes = (
                 db.query(NoteModel)
+                .join(NoteModel.notebook)
                 .filter(
-                    NoteModel.user_id == user["id"],
                     NoteModel.note_type == "mistake",
                     NoteModel.node_id.in_(lit_node_ids),
+                    NoteModel.notebook.has(user_id=user["id"]),
                 )
                 .all()
             )
@@ -640,7 +672,7 @@ def get_session_progress(session_id: int, user=Depends(get_current_user)):
 
         return SessionProgressOut(
             session_id=session_id,
-            total_nodes=total_nodes,
+            total_nodes=total_leaves,
             lit_nodes=lit_nodes,
             lecture_nodes=lecture_nodes,
             read_progress=round(read_progress, 3),

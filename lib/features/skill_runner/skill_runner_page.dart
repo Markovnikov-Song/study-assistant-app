@@ -76,6 +76,7 @@ class _SkillRunnerPageState extends ConsumerState<SkillRunnerPage> {
   Future<void> _executeStep(
       List<Map<String, dynamic>> nodes, int stepIndex) async {
     if (stepIndex >= nodes.length) {
+      if (!mounted) return;
       setState(() => _done = true);
       return;
     }
@@ -123,6 +124,7 @@ class _SkillRunnerPageState extends ConsumerState<SkillRunnerPage> {
         },
       );
       final content = (res.data as Map<String, dynamic>)['content'] as String? ?? '';
+      if (!mounted) return;
       setState(() {
         _outputs[nodeId] = content;
         _currentStep = stepIndex + 1;
@@ -131,6 +133,7 @@ class _SkillRunnerPageState extends ConsumerState<SkillRunnerPage> {
       });
       _scrollToBottom();
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _running = false;
         _error = '执行失败：$e';

@@ -143,7 +143,10 @@ async def generate_quiz(
     )
 
     service = QuizGeneratorService()
-    result = service.generate_quiz(service_request, user_id=user.id if hasattr(user, 'id') else None)
+    try:
+        result = service.generate_quiz(service_request, user_id=user["id"] if isinstance(user, dict) else getattr(user, "id", None))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"出题失败：{e}")
 
     # 转换响应
     questions = []
@@ -261,12 +264,12 @@ async def submit_answer(
                 db.flush()
 
                 # 自动创建 SM-2 复习卡片
-                if node_id or subject_id:
+                if node_id and subject_id:
                     review_card = SM2Engine.create_card(
                         db,
                         user_id=user_id,
-                        subject_id=subject_id or 0,
-                        node_id=node_id or f"note_{note.id}",
+                        subject_id=subject_id,
+                        node_id=node_id,
                         subject_name=subject_name,
                         node_title=node_title or node_id,
                     )
