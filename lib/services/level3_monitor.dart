@@ -122,10 +122,9 @@ class Level3Monitor {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
-    // 获取 streak_days（失败时快速返回，不阻塞）
-    int streakDays;
+    // 检查网络连通性（失败时快速返回，不阻塞）
     try {
-      streakDays = await _getStreakDays().timeout(
+      await _getStreakDays().timeout(
         const Duration(seconds: 10),
         onTimeout: () => 0,
       );

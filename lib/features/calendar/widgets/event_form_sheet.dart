@@ -5,7 +5,6 @@ import '../../../core/event_bus/calendar_events.dart';
 import '../../../providers/subject_provider.dart';
 import '../models/calendar_models.dart';
 import '../services/calendar_api_service.dart';
-import '../../spec/services/study_planner_api_service.dart';
 
 enum _EventType { event, routine, task }
 

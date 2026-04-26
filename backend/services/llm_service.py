@@ -39,6 +39,21 @@ class LLMService:
         from config import get_config
         return get_config().LLM_CHAT_MODEL
 
+    def get_model_for_scene(self, scene: str) -> str:
+        """
+        按场景返回模型名称。
+        - "fast"：轻量任务（意图解析、标题生成、hints），使用 LLM_FAST_MODEL
+        - "heavy"：重型任务（解题、讲义生成、council），使用 LLM_HEAVY_MODEL
+        - 未配置对应模型时回退到 LLM_CHAT_MODEL
+        """
+        from config import get_config
+        cfg = get_config()
+        if scene == "fast":
+            return cfg.LLM_FAST_MODEL or cfg.LLM_CHAT_MODEL
+        if scene == "heavy":
+            return cfg.LLM_HEAVY_MODEL or cfg.LLM_CHAT_MODEL
+        return cfg.LLM_CHAT_MODEL
+
     def _get_token_service(self):
         """懒加载 Token 服务"""
         if self._token_service is None:
@@ -110,8 +125,11 @@ class LLMService:
             # 记录请求ID
             request_id = str(uuid.uuid4())
             
+            # 优先使用调用方传入的 model，否则使用默认模型
+            model = kwargs.pop("model", None) or self._get_model()
+
             response = client.chat.completions.create(
-                model=self._get_model(),
+                model=model,
                 messages=messages,
                 **kwargs,
             )
@@ -214,8 +232,11 @@ class LLMService:
             # 移除内部调度参数，不传给 OpenAI
             kwargs.pop("heavy", None)
             
+            # 优先使用调用方传入的 model，否则使用默认模型
+            model = kwargs.pop("model", None) or self._get_model()
+
             stream = client.chat.completions.create(
-                model=self._get_model(),
+                model=model,
                 messages=messages,
                 stream=True,
                 timeout=kwargs.pop("timeout", get_config().LECTURE_GENERATION_TIMEOUT_SECONDS),

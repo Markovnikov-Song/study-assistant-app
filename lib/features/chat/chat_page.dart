@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -578,7 +579,7 @@ class _ChatPageWithSliverAppBar extends ConsumerWidget {
 
 // ─── _ChatBody ────────────────────────────────────────────────
 
-class _ChatBody extends ConsumerWidget {
+class _ChatBody extends ConsumerStatefulWidget {
   final String chatKey;
   final String sessionType;
   final int subjectId;
@@ -606,28 +607,77 @@ class _ChatBody extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final key = (chatKey, sessionType);
+  ConsumerState<_ChatBody> createState() => _ChatBodyState();
+}
+
+class _ChatBodyState extends ConsumerState<_ChatBody> {
+  // 用户是否主动上翻（上翻后停止自动跟随）
+  bool _userScrolledUp = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.scrollCtrl.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    widget.scrollCtrl.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!widget.scrollCtrl.hasClients) return;
+    final pos = widget.scrollCtrl.position;
+    // 距离底部超过 80px 认为用户主动上翻
+    final atBottom = pos.pixels >= pos.maxScrollExtent - 80;
+    if (_userScrolledUp == atBottom) {
+      setState(() => _userScrolledUp = !atBottom);
+    }
+  }
+
+  /// 流式期间每次消息更新后调用，若用户没有上翻则跟随滚到底部
+  void _maybeScrollToBottom() {
+    if (_userScrolledUp) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctrl = widget.scrollCtrl;
+      if (!ctrl.hasClients) return;
+      ctrl.jumpTo(ctrl.position.maxScrollExtent);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final key = (widget.chatKey, widget.sessionType);
     final chatState = ref.watch(chatProvider(key));
     final multiSelect = ref.watch(multiSelectProvider);
 
+    // 每次消息列表更新时，若用户没有上翻则跟随滚底
+    if (widget.sending) {
+      _maybeScrollToBottom();
+    } else {
+      // 流式结束后重置上翻标记，允许下次发送时重新跟随
+      _userScrolledUp = false;
+    }
+
     return Column(
       children: [
-        _SessionBar(chatKey: chatKey, sessionType: sessionType, subjectId: subjectId),
+        _SessionBar(chatKey: widget.chatKey, sessionType: widget.sessionType, subjectId: widget.subjectId),
         Expanded(
           child: chatState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('$e', style: const TextStyle(color: Colors.red))),
             data: (msgs) => msgs.isEmpty
                 ? SingleChildScrollView(
-                    child: _EmptyHints(subjectId: subjectId, onTap: (h) => inputCtrl.text = h),
+                    child: _EmptyHints(subjectId: widget.subjectId, onTap: (h) => widget.inputCtrl.text = h),
                   )
                 : ListView.builder(
-                    controller: scrollCtrl,
+                    controller: widget.scrollCtrl,
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    itemCount: msgs.length + (sending ? 1 : 0),
+                    itemCount: msgs.length + (widget.sending ? 1 : 0),
                     itemBuilder: (_, i) {
-                      if (sending && i == msgs.length) {
+                      if (widget.sending && i == msgs.length) {
                         return const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
                           child: _TypingIndicator(),
@@ -648,8 +698,15 @@ class _ChatBody extends ConsumerWidget {
                       if (msg.type == MessageType.sceneCard) {
                         return const SizedBox.shrink();
                       }
+                      // 流式期间最后一条 AI 消息用纯文本渲染，避免 Markdown 解析导致高度突变
+                      final isStreamingLastMsg = widget.sending &&
+                          !msg.isUser &&
+                          i == msgs.length - 1;
                       return _Bubble(
+                        // 用 forceRawText 状态作为 key 的一部分，确保流式结束后强制重建触发完整渲染
+                        key: ValueKey('bubble_${msg.id}_$isStreamingLastMsg'),
                         message: msg,
+                        forceRawText: isStreamingLastMsg,
                         onDelete: multiSelect.isActive
                             ? null
                             : () => ref.read(chatProvider(key).notifier).deleteMessage(i),
@@ -659,16 +716,16 @@ class _ChatBody extends ConsumerWidget {
           ),
         ),
         if (!multiSelect.isActive) ...[
-          // 通用对话不显示「结合通用知识」checkbox（没有知识库�?
-          if (!isGeneral)
+          // 通用对话不显示「结合通用知识」checkbox（没有知识库）
+          if (!widget.isGeneral)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               color: Theme.of(context).colorScheme.surfaceContainerLow,
               child: Row(
                 children: [
                   Checkbox(
-                    value: useHybrid,
-                    onChanged: (v) => onHybridChanged(v ?? false),
+                    value: widget.useHybrid,
+                    onChanged: (v) => widget.onHybridChanged(v ?? false),
                     visualDensity: VisualDensity.compact,
                   ),
                   const Text('结合通用知识', style: TextStyle(fontSize: 13)),
@@ -683,20 +740,20 @@ class _ChatBody extends ConsumerWidget {
           SafeArea(
             top: false,
             child: _InputBar(
-              controller: inputCtrl,
-              sending: sending,
+              controller: widget.inputCtrl,
+              sending: widget.sending,
               placeholder: '输入问题…',
-              onSubmit: onSubmit,
-              onCancel: onCancel,
-              onCamera: onCamera,
-              onGallery: onGallery,
+              onSubmit: widget.onSubmit,
+              onCancel: widget.onCancel,
+              onCamera: widget.onCamera,
+              onGallery: widget.onGallery,
             ),
           ),
         ] else
           SafeArea(
             top: false,
             child: _MultiSelectBar(
-              subjectId: subjectId,
+              subjectId: widget.subjectId,
               messages: chatState.maybeWhen(data: (msgs) => msgs, orElse: () => []),
             ),
           ),
@@ -820,7 +877,47 @@ class _SessionBar extends ConsumerWidget {
 class _Bubble extends ConsumerWidget {
   final ChatMessage message;
   final VoidCallback? onDelete;
-  const _Bubble({required this.message, this.onDelete});
+  /// 流式期间传 true，用纯文本渲染避免 Markdown 解析导致高度突变
+  final bool forceRawText;
+  const _Bubble({super.key, required this.message, this.onDelete, this.forceRawText = false});
+
+  void _onLongPress(BuildContext context, WidgetRef ref) {
+    final multiSelect = ref.read(multiSelectProvider);
+    if (multiSelect.isActive) {
+      ref.read(multiSelectProvider.notifier).toggle(message.id);
+      return;
+    }
+    // 弹出操作菜单：复制 / 进入多选
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.copy_outlined),
+              title: const Text('复制'),
+              onTap: () {
+                Navigator.pop(ctx);
+                Clipboard.setData(ClipboardData(text: message.content));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('已复制'), duration: Duration(seconds: 1)),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.checklist_outlined),
+              title: const Text('多选'),
+              onTap: () {
+                Navigator.pop(ctx);
+                ref.read(multiSelectProvider.notifier).activate(message.id);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -832,13 +929,7 @@ class _Bubble extends ConsumerWidget {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
-        onLongPress: () {
-          if (!multiSelect.isActive) {
-            ref.read(multiSelectProvider.notifier).activate(message.id);
-          } else {
-            ref.read(multiSelectProvider.notifier).toggle(message.id);
-          }
-        },
+        onLongPress: () => _onLongPress(context, ref),
         onTap: () {
           if (multiSelect.isActive) ref.read(multiSelectProvider.notifier).toggle(message.id);
         },
@@ -885,32 +976,32 @@ class _Bubble extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               isUser
-                  ? (multiSelect.isActive
+                  ? Text(
+                      message.content,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        height: 1.5,
+                        fontSize: 15,
+                      ),
+                    )
+                  : forceRawText
                       ? Text(
                           message.content,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            height: 1.5,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            height: 1.6,
                             fontSize: 15,
                           ),
                         )
-                      : SelectableText(
-                          message.content,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            height: 1.5,
+                      : MarkdownLatexView(
+                          data: message.content,
+                          textStyle: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            height: 1.6,
                             fontSize: 15,
                           ),
-                        ))
-                  : MarkdownLatexView(
-                      data: message.content,
-                      textStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        height: 1.6,
-                        fontSize: 15,
-                      ),
-                      codeBackgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    ),
+                          codeBackgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        ),
               if (!isUser && message.sources != null && message.sources!.isNotEmpty)
                 _SourcesWidget(sources: message.sources!),
             ],

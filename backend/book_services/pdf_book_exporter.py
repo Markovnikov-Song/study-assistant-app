@@ -1,4 +1,4 @@
-﻿"""PDF book exporter — uses reportlab Platypus for proper layout, page numbers, and TOC."""
+"""PDF book exporter — uses reportlab Platypus for proper layout, page numbers, and TOC."""
 
 from __future__ import annotations
 

@@ -432,10 +432,9 @@ def update_event(
     当事件 source='study-planner' 时，自动同步关联的 plan_item 状态。
     """
     with db_session() as db:
-        # 验证归属 + 获取 source/plan_id
+        # 验证归属 + 获取 source/is_completed（plan_id 列可能尚未 migration，单独处理）
         existing = db.execute(
-            text("""SELECT id, source, plan_id, is_completed
-                    FROM calendar_events WHERE id = :id AND user_id = :uid"""),
+            text("SELECT id, source, is_completed FROM calendar_events WHERE id = :id AND user_id = :uid"),
             {"id": event_id, "uid": user["id"]},
         ).fetchone()
         if not existing:
@@ -443,7 +442,16 @@ def update_event(
 
         old_source = existing.source
         old_completed = bool(existing.is_completed)
-        old_plan_id = existing.plan_id
+
+        # plan_id 列由 migration 014 添加，若尚未执行则降级为 None
+        try:
+            plan_row = db.execute(
+                text("SELECT plan_id FROM calendar_events WHERE id = :id"),
+                {"id": event_id},
+            ).fetchone()
+            old_plan_id = plan_row.plan_id if plan_row else None
+        except Exception:
+            old_plan_id = None
 
         updates = {k: v for k, v in body.model_dump().items() if v is not None}
         if not updates:
@@ -489,13 +497,22 @@ def update_event(
 def delete_event(event_id: int, user=Depends(get_current_user)):
     """删除事件。当 source='study-planner' 时，自动标记关联 plan_item 为 skipped。"""
     with db_session() as db:
-        # 先查 source/plan_id
+        # 先查 source（plan_id 列由 migration 014 添加，若尚未执行则降级为 None）
         evt = db.execute(
-            text("""SELECT source, plan_id FROM calendar_events WHERE id = :id AND user_id = :uid"""),
+            text("SELECT source FROM calendar_events WHERE id = :id AND user_id = :uid"),
             {"id": event_id, "uid": user["id"]},
         ).fetchone()
         if not evt:
             raise HTTPException(404, "事件不存在")
+
+        try:
+            plan_row = db.execute(
+                text("SELECT plan_id FROM calendar_events WHERE id = :id"),
+                {"id": event_id},
+            ).fetchone()
+            evt_plan_id = plan_row.plan_id if plan_row else None
+        except Exception:
+            evt_plan_id = None
 
         result = db.execute(
             text("DELETE FROM calendar_events WHERE id = :id AND user_id = :uid RETURNING id"),
@@ -505,8 +522,8 @@ def delete_event(event_id: int, user=Depends(get_current_user)):
             raise HTTPException(404, "事件不存在")
 
         # ── study-planner 事件删除同步 ──
-        if evt.source == "study-planner" and evt.plan_id:
-            _sync_plan_item_deleted(db, evt.plan_id, event_id)
+        if evt.source == "study-planner" and evt_plan_id:
+            _sync_plan_item_deleted(db, evt_plan_id, event_id)
 
 
 # ── 批量写入端点 ───────────────────────────────────────────────────────────────

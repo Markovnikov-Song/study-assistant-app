@@ -104,7 +104,6 @@ class _SpecPageState extends ConsumerState<SpecPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final phase = ref.watch(specPhaseProvider);
     final collection = ref.watch(planCollectionProvider);
 

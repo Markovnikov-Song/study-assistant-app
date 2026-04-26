@@ -16,16 +16,16 @@ def main():
     ]
 
     db = get_session_factory()()
-        for i, sql in enumerate(sql_statements, 1):
-            print(f"[{i}/{len(sql_statements)}] 执行: {sql[:60]}...")
-            try:
-                db.execute(text(sql))
-                db.commit()
-                print(f"  ✅ 成功")
-            except Exception as e:
-                db.rollback()
-                print(f"  ❌ 失败: {e}")
-                return 1
+    for i, sql in enumerate(sql_statements, 1):
+        print(f"[{i}/{len(sql_statements)}] 执行: {sql[:60]}...")
+        try:
+            db.execute(text(sql))
+            db.commit()
+            print(f"  ✅ 成功")
+        except Exception as e:
+            db.rollback()
+            print(f"  ❌ 失败: {e}")
+            return 1
 
     print("\n✅ Migration 014 完成")
     return 0

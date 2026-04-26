@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 class ApiConstants {
   ApiConstants._();
 
-  /// Android 模拟器访问宿主机用 10.0.2.2
-  static const String _androidEmulatorUrl = 'http://10.0.2.2:8000';
+  /// Android 模拟器访问宿主机用 10.0.2.2（如需切换，将 _devUrl 改为此值）
+  // static const String _androidEmulatorUrl = 'http://10.0.2.2:8000';
 
   /// 真机调试：
   /// - USB 调试（推荐）：ADB 端口转发后可直接用 localhost

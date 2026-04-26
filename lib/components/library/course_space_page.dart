@@ -3,11 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/document.dart';
 import '../../models/mindmap_library.dart';
-import '../../models/review.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/document_provider.dart';
 import '../../providers/library_provider.dart';
-import '../../providers/review_provider.dart';
 import '../../routes/app_router.dart';
 
 /// CourseSpacePage — 学科详情页
@@ -378,10 +376,37 @@ class _ProgressSection extends ConsumerWidget {
   final List<MindMapSession> sessions;
   const _ProgressSection({required this.subjectId, required this.sessions});
 
+  /// 取"最顶部的置顶 session"：优先 isPinned=true 且 sortOrder 最小；
+  /// 若无置顶，则取 sortOrder 最小的第一个。
+  MindMapSession? get _targetSession {
+    if (sessions.isEmpty) return null;
+    final pinned = sessions.where((s) => s.isPinned).toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    if (pinned.isNotEmpty) return pinned.first;
+    return (sessions.toList()..sort((a, b) => a.sortOrder.compareTo(b.sortOrder))).first;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
-    final progressAsync = ref.watch(progressSummaryProvider);
+    final target = _targetSession;
+
+    if (target == null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant),
+        ),
+        child: Center(
+          child: Text('暂无学习数据', style: TextStyle(color: cs.outline, fontSize: 13)),
+        ),
+      );
+    }
+
+    // 用 session 级别的三层进度 provider
+    final progressAsync = ref.watch(fullMindMapProgressProvider(target.id));
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -390,137 +415,58 @@ class _ProgressSection extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: cs.outlineVariant),
       ),
-      child: progressAsync.when(
-        loading: () => const Center(
-          child: Padding(
-            padding: EdgeInsets.all(20),
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-        error: (_, __) => _buildSimpleProgress(context, cs),
-        data: (progressList) {
-          // 找到当前学科的进度
-          final progress = progressList
-              .where((p) => p.subjectId == subjectId)
-              .firstOrNull;
-          return _buildThreeDimensionProgress(context, cs, progress);
-        },
-      ),
+      child: _buildContent(context, cs, target, progressAsync),
     );
   }
 
-  /// 三维度进度展示
-  Widget _buildThreeDimensionProgress(
+  Widget _buildContent(
     BuildContext context,
     ColorScheme cs,
-    LearningProgress? progress,
+    MindMapSession target,
+    MindMapProgress progress,
   ) {
-    if (progress == null) {
-      return _buildSimpleProgress(context, cs);
-    }
+    final totalNodes = target.totalNodes;
+    final litNodes = target.litNodes;
+    final pct = totalNodes == 0 ? 0 : (litNodes / totalNodes * 100).floor();
 
-    final readPct = (progress.readProgress * 100).floor();
-    final practicePct = (progress.practiceProgress * 100).floor();
-    final masteryPct = (progress.masteryProgress * 100).floor();
+    // 是否有三层进度数据
+    final hasThreeDim = progress.overallProgress != null ||
+        progress.readProgress != null ||
+        progress.practiceProgress != null;
 
-    // 综合进度
-    final overallPct = (progress.overallProgress * 100).floor();
+    // 置顶标签
+    final isPinned = target.isPinned;
+    final sessionTitle = target.title?.isNotEmpty == true ? target.title! : '未命名大纲';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 顶部：综合进度
+        // 标注当前统计的是哪个 session
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              '学习进度',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: cs.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
+            if (isPinned) ...[
+              Icon(Icons.push_pin, size: 12, color: cs.primary),
+              const SizedBox(width: 4),
+            ],
+            Expanded(
               child: Text(
-                '$overallPct%',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: cs.primary,
-                ),
+                sessionTitle,
+                style: TextStyle(fontSize: 12, color: cs.outline),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-
-        // 三维度进度条
-        _DimensionRow(
-          icon: Icons.auto_stories,
-          label: '阅读',
-          value: readPct,
-          weight: '30%',
-          color: Colors.blue,
-          progress: progress.readProgress,
-        ),
         const SizedBox(height: 10),
-        _DimensionRow(
-          icon: Icons.quiz_outlined,
-          label: '练习',
-          value: practicePct,
-          weight: '50%',
-          color: Colors.orange,
-          progress: progress.practiceProgress,
-        ),
-        const SizedBox(height: 10),
-        _DimensionRow(
-          icon: Icons.star_outline,
-          label: '掌握',
-          value: masteryPct,
-          weight: '20%',
-          color: Colors.green,
-          progress: progress.masteryProgress,
-        ),
-
-        const SizedBox(height: 16),
-        const Divider(height: 1),
-        const SizedBox(height: 12),
-
-        // 复习统计
-        _buildReviewStats(context, cs, progress.reviewStats),
-      ],
-    );
-  }
-
-  /// 简化版进度展示（无后端数据时）
-  Widget _buildSimpleProgress(BuildContext context, ColorScheme cs) {
-    if (sessions.isEmpty) {
-      return Center(
-        child: Text('暂无学习数据',
-            style: TextStyle(color: cs.outline, fontSize: 13)),
-      );
-    }
-
-    final totalNodes = sessions.fold(0, (s, e) => s + e.totalNodes);
-    final litNodes = sessions.fold(0, (s, e) => s + e.litNodes);
-    final pct = totalNodes == 0 ? 0 : (litNodes / totalNodes * 100).floor();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+        // 节点点亮进度
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('已点亮 $litNodes / $totalNodes 个节点',
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w500)),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
             Text('$pct%',
                 style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: cs.primary)),
+                    fontSize: 20, fontWeight: FontWeight.bold, color: cs.primary)),
           ],
         ),
         const SizedBox(height: 10),
@@ -532,41 +478,43 @@ class _ProgressSection extends ConsumerWidget {
             backgroundColor: cs.surfaceContainerHighest,
           ),
         ),
-        const SizedBox(height: 12),
-        Text(
-          '配合练习和复习将提升综合掌握度',
-          style: TextStyle(fontSize: 11, color: cs.outline),
-        ),
-      ],
-    );
-  }
-
-  /// 复习统计
-  Widget _buildReviewStats(
-    BuildContext context,
-    ColorScheme cs,
-    ReviewStats stats,
-  ) {
-    return Row(
-      children: [
-        _StatChip(
-          icon: Icons.layers_outlined,
-          label: '总卡片',
-          value: '${stats.totalCards}',
-        ),
-        const SizedBox(width: 12),
-        _StatChip(
-          icon: Icons.check_circle_outline,
-          label: '已掌握',
-          value: '${stats.masteredCards}',
-          color: Colors.green,
-        ),
-        const SizedBox(width: 12),
-        _StatChip(
-          icon: Icons.star_half_outlined,
-          label: '平均掌握',
-          value: '${stats.avgMastery.toStringAsFixed(1)}/5',
-        ),
+        if (hasThreeDim) ...[
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          _DimensionRow(
+            icon: Icons.auto_stories,
+            label: '阅读',
+            value: ((progress.readProgress ?? 0) * 100).floor(),
+            weight: '30%',
+            color: Colors.blue,
+            progress: progress.readProgress ?? 0,
+          ),
+          const SizedBox(height: 10),
+          _DimensionRow(
+            icon: Icons.quiz_outlined,
+            label: '练习',
+            value: ((progress.practiceProgress ?? 0) * 100).floor(),
+            weight: '50%',
+            color: Colors.orange,
+            progress: progress.practiceProgress ?? 0,
+          ),
+          const SizedBox(height: 10),
+          _DimensionRow(
+            icon: Icons.star_outline,
+            label: '掌握',
+            value: ((progress.masteryProgress ?? 0) * 100).floor(),
+            weight: '20%',
+            color: Colors.green,
+            progress: progress.masteryProgress ?? 0,
+          ),
+        ] else ...[
+          const SizedBox(height: 12),
+          Text(
+            '配合练习和复习将提升综合掌握度',
+            style: TextStyle(fontSize: 11, color: cs.outline),
+          ),
+        ],
       ],
     );
   }
@@ -635,50 +583,6 @@ class _DimensionRow extends StatelessWidget {
           style: TextStyle(fontSize: 10, color: cs.outline),
         ),
       ],
-    );
-  }
-}
-
-/// 统计小标签
-class _StatChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color? color;
-
-  const _StatChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final c = color ?? cs.primary;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: c),
-          const SizedBox(width: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: c,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

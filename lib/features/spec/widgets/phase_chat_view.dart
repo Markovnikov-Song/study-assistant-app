@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dio/dio.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../models/subject.dart';
 import '../../../providers/subject_provider.dart';

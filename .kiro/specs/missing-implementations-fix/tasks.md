@@ -37,7 +37,7 @@
   - 标记任务完成：测试已编写、已运行、在未修复代码上通过
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [-] 3. 修复四处缺失实现
+- [x] 3. 修复四处缺失实现
 
   - [x] 3.1 修复 Bug 1：修改 `OcrApiClient` 调用路径与请求格式
     - 将 `lib/tools/ocr/ocr_api_client.dart` 中 `_dio.post('/api/ocr/recognize', ...)` 改为 `_dio.post('/api/ocr/image', ...)`
@@ -75,7 +75,7 @@
     - _Preservation: `lib/core/skill/skill_marketplace_service.dart` 的现有调用方继续正常使用真实 API_
     - _Requirements: 2.4, 3.3_
 
-  - [-] 3.5 验证 Bug Condition 探索性测试现在通过
+  - [x] 3.5 验证 Bug Condition 探索性测试现在通过
     - **Property 1: Expected Behavior** - 四处缺失实现已修复
     - **IMPORTANT**: 重新运行任务 1 中的相同测试 — 不要编写新测试
     - 任务 1 的测试编码了期望行为，测试通过即确认期望行为已满足
@@ -83,14 +83,14 @@
     - **EXPECTED OUTCOME**: 测试 PASS（确认 Bug 已修复）
     - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-  - [ ] 3.6 验证 Preservation 测试仍然通过
+  - [x] 3.6 验证 Preservation 测试仍然通过
     - **Property 2: Preservation** - 非 Bug 输入行为不变
     - **IMPORTANT**: 重新运行任务 2 中的相同测试 — 不要编写新测试
     - 运行任务 2 中的 Preservation 属性测试
     - **EXPECTED OUTCOME**: 测试 PASS（确认无回归）
     - 确认修复后所有保留行为测试仍然通过
 
-- [ ] 4. Checkpoint — 确保所有测试通过
+- [x] 4. Checkpoint — 确保所有测试通过
   - 运行完整测试套件，确保所有测试通过
   - 运行 `dart analyze` 确认删除占位符文件后无编译错误
   - 如有疑问，询问用户

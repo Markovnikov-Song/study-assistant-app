@@ -30,7 +30,7 @@ class MarkdownLatexView extends StatelessWidget {
 
     return MarkdownBody(
       data: data,
-      selectable: true,
+      selectable: false,
       styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
         // 正文
         p: base.copyWith(height: 1.7),
