@@ -208,8 +208,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           subjectId: int.tryParse(state.uri.queryParameters['subject_id'] ?? ''),
         ),
       ),
-        ],
-      ),
 
       // 工具箱子路由
       GoRoute(path: R.toolkitMistakeBook, builder: (_, _) => const MistakeBookPage()),

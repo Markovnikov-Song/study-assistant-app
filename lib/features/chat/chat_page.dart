@@ -30,11 +30,12 @@ import '../../services/level2_monitor.dart';
 // ─── ChatPage（参数化，支持通用/学科/任务三种场景）────────────
 
 class ChatPage extends ConsumerStatefulWidget {
-  final String? chatId;     // null �?通用对话（根路由 /�?
-  final int? subjectId;     // 学科专属对话
-  final String? taskId;     // 任务对话
+  final String? chatId;       // null = 通用对话（根路由 /）
+  final int? subjectId;       // 学科专属对话
+  final String? taskId;       // 任务对话
+  final String? feynmanTopic; // 费曼学习模式：知识点主题
 
-  const ChatPage({super.key, this.chatId, this.subjectId, this.taskId});
+  const ChatPage({super.key, this.chatId, this.subjectId, this.taskId, this.feynmanTopic});
 
   @override
   ConsumerState<ChatPage> createState() => _ChatPageState();
@@ -47,7 +48,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _sending = false;
   final _intentDetector = CasIntentDetector(CasService());
 
-  // chatKey：通用对话�?'general'，学科对话用 subjectId 字符串，任务对话�?chatId
+  // chatKey: 'general' for general chat, subjectId string for subject chat, chatId for task chat
   String get _chatKey {
     if (widget.subjectId != null) return widget.subjectId!.toString();
     if (widget.chatId != null) return widget.chatId!;
@@ -55,6 +56,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   String get _sessionType {
+    if (widget.feynmanTopic != null) return 'feynman';
     if (widget.subjectId != null) return 'subject';
     if (widget.taskId != null) return 'task';
     return 'qa';
@@ -69,11 +71,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (mounted) {
         ref.read(currentSessionProvider.notifier).state = Session(
           id: _chatKey,
-          title: widget.subjectId != null ? '学科对话' : '通用对话',
+          title: widget.feynmanTopic != null
+              ? '费曼学习：${widget.feynmanTopic}'
+              : widget.subjectId != null ? '学科对话' : '通用对话',
           updatedAt: DateTime.now(),
           subjectId: widget.subjectId?.toString(),
           taskId: widget.taskId,
         );
+
+        // 费曼模式：自动注入引导消息
+        if (widget.feynmanTopic != null) {
+          final topic = widget.feynmanTopic!;
+          final greeting = ChatMessage.local(
+            role: MessageRole.assistant,
+            content: '好，我们来用费曼学习法练习「$topic」。\n\n'
+                '请用你自己的话，向我解释一下「$topic」是什么——就像在给一个完全不懂的人讲解一样。'
+                '不用担心说错，说出你现在的理解就好。',
+          );
+          ref.read(chatProvider(_key).notifier).appendMessage(greeting);
+        }
       }
     });
   }
@@ -147,6 +163,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       );
       _scrollToBottom();
       _handleIntentAfterSend(intent, text);
+      return;
+    }
+
+    // 费曼学习模式：直接发给 AI，使用 feynman session type
+    if (widget.feynmanTopic != null) {
+      _bindSendingCallback();
+      await ref.read(chatProvider(_key).notifier).sendMessage(
+        text,
+        mode: SessionType.feynman,
+        overrideSubjectId: widget.subjectId,
+      );
+      _scrollToBottom();
       return;
     }
 
@@ -272,6 +300,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return '已为您跳转到 [出题页面]($route) ✓';
       case 'recommend_mistake_practice':
         return '已为您打开 [复盘中心]($route) ✓';
+      case 'start_feynman':
+        // 从路由参数里取 topic
+        final uri = Uri.tryParse(route);
+        final topic = uri?.queryParameters['topic'] ?? '知识点';
+        return '好的，我们来用费曼学习法练习「$topic」，正在为你开启对话…';
       default:
         // 通用兜底：从路由推断名称
         final name = _routeDisplayName(route);

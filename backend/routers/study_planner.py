@@ -390,7 +390,8 @@ def get_plan_progress(plan_id: int, user=Depends(get_current_user)):
             return {"status": "done", "progress": 1.0, "plan_id": plan_id}
         if plan.status == 'draft':
             progress = _plan_progress.get(plan_id, {"status": "pending", "progress": 0})
-            return {**progress, "plan_id": plan_id}        return {"status": plan.status, "progress": 1.0, "plan_id": plan_id}
+            return {**progress, "plan_id": plan_id}
+        return {"status": plan.status, "progress": 1.0, "plan_id": plan_id}
 
 
 # ── Level 3 占位端点 ───────────────────────────────────────────────────────────

@@ -257,7 +257,7 @@ def _row_to_event_out(row: Any) -> CalendarEventOut:
         actual_duration_minutes=row.actual_duration_minutes,
         subject_id=row.subject_id,
         subject_name=getattr(row, "subject_name", None),
-        subject_color=getattr(row, "subject_color", None),
+        subject_color=None,  # subjects 表无 color 字段
         color=row.color,
         notes=row.notes,
         is_completed=bool(row.is_completed),
@@ -267,6 +267,23 @@ def _row_to_event_out(row: Any) -> CalendarEventOut:
         routine_id=row.routine_id,
         created_at=row.created_at.isoformat() if row.created_at else "",
         updated_at=row.updated_at.isoformat() if row.updated_at else "",
+    )
+
+
+def _enrich_event_with_subject(row: Any, db: Any) -> CalendarEventOut:
+    """创建/更新后补查 subject_name（RETURNING 不支持 JOIN）。"""
+    subject_name = None
+    if row.subject_id:
+        r = db.execute(
+            text("SELECT name FROM subjects WHERE id = :id"),
+            {"id": row.subject_id},
+        ).fetchone()
+        if r:
+            subject_name = r.name
+    out = _row_to_event_out(row)
+    # 用 subject_name 覆盖（_row_to_event_out 里 getattr 拿不到）
+    return CalendarEventOut(
+        **{**out.model_dump(), "subject_name": subject_name}
     )
 
 
@@ -354,7 +371,7 @@ def create_event(body: CalendarEventIn, user=Depends(get_current_user)) -> Calen
             "source": body.source,
         })
         row = result.fetchone()
-        return _row_to_event_out(row)
+        return _enrich_event_with_subject(row, db)
 
 
 @router.get("/events")
@@ -368,7 +385,7 @@ def list_events(
     """查询事件列表（按日期范围，支持学科和完成状态过滤）。"""
     with db_session() as db:
         sql = """
-            SELECT e.*, s.name AS subject_name, s.category AS subject_color
+            SELECT e.*, s.name AS subject_name, NULL AS subject_color
             FROM calendar_events e
             LEFT JOIN subjects s ON s.id = e.subject_id
             WHERE e.user_id = :user_id
@@ -397,7 +414,7 @@ def today_events(user=Depends(get_current_user)) -> TodayEventsOut:
     today = date.today().isoformat()
     with db_session() as db:
         rows = db.execute(text("""
-            SELECT e.*, s.name AS subject_name, s.category AS subject_color
+            SELECT e.*, s.name AS subject_name, NULL AS subject_color
             FROM calendar_events e
             LEFT JOIN subjects s ON s.id = e.subject_id
             WHERE e.user_id = :user_id AND e.event_date = :today
@@ -490,7 +507,7 @@ def update_event(
             if new_duration:
                 _sync_plan_item_duration(db, old_plan_id, event_id, new_duration)
 
-        return _row_to_event_out(row)
+        return _enrich_event_with_subject(row, db)
 
 
 @router.delete("/events/{event_id}", status_code=204)
