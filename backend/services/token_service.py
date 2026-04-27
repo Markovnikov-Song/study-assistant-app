@@ -490,8 +490,6 @@ class TokenService:
                     bonus_used = min(total_tokens, quota.bonus_tokens - quota.bonus_used)
                     quota.bonus_used += bonus_used
             
-            db.commit()
-            
             return TokenUsage(
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -558,8 +556,6 @@ class TokenService:
             quota.rate_limit_per_min = tier_config["rate_limit_per_min"]
             quota.rate_limit_per_hour = tier_config["rate_limit_per_hour"]
             quota.payg_enabled = 1 if tier_config["payg_enabled"] else 0
-            
-            db.commit()
         
         return True
     
@@ -581,7 +577,6 @@ class TokenService:
                 db.add(quota)
             
             quota.bonus_tokens += tokens
-            db.commit()
         
         return True
     

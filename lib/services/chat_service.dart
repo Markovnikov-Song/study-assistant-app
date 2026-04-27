@@ -160,6 +160,7 @@ class ChatService {
       case SessionType.solve:   return 'solve';
       case SessionType.mindmap: return 'strict';
       case SessionType.exam:    return 'strict';
+      case SessionType.feynman: return 'feynman';
     }
   }
 

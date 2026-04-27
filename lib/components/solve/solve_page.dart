@@ -61,10 +61,29 @@ class _SolvePageState extends ConsumerState<SolvePage> {
     if (sid == null) return;
     final file = await ImagePicker().pickImage(source: source, imageQuality: 85);
     if (file == null) return;
-    final b64 = base64Encode(await file.readAsBytes());
-    if (!mounted) return;
-    final text = await ref.read(chatProvider(_key).notifier).recognizeOcr(b64);
-    if (text != null && text.isNotEmpty && mounted) setState(() => _inputCtrl.text = text);
+
+    setState(() => _sending = true);
+    try {
+      final b64 = base64Encode(await file.readAsBytes());
+      if (!mounted) return;
+      final text = await ref.read(chatProvider(_key).notifier).recognizeOcr(b64);
+      if (!mounted) return;
+      if (text != null && text.isNotEmpty) {
+        setState(() => _inputCtrl.text = text);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('识别失败，请确保图片清晰且包含文字')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('识别出错：$e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   void _scrollToBottom() {

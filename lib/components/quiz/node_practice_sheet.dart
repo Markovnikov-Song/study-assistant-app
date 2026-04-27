@@ -100,7 +100,7 @@ class QuizService {
     required String questionType,
     int? subjectId,
   }) async {
-    final res = await _dio.post('/api/quiz/submit-answer', queryParameters: {
+    final res = await _dio.post('/api/quiz/submit-answer', data: {
       'question_id': questionId,
       'user_answer': userAnswer,
       'node_id': nodeId,

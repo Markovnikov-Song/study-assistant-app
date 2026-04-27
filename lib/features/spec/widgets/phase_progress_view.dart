@@ -40,18 +40,19 @@ class PhaseProgressView extends ConsumerWidget {
       data: (progress) {
         final status = progress['status'] as String? ?? 'pending';
         final pct = (progress['progress'] as num?)?.toDouble() ?? 0.0;
+        final errorMsg = progress['error'] as String?;
 
         if (status == 'done') {
           // 规划完成，通知父组件切换到计划表视图
           WidgetsBinding.instance.addPostFrameCallback((_) => onComplete());
         }
 
-        return _buildBody(context, cs, status, pct);
+        return _buildBody(context, cs, status, pct, errorMsg: errorMsg);
       },
     );
   }
 
-  Widget _buildBody(BuildContext context, ColorScheme cs, String status, double pct) {
+  Widget _buildBody(BuildContext context, ColorScheme cs, String status, double pct, {String? errorMsg}) {
     final isDone = status == 'done';
     final isFailed = status == 'failed';
 
@@ -97,7 +98,7 @@ class PhaseProgressView extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             isFailed
-                ? '请检查网络后重试'
+                ? (errorMsg != null ? '失败原因：$errorMsg' : '请检查网络后重试')
                 : isDone
                     ? '即将跳转到计划表'
                     : '助教正在分析各学科知识点，请稍候',

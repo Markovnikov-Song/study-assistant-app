@@ -35,9 +35,9 @@ class SceneCardData {
   });
 }
 
-// 会话类型：问答 / 解题 / 思维导图 / 出题
+// 会话类型：问答 / 解题 / 思维导图 / 出题 / 费曼学习
 // .name 属性会返回枚举值的字符串名，如 SessionType.qa.name == "qa"
-enum SessionType { qa, solve, mindmap, exam }
+enum SessionType { qa, solve, mindmap, exam, feynman }
 
 // ─── 单条聊天消息 ───────────────────────────────────────────
 // class 相当于 Python 的 class，但 Dart 默认所有字段都是 public
@@ -157,6 +157,7 @@ class ConversationSession {
       case SessionType.solve:   return '解题';
       case SessionType.mindmap: return '思维导图';
       case SessionType.exam:    return '出题';
+      case SessionType.feynman: return '费曼学习';
     }
   }
 

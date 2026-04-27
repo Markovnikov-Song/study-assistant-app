@@ -250,15 +250,10 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   }
 
   // ─── OCR 图片识别 ──────────────────────────────────────────
-  // 返回 String?：识别成功返回文字，失败返回 null
+  // 返回 String?：识别成功返回文字，失败抛出异常（由调用方处理提示）
   Future<String?> recognizeOcr(String imageBase64) async {
-    try {
-      final result = await _service.recognizeImage(imageBase64);
-      return result.text;
-    } catch (_) {
-      // _ 表示忽略异常对象（不需要用到它）
-      return null; // 识别失败时静默返回 null，不影响主流程
-    }
+    final result = await _service.recognizeImage(imageBase64);
+    return result.text.isEmpty ? null : result.text;
   }
 
   // ─── 加载历史会话 ──────────────────────────────────────────

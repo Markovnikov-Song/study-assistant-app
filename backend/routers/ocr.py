@@ -31,4 +31,6 @@ def recognize(body: OcrIn, user=Depends(get_current_user)):
         )
         return OcrOut(text=text)
     except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("OCR 识别失败: %s", e, exc_info=True)
         raise HTTPException(500, f"OCR 识别失败：{e}")

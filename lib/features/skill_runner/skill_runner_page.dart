@@ -126,7 +126,7 @@ class _SkillRunnerPageState extends ConsumerState<SkillRunnerPage> {
       final content = (res.data as Map<String, dynamic>)['content'] as String? ?? '';
       if (!mounted) return;
       setState(() {
-        _outputs[nodeId] = content;
+        _outputs[nodeId] = content.trim().isEmpty ? '（该步骤暂无内容，可能正在开发中）' : content;
         _currentStep = stepIndex + 1;
         _running = false;
         if (_currentStep >= nodes.length) _done = true;
@@ -464,21 +464,34 @@ class _StepResultCardState extends State<_StepResultCard> {
           ),
           if (_expanded) ...[
             Divider(height: 1, color: cs.outlineVariant),
-            // Prompt 提示
+            // Prompt 提示（折叠显示，避免长文本撑爆布局）
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
               child: Text(
                 displayPrompt,
                 style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     color: cs.onSurfaceVariant,
                     fontStyle: FontStyle.italic),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             // AI 输出
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
-              child: MarkdownLatexView(data: widget.output),
+              child: widget.output.trim().isEmpty
+                  ? Row(
+                      children: [
+                        Icon(Icons.construction_outlined,
+                            size: 16, color: cs.outline),
+                        const SizedBox(width: 6),
+                        Text('该步骤暂无输出',
+                            style: TextStyle(
+                                fontSize: 13, color: cs.outline)),
+                      ],
+                    )
+                  : MarkdownLatexView(data: widget.output),
             ),
           ],
         ],

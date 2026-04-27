@@ -124,8 +124,9 @@ def query_stream(body: QueryIn, user=Depends(get_current_user)):
                 _ctx=ctx,
             )
             for token in gen:
-                # SSE: escape newlines inside token so each frame stays on one logical line
-                yield f"data: {token}\n\n"
+                # SSE: escape newlines so each frame stays on one logical line
+                escaped = token.replace("\n", "\\n").replace("\r", "\\r")
+                yield f"data: {escaped}\n\n"
         except RAGNeedsConfirmation:
             yield "data: [NEEDS_CONFIRMATION]\n\n"
             yield "data: [DONE]\n\n"
@@ -257,7 +258,8 @@ def mindmap(body: MindMapIn, user=Depends(get_current_user)):
                         link_type=lt, rationale=rat,
                     ))
         except Exception:
-            pass  # 关联图生成失败不影响主流程
+            import logging
+            logging.getLogger(__name__).warning("知识关联图生成失败", exc_info=True)
 
     threading.Thread(target=_async_generate_links, daemon=True).start()
 

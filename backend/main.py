@@ -56,6 +56,7 @@ async def _startup():
     import cas.executors.make_plan               # noqa: F401
     import cas.executors.recommend_mistake_practice  # noqa: F401
     import cas.executors.open_course_space           # noqa: F401
+    import cas.executors.start_feynman               # noqa: F401
     get_action_registry()  # 触发 YAML 加载
 
 app.include_router(auth.router,       prefix="/api/auth",       tags=["auth"])

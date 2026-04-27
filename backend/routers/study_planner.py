@@ -269,7 +269,7 @@ def get_today_items(user=Depends(get_current_user)):
             .filter(
                 PlanItem.plan_id == plan.id,
                 PlanItem.planned_date >= datetime(today.year, today.month, today.day, tzinfo=timezone.utc),
-                PlanItem.planned_date < datetime(today.year, today.month, today.day + 1, tzinfo=timezone.utc),
+                PlanItem.planned_date < datetime(today.year, today.month, today.day, tzinfo=timezone.utc) + timedelta(days=1),
             )
             .all()
         )
@@ -390,8 +390,7 @@ def get_plan_progress(plan_id: int, user=Depends(get_current_user)):
             return {"status": "done", "progress": 1.0, "plan_id": plan_id}
         if plan.status == 'draft':
             progress = _plan_progress.get(plan_id, {"status": "pending", "progress": 0})
-            return {**progress, "plan_id": plan_id}
-        return {"status": plan.status, "progress": 1.0, "plan_id": plan_id}
+            return {**progress, "plan_id": plan_id}        return {"status": plan.status, "progress": 1.0, "plan_id": plan_id}
 
 
 # ── Level 3 占位端点 ───────────────────────────────────────────────────────────

@@ -26,6 +26,7 @@ _RULES: list[tuple[str, list[str]]] = [
     ("recommend_mistake_practice",["错题", "复盘", "薄弱", "针对练习", "错误"]),
     ("open_notebook",             ["笔记", "笔记本", "打开笔记"]),
     ("open_course_space",         ["讲义", "课程", "大纲", "思维导图", "图书馆", "打开课程"]),
+    ("start_feynman",             ["费曼", "费曼学习法", "用自己的话", "讲给我听", "讲解一下", "费曼技巧"]),
 ]
 
 

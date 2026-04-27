@@ -121,9 +121,7 @@ async def generate_quiz(
     - judge: 判断题
     """
     from services.quiz_generator_service import QuizGeneratorService
-
-    # 转换为服务层模型
-    from services.quiz_generator_service import QuizGenerateIn, NodeInfo as ServiceNodeInfo
+    from services.quiz_generator_service import QuizGenerateIn
 
     service_request = QuizGenerateIn(
         node_id=request.node_id,
@@ -214,18 +212,30 @@ async def get_question_types(
     }
 
 
+class SubmitAnswerIn(BaseModel):
+    question_id: str
+    user_answer: str
+    node_id: str = ""
+    node_title: str = ""
+    subject_id: Optional[int] = None
+    question_text: str = ""
+    correct_answer: str = ""
+    question_type: str = "choice"
+
+
 @router.post("/submit-answer")
 async def submit_answer(
-    question_id: str,
-    user_answer: str,
-    node_id: str = "",
-    node_title: str = "",
-    subject_id: Optional[int] = None,
-    question_text: str = "",
-    correct_answer: str = "",
-    question_type: str = "choice",
+    body: SubmitAnswerIn,
     user=Depends(get_current_user),
 ):
+    question_id = body.question_id
+    user_answer = body.user_answer
+    node_id = body.node_id
+    node_title = body.node_title
+    subject_id = body.subject_id
+    question_text = body.question_text
+    correct_answer = body.correct_answer
+    question_type = body.question_type
     """
     提交答题结果。
     - 判断是否答对（choice/judge 精确匹配，fill/calc 模糊匹配）

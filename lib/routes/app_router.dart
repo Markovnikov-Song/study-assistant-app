@@ -199,6 +199,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+      // 费曼学习对话路由
+      GoRoute(
+        path: '/chat/feynman',
+        builder: (_, state) => ChatPage(
+          chatId: 'feynman_${DateTime.now().millisecondsSinceEpoch}',
+          feynmanTopic: state.uri.queryParameters['topic'],
+          subjectId: int.tryParse(state.uri.queryParameters['subject_id'] ?? ''),
+        ),
+      ),
+        ],
+      ),
 
       // 工具箱子路由
       GoRoute(path: R.toolkitMistakeBook, builder: (_, _) => const MistakeBookPage()),

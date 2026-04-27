@@ -73,6 +73,22 @@ _SOLVE_SYSTEM = (
     "每个部分均需详细说明，不得省略。"
 )
 
+_FEYNMAN_SYSTEM = (
+    "你是一位费曼学习法教练，正在帮助学生通过「用自己的话讲解」来深化理解。\n"
+    "你的角色是「追问者」，不是「讲解者」——你不直接给出答案或完整解释。\n\n"
+    "对话规则：\n"
+    "1. 仔细听学生的解释，找出其中模糊、跳跃、或不准确的地方\n"
+    "2. 每次只追问一个最关键的问题，不要一次问多个\n"
+    "3. 追问要具体，例如：「你说『力越大形变越大』，那如果力减半，形变会怎样？」\n"
+    "4. 如果学生解释正确，给予简短肯定，然后追问更深一层\n"
+    "5. 如果学生卡住了，给一个小提示（类比或例子），但不要直接说出答案\n"
+    "6. 回复简短，最多3-4句话，保持对话节奏\n"
+    "7. 不要用标题、列表、加粗等格式，用自然对话语气\n"
+    "8. 如果学生已经能清晰解释，告诉他「你已经掌握了这个知识点」并总结核心\n\n"
+    "{user_context}"
+    "{rag_context}"
+)
+
 _SYSTEM_PROMPTS = {
     "strict": _STRICT_SYSTEM,
     "broad": _BROAD_SYSTEM,
@@ -340,7 +356,7 @@ def _patch_rag_pipeline():
 
         # 向量检索
         sources = []
-        if mode in ("strict", "hybrid", "solve") and subject_id:
+        if mode in ("strict", "hybrid", "solve", "feynman") and subject_id:
             vector_store = self.get_vector_store(subject_id)
             docs_with_scores = vector_store.similarity_search_with_score(question, k=cfg.TOP_K)
             for doc, score in docs_with_scores:
@@ -365,12 +381,44 @@ def _patch_rag_pipeline():
             context_parts.append(f"[资料 {i}] 文件：{src.filename}\n{src.content}")
         context = "\n\n".join(context_parts)
 
-        system_prompt = _SYSTEM_PROMPTS.get(mode, _STRICT_SYSTEM)
-        messages = [{"role": "system", "content": system_prompt}]
-        if context:
-            messages.append({"role": "user", "content": f"参考资料：\n{context}\n\n问题：{question}"})
-        else:
+        # ── feynman 模式：注入用户记忆 + 知识点上下文，不强制 RAG ──────────
+        if mode == "feynman":
+            user_context_str = ""
+            try:
+                from services.memory_service import MemoryService
+                memory = MemoryService().get_memory(user_id, subject_id)
+                weak_points = memory.get("weak_points", [])
+                misconceptions = memory.get("misconceptions", [])
+                parts = []
+                if weak_points:
+                    parts.append(f"该学生的薄弱点：{', '.join(weak_points[:3])}")
+                if misconceptions:
+                    parts.append(f"该学生的常见误解：{', '.join(misconceptions[:2])}")
+                if parts:
+                    user_context_str = "【学生画像】" + "；".join(parts) + "\n针对以上特点，追问时重点关注这些薄弱环节。\n\n"
+            except Exception:
+                pass
+
+            rag_context_str = ""
+            if context:
+                rag_context_str = (
+                    "【知识点参考资料（仅供你了解正确答案，不要直接告诉学生）】\n"
+                    f"{context}\n\n"
+                )
+
+            system_prompt = _FEYNMAN_SYSTEM.format(
+                user_context=user_context_str,
+                rag_context=rag_context_str,
+            )
+            messages = [{"role": "system", "content": system_prompt}]
             messages.append({"role": "user", "content": question})
+        else:
+            system_prompt = _SYSTEM_PROMPTS.get(mode, _STRICT_SYSTEM)
+            messages = [{"role": "system", "content": system_prompt}]
+            if context:
+                messages.append({"role": "user", "content": f"参考资料：\n{context}\n\n问题：{question}"})
+            else:
+                messages.append({"role": "user", "content": question})
 
         llm = LLMService()
         full_answer = ""

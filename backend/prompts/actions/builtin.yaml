@@ -130,3 +130,21 @@ actions:
     fallback_text: 暂时无法理解您的请求，请换一种方式描述
     param_schema: []
     executor_ref: unknown_intent
+
+  # ── 费曼学习法 ───────────────────────────────────────────────────────────────
+  - action_id: start_feynman
+    version: "1.0.0"
+    name: 费曼学习法
+    description: 开启费曼学习对话，AI 扮演追问者，引导学生用自己的话讲解知识点，暴露理解盲区
+    fallback_text: 暂时无法开启费曼学习，请稍后再试
+    param_schema:
+      - name: topic
+        type: text
+        label: 你想练习哪个知识点？
+        required: true
+        max_length: 100
+      - name: subject_id
+        type: number
+        label: 学科
+        required: false
+    executor_ref: start_feynman

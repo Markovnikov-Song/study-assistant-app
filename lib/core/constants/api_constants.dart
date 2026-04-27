@@ -74,8 +74,8 @@ class ApiConstants {
   static const String reviewSubmit        = '/api/review/review/submit';
   static const String reviewQueue         = '/api/review/review/queue';
   static const String reviewSubjects      = '/api/review/review/subjects';
-  static const String reviewCardRate      = '/api/review/review/card';
-  static const String progressSummary     = '/api/review/review/progress/summary';
+  static const String reviewCardRate      = '/api/review/review/card'; // append /{cardId}/rate at call site
+  static const String progressSummary     = '/api/review/progress/summary';
 
   // Token
   static const String tokenQuota    = '/api/token/quota';
