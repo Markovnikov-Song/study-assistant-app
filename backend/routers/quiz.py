@@ -146,14 +146,23 @@ async def generate_quiz(
     try:
         result = service.generate_quiz(service_request, user_id=user["id"] if isinstance(user, dict) else getattr(user, "id", None))
     except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("generate_quiz failed: %s", e)
         raise HTTPException(status_code=500, detail=f"出题失败：{e}")
 
     # 转换响应
     questions = []
     for q in result.questions:
-        q_dict = q.model_dump()
-        questions.append(QuestionResponse(**q_dict))
+        try:
+            q_dict = q.model_dump()
+            questions.append(QuestionResponse(**q_dict))
+        except Exception:
+            # 跳过无法转换的题目，不影响其他题目
+            continue
 
+    if not questions:
+        # 所有题目转换失败，返回降级结果
+        raise HTTPException(status_code=500, detail="题目生成失败，请重试")
 
     return QuizGenerateResponse(
         success=result.success,

@@ -80,6 +80,10 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       ref.invalidate(todayEventsProvider);
       ref.invalidate(calendarStatsProvider('7d'));
     }));
+    _busUnsubs.add(bus.on<CalendarEventUncompleted>().listen((_) {
+      ref.invalidate(todayEventsProvider);
+      ref.invalidate(calendarStatsProvider('7d'));
+    }));
     _busUnsubs.add(bus.on<CalendarEventsBatchCreated>().listen((e) {
       for (final month in e.affectedMonths) {
         ref.invalidate(calendarEventsProvider(DateRange.month(month)));

@@ -209,6 +209,8 @@ class _EventTile extends ConsumerWidget {
         event.id,
         {'is_completed': !event.isCompleted},
       );
+      // 直接刷新今日事件列表，不依赖 EventBus
+      ref.invalidate(todayEventsProvider);
       if (!event.isCompleted) {
         AppEventBus.instance.fire(CalendarEventCompleted(
           eventId: event.id,
