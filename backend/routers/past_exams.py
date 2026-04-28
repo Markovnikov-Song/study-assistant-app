@@ -70,6 +70,11 @@ async def upload(file: UploadFile = File(...), subject_id: int = Form(...), user
 @router.get("/{file_id}/questions", response_model=List[QuestionOut])
 def get_questions(file_id: int, user=Depends(get_current_user)):
     with db_session() as db:
+        # 先验证该文件属于当前用户，防止越权读取他人数据
+        from database import PastExamFile
+        exam_file = db.query(PastExamFile).filter_by(id=file_id, user_id=user["id"]).first()
+        if not exam_file:
+            raise HTTPException(404, "文件不存在")
         qs = db.query(PastExamQuestion).filter_by(exam_file_id=file_id).all()
         return [QuestionOut(id=q.id, question_number=q.question_number,
                             content=q.content, answer=q.answer) for q in qs]

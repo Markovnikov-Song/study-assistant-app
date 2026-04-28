@@ -5,6 +5,7 @@ import '../../models/document.dart';
 import '../../models/mindmap_library.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/document_provider.dart';
+import '../../providers/history_provider.dart';
 import '../../providers/library_provider.dart';
 import '../../routes/app_router.dart';
 
@@ -784,6 +785,7 @@ class _GenerateMindmapSheetState
       // 生成完成后刷新 session 列表
       ref.invalidate(courseSessionsProvider(widget.subjectId));
       ref.invalidate(schoolSubjectsProvider);
+      ref.invalidate(allSessionsProvider); // 同步刷新「我的」历史记录页
 
       if (mounted) {
         Navigator.pop(context);

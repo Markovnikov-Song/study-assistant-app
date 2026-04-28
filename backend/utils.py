@@ -133,17 +133,17 @@ def get_user_sessions(user_id: int) -> list[dict]:
 
 
 def get_subject_sessions(subject_id: int, user_id: int) -> list[dict]:
-    """获取某学科下的所有对话会话。"""
+    """获取某学科下的所有对话会话。subject_id=0 表示通用对话（subject_id IS NULL）。"""
     with get_session() as db:
-        rows = (
-            db.query(ConversationSession)
-            .filter(
-                ConversationSession.subject_id == subject_id,
-                ConversationSession.user_id == user_id,
-            )
-            .order_by(ConversationSession.created_at.desc())
-            .all()
+        query = db.query(ConversationSession).filter(
+            ConversationSession.user_id == user_id,
         )
+        if subject_id == 0:
+            # 通用对话：subject_id 在数据库里存的是 NULL
+            query = query.filter(ConversationSession.subject_id.is_(None))
+        else:
+            query = query.filter(ConversationSession.subject_id == subject_id)
+        rows = query.order_by(ConversationSession.created_at.desc()).all()
         return [_session_to_dict(s, None) for s in rows]
 
 

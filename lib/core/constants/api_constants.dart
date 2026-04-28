@@ -83,4 +83,7 @@ class ApiConstants {
   static const String tokenUsageToday = '/api/token/usage/today';
   static const String tokenUsageHistory = '/api/token/usage/history';
   static const String tokenTiers   = '/api/token/tiers';
+
+  // App Update
+  static const String appVersion = '/api/app/version';
 }

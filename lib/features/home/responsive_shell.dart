@@ -11,6 +11,8 @@ import '../profile/profile_page.dart';
 import '../../providers/hint_provider.dart';
 import '../../providers/subject_provider.dart';
 import '../../providers/background_style_provider.dart';
+import '../update/update_dialog.dart';
+import '../../services/update_service.dart';
 
 /// 响应式 Shell - 移动端底部导航，桌面端侧边导航
 
@@ -43,7 +45,20 @@ class _ResponsiveShellState extends ConsumerState<ResponsiveShell> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshHints());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshHints();
+      _checkForUpdate();
+    });
+  }
+
+  Future<void> _checkForUpdate() async {
+    final result = await UpdateService.instance.checkForUpdate();
+    if (!result.hasUpdate || !mounted) return;
+    await showUpdateDialog(
+      context,
+      result.info!,
+      isForced: result.isForced,
+    );
   }
 
   Future<void> _refreshHints() async {

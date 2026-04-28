@@ -15,8 +15,10 @@
 
 import 'dart:async'; // Dart 异步库
 import 'package:dio/dio.dart'; // HTTP 库（用到 CancelToken、DioException）
+import 'package:flutter/foundation.dart'; // VoidCallback
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 状态管理
 import '../models/chat_message.dart';
+import '../providers/history_provider.dart';
 import '../services/chat_service.dart';
 
 // ─── Provider 1：ChatService 实例 ────────────────────────────
@@ -45,10 +47,18 @@ final chatServiceProvider = Provider<ChatService>((ref) => ChatService());
 final chatProvider = StateNotifierProviderFamily<ChatNotifier, AsyncValue<List<ChatMessage>>, (String, String)>(
   (ref, key) {
     ref.keepAlive(); // 防止切换 Tab 时被 dispose
+    final subjectId = int.tryParse(key.$1) ?? 0;
     return ChatNotifier(
       ref.watch(chatServiceProvider),
       chatKey: key.$1,
-      subjectId: int.tryParse(key.$1) ?? 0,
+      subjectId: subjectId,
+      // 新会话创建后刷新历史列表：
+    // - sessionsProvider(subjectId)：助教页左上角历史记录
+    // - allSessionsProvider：「我的」历史记录页
+      onSessionCreated: () {
+        ref.invalidate(sessionsProvider(subjectId));
+        ref.invalidate(allSessionsProvider);
+      },
     );
   },
 );
@@ -85,9 +95,10 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   CancelToken? _cancelToken;   // Dio 的取消令牌，null 表示没有进行中的请求
 
   // 回调函数：发送状态变化时通知外部（UI 层注册这个回调来更新按钮状态）
-  // void Function(bool)?：类型是"接受一个 bool 参数、无返回值的函数"，可为 null
-  // 类比 Python：on_sending_changed: Optional[Callable[[bool], None]] = None
   void Function(bool)? onSendingChanged;
+
+  // 新会话创建后的回调（由 chatProvider 注入，用于刷新历史列表）
+  final VoidCallback? onSessionCreated;
 
   // 清除回调（widget dispose 时调用，防止悬空引用）
   void detachCallbacks() {
@@ -95,7 +106,7 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   }
 
   // 构造函数
-  ChatNotifier(this._service, {required String chatKey, required int subjectId})
+  ChatNotifier(this._service, {required String chatKey, required int subjectId, this.onSessionCreated})
       : _chatKey = chatKey,
         _subjectId = subjectId,
         super(const AsyncValue.data([]));
@@ -157,7 +168,12 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
             // 后端通过 SSE 返回本次会话 ID，更新后续消息复用同一会话
             final idStr = event.substring(12, event.length - 1);
             final id = int.tryParse(idStr);
-            if (id != null) _currentSessionId = id;
+            if (id != null) {
+              final isNewSession = _currentSessionId == null;
+              _currentSessionId = id;
+              // 新会话第一次创建时刷新历史列表
+              if (isNewSession) onSessionCreated?.call();
+            }
             return;
           }
           if (event.startsWith('[SOURCES]')) return; // 后端已保存，忽略

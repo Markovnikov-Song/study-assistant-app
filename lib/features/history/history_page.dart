@@ -37,10 +37,12 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       .where((s) => _filterType == null || s.sessionType.name == _filterType)
       .toList();
 
-  Future<void> _delete(int id) async {
+  Future<void> _delete(HistorySessionItem item) async {
     try {
-      await DioClient.instance.dio.delete('${ApiConstants.sessions}/$id');
+      await DioClient.instance.dio.delete('${ApiConstants.sessions}/${item.id}');
       ref.invalidate(allSessionsProvider);
+      // 同时刷新对应学科的侧边栏历史记录（subjectId=null 的通用对话用 0）
+      ref.invalidate(sessionsProvider(item.subjectId ?? 0));
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('删除失败')));
     }
@@ -86,9 +88,13 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
             IconButton(
               icon: const Icon(Icons.delete_outline),
               onPressed: _selected.isEmpty ? null : () async {
+                final allSessions = ref.read(allSessionsProvider).valueOrNull ?? [];
                 final ids = List<int>.from(_selected);
                 setState(() { _selected.clear(); _selectMode = false; });
-                for (final id in ids) { await _delete(id); }
+                for (final id in ids) {
+                  final item = allSessions.cast<HistorySessionItem?>().firstWhere((s) => s?.id == id, orElse: () => null);
+                  if (item != null) await _delete(item);
+                }
               },
             ),
           ] else
@@ -110,7 +116,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                       ),
                     );
                     if (ok == true) {
-                      for (final s in filtered) { await _delete(s.id); }
+                      for (final s in filtered) { await _delete(s); }
                     }
                   }
                 },
@@ -217,7 +223,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                                 ],
                               ),
                             );
-                            if (ok == true) await _delete(s.id);
+                            if (ok == true) await _delete(s);
                           },
                         ),
                         onTap: _selectMode

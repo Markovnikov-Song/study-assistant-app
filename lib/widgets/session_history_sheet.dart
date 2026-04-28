@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/chat_message.dart';
 import '../providers/chat_provider.dart';
+import '../providers/history_provider.dart';
 import '../routes/app_router.dart';
 import '../widgets/message_search_delegate.dart';
 
@@ -106,6 +107,7 @@ class _SessionHistorySheetState extends ConsumerState<_SessionHistorySheet> {
       try {
         await ref.read(chatServiceProvider).deleteSession(s.id);
         ref.invalidate(sessionsProvider(widget.subjectId));
+        ref.invalidate(allSessionsProvider); // 同步刷新「我的」历史记录页
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

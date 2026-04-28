@@ -1,4 +1,4 @@
-package com.example.study_assistant_app
+package cn.studyassistant.app
 
 import android.content.ComponentName
 import android.content.pm.PackageManager

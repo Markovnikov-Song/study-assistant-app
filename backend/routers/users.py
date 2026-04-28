@@ -1,7 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from database import User, get_session
 from deps import get_current_user, hash_password, verify_password
@@ -20,6 +20,15 @@ class PasswordUpdateIn(BaseModel):
 
 class AvatarUpdateIn(BaseModel):
     avatar_base64: str
+
+    @field_validator("avatar_base64")
+    @classmethod
+    def validate_size(cls, v: str) -> str:
+        # base64 编码后每 4 字节对应 3 字节原始数据
+        # 限制原始图片大小 ≤ 2MB（base64 后约 2.7MB，即 ~2_800_000 字符）
+        if len(v) > 2_800_000:
+            raise ValueError("头像图片不能超过 2MB")
+        return v
 
 
 class UserOut(BaseModel):

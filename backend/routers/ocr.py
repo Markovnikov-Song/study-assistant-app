@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from deps import get_current_user
 from services.llm_service import LLMService
 
@@ -9,6 +9,14 @@ _llm = LLMService()
 
 class OcrIn(BaseModel):
     image: str  # base64
+
+    @field_validator("image")
+    @classmethod
+    def validate_size(cls, v: str) -> str:
+        # 限制图片原始大小 ≤ 10MB（base64 后约 13.3MB，即 ~14_000_000 字符）
+        if len(v) > 14_000_000:
+            raise ValueError("图片不能超过 10MB")
+        return v
 
 
 class OcrOut(BaseModel):

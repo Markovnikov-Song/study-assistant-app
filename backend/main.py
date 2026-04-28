@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from routers import auth, subjects, sessions, chat, documents, past_exams, exam_gen, ocr, notebooks, notes, users, hints, library, agent, mcp, marketplace, council, calendar, review, feedback, quiz, token
 from routers import cas
@@ -44,6 +45,12 @@ else:
 async def _startup():
     from database import init_db
     init_db()
+
+    # 挂载 APK 下载目录（如果存在）
+    import os
+    downloads_dir = os.path.join(os.path.dirname(__file__), "downloads")
+    os.makedirs(downloads_dir, exist_ok=True)
+    app.mount("/downloads", StaticFiles(directory=downloads_dir), name="downloads")
     # 预热 ActionRegistry + 导入所有内置 Executor（触发 @register_executor 装饰器）
     from cas.action_registry import get_action_registry
     import cas.executors.unknown_intent          # noqa: F401
@@ -88,3 +95,29 @@ app.include_router(spec_chat.router,   prefix="/api/spec",      tags=["spec"])
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+# ── 应用版本信息（用于客户端自动更新检查）────────────────────────────────────
+# 每次发布新版本时，修改 APP_VERSION 和 APP_MIN_VERSION 即可
+# APP_DOWNLOAD_URL 指向服务器上最新 APK 的下载地址
+
+APP_VERSION     = os.getenv("APP_VERSION",      "1.0.0")
+APP_MIN_VERSION = os.getenv("APP_MIN_VERSION",  "1.0.0")
+APP_DOWNLOAD_URL = os.getenv("APP_DOWNLOAD_URL", "")
+APP_CHANGELOG   = os.getenv("APP_CHANGELOG",    "")
+
+@app.get("/api/app/version")
+def app_version():
+    """
+    客户端启动时调用此接口检查是否有新版本。
+    - version: 最新版本号
+    - min_version: 最低支持版本（低于此版本强制更新）
+    - download_url: APK 下载地址
+    - changelog: 更新说明
+    """
+    return {
+        "version":      APP_VERSION,
+        "min_version":  APP_MIN_VERSION,
+        "download_url": APP_DOWNLOAD_URL,
+        "changelog":    APP_CHANGELOG,
+    }
