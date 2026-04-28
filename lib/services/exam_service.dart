@@ -36,7 +36,11 @@ class ExamService {
         'subject_id': subjectId,
       });
       final res = await _dio.post(ApiConstants.pastExams, data: formData);
-      return ((res.data as Map<String, dynamic>)['file_id'] as num).toInt();
+      final rawId = (res.data as Map<String, dynamic>)['file_id'];
+      if (rawId is int) return rawId;
+      if (rawId is num) return rawId.toInt();
+      if (rawId is String) return int.tryParse(rawId) ?? 0;
+      return 0;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

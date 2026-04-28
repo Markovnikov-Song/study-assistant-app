@@ -25,18 +25,22 @@ void main() async {
   await StorageService.instance.init();
   DioClient.instance.init();
 
-  // 初始化推送通知服务
-  await NotificationService.instance.init();
+  // 初始化推送通知服务（失败不阻塞启动）
+  try {
+    await NotificationService.instance.init();
+    final notifSettings = await NotificationSettings.load();
+    await NotificationService.instance.rescheduleAll(notifSettings);
+  } catch (e) {
+    debugPrint('[main] NotificationService init failed: $e');
+  }
 
   final prefs = await SharedPreferences.getInstance();
 
-  // 根据已保存的设置重新调度所有通知（App 重启后恢复）
-  final notifSettings = await NotificationSettings.load();
-  await NotificationService.instance.rescheduleAll(notifSettings);
-
-  // 初始化 Level 2 和 Level 3 Monitor
+  // Level 3 Monitor 在后台启动，不 await，避免网络请求阻塞启动
   final level3Monitor = Level3Monitor();
-  await level3Monitor.start();
+  level3Monitor.start().catchError((e) {
+    debugPrint('[main] Level3Monitor start failed: $e');
+  });
 
   runApp(ProviderScope(
     overrides: [

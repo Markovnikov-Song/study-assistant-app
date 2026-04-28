@@ -128,8 +128,12 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: notifier,
     redirect: (context, state) {
       final loggedIn = notifier.isLoggedIn;
+      final isRestoring = notifier.isRestoring;
       final loc = state.matchedLocation;
       final isAuth = loc == R.login || loc == R.register;
+      final isSplash = loc == '/splash';
+      // Splash 页面和恢复中不做登录检查
+      if (isSplash || isRestoring) return null;
       if (!loggedIn && !isAuth) return R.login;
       if (loggedIn && isAuth) return R.chat;
       return null;
@@ -325,13 +329,16 @@ final routerProvider = Provider<GoRouter>((ref) {
 
 class _RouterNotifier extends ChangeNotifier {
   bool isLoggedIn = false;
+  bool isRestoring = true;
 
   _RouterNotifier(Ref ref) {
     ref.listen(authProvider, (_, next) {
       isLoggedIn = next.isAuthenticated;
+      isRestoring = next.isRestoring;
       notifyListeners();
     });
     isLoggedIn = ref.read(authProvider).isAuthenticated;
+    isRestoring = ref.read(authProvider).isRestoring;
   }
 }
 

@@ -40,6 +40,8 @@ def update_username(
             raise HTTPException(409, "用户名已被占用")
 
         user = db.query(User).filter(User.id == current_user["id"]).first()
+        if not user:
+            raise HTTPException(404, "用户不存在")
         user.username = body.new_username
         db.flush()
         return UserOut(user_id=user.id, username=user.username, avatar_base64=user.avatar)
@@ -52,6 +54,8 @@ def update_password(
 ):
     with get_session() as db:
         user = db.query(User).filter(User.id == current_user["id"]).first()
+        if not user:
+            raise HTTPException(404, "用户不存在")
         if not verify_password(body.old_password, user.password_hash):
             raise HTTPException(401, "当前密码错误")
         user.password_hash = hash_password(body.new_password)
@@ -65,6 +69,8 @@ def update_avatar(
 ):
     with get_session() as db:
         user = db.query(User).filter(User.id == current_user["id"]).first()
+        if not user:
+            raise HTTPException(404, "用户不存在")
         user.avatar = body.avatar_base64
         db.flush()
         return UserOut(user_id=user.id, username=user.username, avatar_base64=user.avatar)
@@ -74,4 +80,6 @@ def update_avatar(
 def get_me(current_user: dict = Depends(get_current_user)):
     with get_session() as db:
         user = db.query(User).filter(User.id == current_user["id"]).first()
+        if not user:
+            raise HTTPException(404, "用户不存在")
         return UserOut(user_id=user.id, username=user.username, avatar_base64=user.avatar)

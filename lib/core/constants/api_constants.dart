@@ -13,7 +13,7 @@ class ApiConstants {
   static const String _devUrl = 'http://localhost:8000';
 
   /// 云服务器地址
-  static const String _prodUrl = 'https://your-server.com';
+  static const String _prodUrl = 'http://47.104.165.105:8000';
 
   static String get baseUrl {
     // 优先使用编译时注入的地址（flutter run --dart-define=API_BASE_URL=xxx）

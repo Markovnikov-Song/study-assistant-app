@@ -35,7 +35,7 @@ class AppConfig:
     LLM_BASE_URL: str
     LLM_CHAT_MODEL: str
     LLM_EMBEDDING_MODEL: str
-    LLM_VISION_MODEL: str = "Qwen/Qwen2.5-VL-7B-Instruct"
+    LLM_VISION_MODEL: str = "PaddlePaddle/PaddleOCR-VL-1.5"
     # 场景化模型（不配置则回退到 LLM_CHAT_MODEL）
     LLM_FAST_MODEL: str = ""    # 轻量模型：简单问答、标题生成、hints
     LLM_HEAVY_MODEL: str = ""   # 大模型：解题、讲义生成、council
@@ -191,7 +191,7 @@ def get_config() -> AppConfig:
             LLM_BASE_URL=os.environ["LLM_BASE_URL"],
             LLM_CHAT_MODEL=os.environ["LLM_CHAT_MODEL"],
             LLM_EMBEDDING_MODEL=os.environ["LLM_EMBEDDING_MODEL"],
-            LLM_VISION_MODEL=os.getenv("LLM_VISION_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct"),
+            LLM_VISION_MODEL=os.getenv("LLM_VISION_MODEL", "PaddlePaddle/PaddleOCR-VL-1.5"),
             LLM_FAST_MODEL=os.getenv("LLM_FAST_MODEL", ""),
             LLM_HEAVY_MODEL=os.getenv("LLM_HEAVY_MODEL", ""),
             # RAG

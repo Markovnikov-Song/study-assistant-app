@@ -58,9 +58,15 @@ class MindmapMeta {
       };
 
   factory MindmapMeta.fromJson(Map<String, dynamic> json) {
+    int toInt(dynamic v) {
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 0;
+      return 0;
+    }
     return MindmapMeta(
       id: json['id'] as String,
-      subjectId: (json['subject_id'] as num).toInt(),
+      subjectId: toInt(json['subject_id']),
       name: json['name'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),

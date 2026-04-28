@@ -171,7 +171,7 @@ class LLMService:
             from config import get_config
             cfg = get_config()
             # 视觉模型单独配置，默认用 Qwen VL
-            vision_model = getattr(cfg, "LLM_VISION_MODEL", None) or "Qwen/Qwen2.5-VL-7B-Instruct"
+            vision_model = getattr(cfg, "LLM_VISION_MODEL", None) or "PaddlePaddle/PaddleOCR-VL-1.5"
             client = self._get_client()
             vision_messages = list(messages) + [
                 {

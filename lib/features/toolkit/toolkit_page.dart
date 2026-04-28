@@ -4,6 +4,59 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// 所有工具可用的图标名称 → IconData 映射（常量，tree-shaking 安全）
+const Map<String, IconData> kToolIconMap = {
+  'error_outline_rounded': Icons.error_outline_rounded,
+  'error_rounded': Icons.error_rounded,
+  'warning_amber_outlined': Icons.warning_amber_outlined,
+  'update_outlined': Icons.update_outlined,
+  'replay_outlined': Icons.replay_outlined,
+  'refresh_outlined': Icons.refresh_outlined,
+  'note_alt_outlined': Icons.note_alt_outlined,
+  'note_alt_rounded': Icons.note_alt_rounded,
+  'sticky_note_2_outlined': Icons.sticky_note_2_outlined,
+  'book_outlined': Icons.book_outlined,
+  'auto_stories_outlined': Icons.auto_stories_outlined,
+  'edit_note_outlined': Icons.edit_note_outlined,
+  'calculate_outlined': Icons.calculate_outlined,
+  'calculate_rounded': Icons.calculate_rounded,
+  'functions': Icons.functions,
+  'analytics_outlined': Icons.analytics_outlined,
+  'numbers': Icons.numbers,
+  'quick_contacts_dialer_outlined': Icons.quick_contacts_dialer_outlined,
+  'quiz_outlined': Icons.quiz_outlined,
+  'quiz_rounded': Icons.quiz_rounded,
+  'help_outline_rounded': Icons.help_outline_rounded,
+  'extension_outlined': Icons.extension_outlined,
+  'psychology_outlined': Icons.psychology_outlined,
+  'lightbulb_outline_rounded': Icons.lightbulb_outline_rounded,
+  'account_tree_outlined': Icons.account_tree_outlined,
+  'account_tree_rounded': Icons.account_tree_rounded,
+  'hub_outlined': Icons.hub_outlined,
+  'device_hub_outlined': Icons.device_hub_outlined,
+  'bubble_chart_outlined': Icons.bubble_chart_outlined,
+  'auto_awesome_outlined': Icons.auto_awesome_outlined,
+  'auto_awesome_rounded': Icons.auto_awesome_rounded,
+  'star_outline_rounded': Icons.star_outline_rounded,
+  'auto_fix_high_outlined': Icons.auto_fix_high_outlined,
+  'tips_and_updates_outlined': Icons.tips_and_updates_outlined,
+  'calendar_today_outlined': Icons.calendar_today_outlined,
+  'calendar_today_rounded': Icons.calendar_today_rounded,
+  'calendar_month_outlined': Icons.calendar_month_outlined,
+  'event_note_outlined': Icons.event_note_outlined,
+  'schedule_outlined': Icons.schedule_outlined,
+  'edit_calendar_outlined': Icons.edit_calendar_outlined,
+  'date_range_outlined': Icons.date_range_outlined,
+};
+
+/// IconData → 名称（反向查找，用于保存）
+String _iconToName(IconData icon) {
+  return kToolIconMap.entries
+      .firstWhere((e) => e.value == icon,
+          orElse: () => const MapEntry('error_outline_rounded', Icons.error_outline_rounded))
+      .key;
+}
+
 /// 用户自定义的工具图标 Provider
 final toolIconsProvider = StateNotifierProvider<ToolIconsNotifier, Map<String, IconData>>((ref) {
   return ToolIconsNotifier();
@@ -22,9 +75,9 @@ class ToolIconsNotifier extends StateNotifier<Map<String, IconData>> {
       for (final item in saved) {
         final parts = item.split(':');
         if (parts.length == 2) {
-          final iconCode = int.tryParse(parts[1]);
-          if (iconCode != null) {
-            map[parts[0]] = IconData(iconCode, fontFamily: 'MaterialIcons');
+          final icon = kToolIconMap[parts[1]];
+          if (icon != null) {
+            map[parts[0]] = icon;
           }
         }
       }
@@ -46,7 +99,7 @@ class ToolIconsNotifier extends StateNotifier<Map<String, IconData>> {
 
   Future<void> _saveIcons() async {
     final prefs = await SharedPreferences.getInstance();
-    final list = state.entries.map((e) => '${e.key}:${e.value.codePoint}').toList();
+    final list = state.entries.map((e) => '${e.key}:${_iconToName(e.value)}').toList();
     await prefs.setStringList('custom_tool_icons', list);
   }
 

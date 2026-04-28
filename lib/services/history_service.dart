@@ -20,12 +20,17 @@ class HistorySessionItem extends ConversationSession {
   @override
   factory HistorySessionItem.fromJson(Map<String, dynamic> json) {
     final base = ConversationSession.fromJson(json);
+    final rawSubjectId = json['subject_id'];
+    int? subjectId;
+    if (rawSubjectId is int) subjectId = rawSubjectId;
+    else if (rawSubjectId is num) subjectId = rawSubjectId.toInt();
+    else if (rawSubjectId is String) subjectId = int.tryParse(rawSubjectId);
     return HistorySessionItem(
       id: base.id,
       sessionType: base.sessionType,
       title: base.title,
       createdAt: base.createdAt,
-      subjectId: (json['subject_id'] as num?)?.toInt(),
+      subjectId: subjectId,
       subjectName: json['subject_name'] as String?,
     );
   }
@@ -62,13 +67,29 @@ class MessageSearchResult {
       (e) => e.name == typeStr,
       orElse: () => SessionType.qa,
     );
+
+    int _toInt(dynamic v) {
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 0;
+      return 0;
+    }
+
+    int? _toIntOrNull(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v);
+      return null;
+    }
+
     return MessageSearchResult(
-      messageId: (json['message_id'] as num).toInt(),
-      sessionId: (json['session_id'] as num).toInt(),
+      messageId: _toInt(json['message_id']),
+      sessionId: _toInt(json['session_id']),
       sessionTitle: json['session_title'] as String?,
       sessionType: type,
       typeLabel: json['type_label'] as String,
-      subjectId: (json['subject_id'] as num?)?.toInt(),
+      subjectId: _toIntOrNull(json['subject_id']),
       subjectName: json['subject_name'] as String?,
       role: json['role'] as String,
       snippet: json['snippet'] as String,

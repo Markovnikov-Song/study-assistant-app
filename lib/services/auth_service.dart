@@ -49,4 +49,18 @@ class AuthService {
     }
     await StorageService.instance.clearTokens();
   }
+
+  /// 用已保存的 token 获取当前用户信息（用于恢复登录状态）
+  Future<User> getMe() async {
+    try {
+      final res = await _dio.get(ApiConstants.userMe);
+      return User(
+        id: res.data['user_id'].toString(),
+        username: res.data['username'],
+        avatarBase64: res.data['avatar_base64'] as String?,
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }

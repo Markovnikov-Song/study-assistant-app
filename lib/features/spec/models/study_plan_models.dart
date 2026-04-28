@@ -1,5 +1,20 @@
 // lib/features/spec/models/study_plan_models.dart
 
+int _toInt(dynamic v, {int fallback = 0}) {
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v) ?? fallback;
+  return fallback;
+}
+
+int? _toIntOrNull(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v);
+  return null;
+}
+
 class TargetSubject {
   final int id;
   final String name;
@@ -7,7 +22,7 @@ class TargetSubject {
   const TargetSubject({required this.id, required this.name});
 
   factory TargetSubject.fromJson(Map<String, dynamic> json) => TargetSubject(
-        id: (json['id'] as num).toInt(),
+        id: _toInt(json['id']),
         name: json['name'] as String? ?? '',
       );
 
@@ -44,9 +59,9 @@ class PlanItem {
   });
 
   factory PlanItem.fromJson(Map<String, dynamic> json) => PlanItem(
-        id: (json['id'] as num).toInt(),
-        planId: (json['plan_id'] as num).toInt(),
-        subjectId: json['subject_id'] != null ? (json['subject_id'] as num).toInt() : null,
+        id: _toInt(json['id']),
+        planId: _toInt(json['plan_id']),
+        subjectId: _toIntOrNull(json['subject_id']),
         subjectName: json['subject_name'] as String?,
         nodeId: json['node_id'] as String? ?? '',
         nodeText: json['node_text'] as String? ?? '',
@@ -92,7 +107,7 @@ class StudyPlan {
   });
 
   factory StudyPlan.fromJson(Map<String, dynamic> json) => StudyPlan(
-        id: (json['id'] as num).toInt(),
+        id: _toInt(json['id']),
         name: json['name'] as String? ?? '我的学习计划',
         targetSubjects: (json['target_subjects'] as List?)
                 ?.map((e) => TargetSubject.fromJson(e as Map<String, dynamic>))
@@ -143,7 +158,7 @@ class PlanSummary {
   });
 
   factory PlanSummary.fromJson(Map<String, dynamic> json) => PlanSummary(
-        planId: (json['plan_id'] as num).toInt(),
+        planId: _toInt(json['plan_id']),
         totalItems: (json['total_items'] as num?)?.toInt() ?? 0,
         completedItems: (json['completed_items'] as num?)?.toInt() ?? 0,
         daysRemaining: (json['days_remaining'] as num?)?.toInt() ?? 0,

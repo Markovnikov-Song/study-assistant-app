@@ -1,8 +1,48 @@
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val keystoreProperties = Properties()
+val keystorePropertiesFileCandidates = listOf(
+    rootProject.file("key.properties"),
+    rootProject.file("android/key.properties")
+)
+val keystorePropertiesFile = keystorePropertiesFileCandidates.firstOrNull { it.exists() }
+if (keystorePropertiesFile != null) {
+    val rawBytes = Files.readAllBytes(keystorePropertiesFile.toPath())
+    val utf8Text = String(rawBytes, StandardCharsets.UTF_8)
+    val text = if (utf8Text.contains('\u0000')) {
+        String(rawBytes, StandardCharsets.UTF_16LE)
+    } else {
+        utf8Text
+    }
+
+    text.lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .forEach { line ->
+            val splitIndex = line.indexOf('=')
+            if (splitIndex > 0) {
+                val key = line.substring(0, splitIndex).trim()
+                val value = line.substring(splitIndex + 1).trim()
+                keystoreProperties.setProperty(key, value)
+            }
+        }
+}
+
+fun keystoreProp(name: String): String {
+    val value = keystoreProperties.getProperty(name)
+        ?: keystoreProperties.getProperty("\uFEFF$name")
+    return value?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: error("Missing '$name' in android/key.properties")
 }
 
 android {
@@ -31,11 +71,18 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProp("keyAlias")
+            keyPassword = keystoreProp("keyPassword")
+            storeFile = file(keystoreProp("storeFile"))
+            storePassword = keystoreProp("storePassword")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

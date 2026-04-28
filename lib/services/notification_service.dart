@@ -117,6 +117,7 @@ class NotificationSettings {
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
+  static const String _androidNotifIcon = '@mipmap/ic_launcher_1';
 
   final _plugin = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
@@ -134,17 +135,23 @@ class NotificationService {
       debugPrint('[NotificationService] 时区设置失败，使用 UTC: $e');
     }
 
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const android = AndroidInitializationSettings(_androidNotifIcon);
     const ios = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
-    await _plugin.initialize(
-      const InitializationSettings(android: android, iOS: ios),
-      onDidReceiveNotificationResponse: _onNotificationTap,
-    );
-    _initialized = true;
+    try {
+      await _plugin.initialize(
+        const InitializationSettings(android: android, iOS: ios),
+        onDidReceiveNotificationResponse: _onNotificationTap,
+      );
+      _initialized = true;
+    } catch (e) {
+      // Avoid app boot blocking if notification icon/resource init fails.
+      debugPrint('[NotificationService] 初始化失败，已降级跳过通知能力: $e');
+      _initialized = false;
+    }
   }
 
   void _onNotificationTap(NotificationResponse response) {
@@ -198,7 +205,7 @@ class NotificationService {
         channelDescription: channelDesc ?? channelName,
         importance: importance,
         priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
+        icon: _androidNotifIcon,
         styleInformation: const BigTextStyleInformation(''),
       ),
       iOS: const DarwinNotificationDetails(

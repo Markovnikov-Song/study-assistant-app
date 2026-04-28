@@ -26,6 +26,8 @@ import '../../core/event_bus/calendar_events.dart';
 import '../../tools/speech/speech_input_button.dart';
 import '../spec/widgets/today_task_card.dart';
 import '../../services/level2_monitor.dart';
+import '../../providers/solve_prefill_provider.dart';
+import '../../routes/app_router.dart';
 
 // ─── ChatPage（参数化，支持通用/学科/任务三种场景）────────────
 
@@ -453,11 +455,52 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Future<void> _pickAndOcr(ImageSource source) async {
     final file = await ImagePicker().pickImage(source: source, imageQuality: 85);
     if (file == null) return;
-    final b64 = base64Encode(await file.readAsBytes());
-    if (!mounted) return;
-    final text = await ref.read(chatProvider(_key).notifier).recognizeOcr(b64);
-    if (text != null && text.isNotEmpty && mounted) {
-      setState(() => _inputCtrl.text = text);
+
+    // 显示 loading
+    if (mounted) setState(() => _sending = true);
+
+    try {
+      final b64 = base64Encode(await file.readAsBytes());
+      if (!mounted) return;
+      final text = await ref.read(chatProvider(_key).notifier).recognizeOcr(b64);
+      if (!mounted) return;
+
+      if (text == null || text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('识别失败，请确保图片清晰且包含文字')),
+        );
+        return;
+      }
+
+      // 学科对话：跳转到解题页面并预填文字
+      if (widget.subjectId != null) {
+        // 先在当前对话里插入一条用户图片消息（让用户看到反馈）
+        ref.read(chatProvider(_key).notifier).appendMessage(
+          ChatMessage.local(role: MessageRole.user, content: '📷 图片识别：$text'),
+        );
+        _scrollToBottom();
+        // 跳转到解题页，并把识别文字预填到输入框
+        if (mounted) {
+          context.push(AppRoutes.toolkitSolve);
+          // 短暂延迟等页面挂载后再填充
+          await Future.delayed(const Duration(milliseconds: 300));
+          // SolvePage 有自己的输入框，通过全局 provider 传递预填文字
+          ref.read(solvePreFillProvider.notifier).state = text;
+        }
+        return;
+      }
+
+      // 通用对话：直接填入输入框并发送
+      _inputCtrl.text = text;
+      await _submit();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('识别出错：$e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
   }
 

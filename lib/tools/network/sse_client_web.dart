@@ -22,7 +22,7 @@ Stream<String> ssePost(String url, Map<String, dynamic> body, String? token) {
 
     for (final line in newChunk.split('\n')) {
       if (line.startsWith('data: ')) {
-        ctrl.add(line.substring(6));
+        ctrl.add(line.substring(6).replaceAll(r'\n', '\n').replaceAll(r'\r', '\r'));
       }
     }
   });
@@ -32,7 +32,7 @@ Stream<String> ssePost(String url, Map<String, dynamic> body, String? token) {
     final text = xhr.responseText ?? '';
     if (text.length > processed) {
       for (final line in text.substring(processed).split('\n')) {
-        if (line.startsWith('data: ')) ctrl.add(line.substring(6));
+        if (line.startsWith('data: ')) ctrl.add(line.substring(6).replaceAll(r'\n', '\n').replaceAll(r'\r', '\r'));
       }
     }
     ctrl.close();

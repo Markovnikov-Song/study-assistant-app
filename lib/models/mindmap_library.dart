@@ -2,6 +2,13 @@ import 'package:uuid/uuid.dart';
 
 import 'subject.dart';
 
+int _toInt(dynamic v, {int fallback = 0}) {
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v) ?? fallback;
+  return fallback;
+}
+
 // ── SubjectWithProgress ───────────────────────────────────────────────────────
 
 class SubjectWithProgress {
@@ -61,7 +68,7 @@ class MindMapSession {
 
   factory MindMapSession.fromJson(Map<String, dynamic> json) {
     return MindMapSession(
-      id: (json['id'] as num).toInt(),
+      id: _toInt(json['id']),
       title: json['title'] as String?,
       resourceScopeLabel: json['resource_scope_label'] as String?,
       createdAt: json['created_at'] != null
@@ -123,7 +130,7 @@ class TreeNode {
       // Backward compat: generate UUID if node_id is absent
       nodeId: json['node_id'] as String? ?? const Uuid().v4(),
       text: json['text'] as String,
-      depth: (json['depth'] as num).toInt(),
+      depth: _toInt(json['depth'], fallback: 1),
       // Backward compat: parentId absent → null
       parentId: json['parent_id'] as String?,
       // Backward compat: isUserCreated absent → false
@@ -273,8 +280,8 @@ class LectureSpan {
   });
 
   factory LectureSpan.fromJson(Map<String, dynamic> json) => LectureSpan(
-        start: (json['start'] as num).toInt(),
-        end: (json['end'] as num).toInt(),
+        start: _toInt(json['start']),
+        end: _toInt(json['end']),
         bold: json['bold'] as bool? ?? false,
         italic: json['italic'] as bool? ?? false,
         code: json['code'] as bool? ?? false,
@@ -313,7 +320,7 @@ class LectureBlock {
   factory LectureBlock.fromJson(Map<String, dynamic> json) => LectureBlock(
         id: json['id'] as String,
         type: json['type'] as String,
-        level: json['level'] != null ? (json['level'] as num).toInt() : null,
+        level: json['level'] != null ? _toInt(json['level']) : null,
         text: json['text'] as String? ?? '',
         source: json['source'] as String? ?? 'ai',
         language: json['language'] as String?,
@@ -377,7 +384,7 @@ class KnowledgeLink {
   });
 
   factory KnowledgeLink.fromJson(Map<String, dynamic> json) => KnowledgeLink(
-        id: (json['id'] as num).toInt(),
+        id: _toInt(json['id']),
         sourceNodeId: json['source_node_id'] as String? ?? '',
         targetNodeId: json['target_node_id'] as String? ?? '',
         sourceNodeText: json['source_node_text'] as String? ?? '',

@@ -143,7 +143,11 @@ class LibraryService {
       }
       final res = await _dio.post('$_base/lectures', data: data);
       final d = res.data as Map<String, dynamic>;
-      return (d['id'] as num).toInt();
+      final rawId = d['id'];
+      if (rawId is int) return rawId;
+      if (rawId is num) return rawId.toInt();
+      if (rawId is String) return int.tryParse(rawId) ?? 0;
+      return 0;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

@@ -1,5 +1,12 @@
 enum DocumentStatus { pending, processing, completed, failed }
 
+int _toInt(dynamic v, {int fallback = 0}) {
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v) ?? fallback;
+  return fallback;
+}
+
 class StudyDocument {
   final int id;
   final String filename;
@@ -31,7 +38,7 @@ class StudyDocument {
       orElse: () => DocumentStatus.pending,
     );
     return StudyDocument(
-      id: (json['id'] as num).toInt(),
+      id: _toInt(json['id']),
       filename: json['filename'] as String? ?? '',
       status: status,
       error: json['error'] as String?,
@@ -64,11 +71,13 @@ class PastExamFile {
       orElse: () => DocumentStatus.pending,
     );
     return PastExamFile(
-      id: (json['id'] as num).toInt(),
-      filename: json['filename'] as String,
+      id: _toInt(json['id']),
+      filename: json['filename'] as String? ?? '',
       status: status,
-      questionCount: (json['question_count'] as num?)?.toInt() ?? 0,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      questionCount: _toInt(json['question_count']),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'].toString())
+          : DateTime.now(),
     );
   }
 }

@@ -34,3 +34,9 @@ def recognize(body: OcrIn, user=Depends(get_current_user)):
         import logging
         logging.getLogger(__name__).error("OCR 识别失败: %s", e, exc_info=True)
         raise HTTPException(500, f"OCR 识别失败：{e}")
+
+
+# Flutter 端调用 /recognize，此处作为别名路由保持兼容
+@router.post("/recognize", response_model=OcrOut)
+def recognize_alias(body: OcrIn, user=Depends(get_current_user)):
+    return recognize(body, user)

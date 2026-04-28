@@ -6,6 +6,7 @@ import '../../models/chat_message.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/current_subject_provider.dart';
 import '../../providers/hint_provider.dart';
+import '../../providers/solve_prefill_provider.dart';
 import '../../widgets/message_search_delegate.dart';
 import '../../widgets/session_history_sheet.dart';
 import '../../widgets/subject_bar.dart';
@@ -26,6 +27,21 @@ class _SolvePageState extends ConsumerState<SolvePage> {
 
   @override
   void dispose() { _inputCtrl.dispose(); _scrollCtrl.dispose(); super.dispose(); }
+
+  @override
+  void initState() {
+    super.initState();
+    // 页面挂载后检查是否有从助教页面传来的预填文字
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final preFill = ref.read(solvePreFillProvider);
+      if (preFill != null && preFill.isNotEmpty) {
+        ref.read(solvePreFillProvider.notifier).state = null; // 清空，避免重复触发
+        _inputCtrl.text = preFill;
+        // 自动发送
+        _submit();
+      }
+    });
+  }
 
   int? get _subjectId => ref.read(currentSubjectProvider)?.id;
   (String, String) get _key => (_subjectId!.toString(), 'solve');
@@ -69,7 +85,8 @@ class _SolvePageState extends ConsumerState<SolvePage> {
       final text = await ref.read(chatProvider(_key).notifier).recognizeOcr(b64);
       if (!mounted) return;
       if (text != null && text.isNotEmpty) {
-        setState(() => _inputCtrl.text = text);
+        _inputCtrl.text = text;
+        await _submit(); // 自动发送，不需要用户再点发送
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('识别失败，请确保图片清晰且包含文字')),

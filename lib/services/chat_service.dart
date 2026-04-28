@@ -14,6 +14,13 @@ import 'package:study_assistant_app/tools/network/sse_client_stub.dart'
     if (dart.library.html) 'package:study_assistant_app/tools/network/sse_client_web.dart'
     if (dart.library.io) 'package:study_assistant_app/tools/network/sse_client_native.dart';
 
+int _parseId(dynamic v) {
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v) ?? 0;
+  return 0;
+}
+
 // ─── 发送消息的返回结果 ──────────────────────────────────────
 // 把多个返回值打包成一个类，类似 Python 的 NamedTuple 或 dataclass
 class ChatSendResult {
@@ -114,7 +121,7 @@ class ChatService {
         // 返回一个空消息，UI 层会显示提示文字
         return ChatSendResult(
           message: ChatMessage.local(role: MessageRole.assistant, content: ''),
-          sessionId: (data['session_id'] as num).toInt(),
+          sessionId: _parseId(data['session_id']),
           needsConfirmation: true,
         );
       }
@@ -122,7 +129,7 @@ class ChatService {
       // 正常情况：解析 AI 回复消息
       return ChatSendResult(
         message: ChatMessage.fromJson(data['message']),
-        sessionId: (data['session_id'] as num).toInt(),
+        sessionId: _parseId(data['session_id']),
       );
     } on DioException catch (e) {
       // DioException 会在请求被取消时也抛出，上层 provider 会区分处理

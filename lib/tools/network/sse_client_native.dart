@@ -30,14 +30,15 @@ Stream<String> ssePost(String url, Map<String, dynamic> body, String? token) {
         for (var i = 0; i < processCount; i++) {
           final line = lines[i];
           if (line.startsWith('data: ')) {
-            ctrl.add(line.substring(6));
+            // 还原后端转义的换行符（后端用 \\n 防止 SSE 帧截断）
+            ctrl.add(line.substring(6).replaceAll(r'\n', '\n').replaceAll(r'\r', '\r'));
           }
           // 忽略空行和其他 SSE 字段（event:, id:, retry: 等）
         }
       }
       // 处理最后可能残留的内容
       if (leftover.startsWith('data: ')) {
-        ctrl.add(leftover.substring(6));
+        ctrl.add(leftover.substring(6).replaceAll(r'\n', '\n').replaceAll(r'\r', '\r'));
       }
       client.close();
       ctrl.close();
