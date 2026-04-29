@@ -235,6 +235,16 @@ class ProfilePage extends ConsumerWidget {
                     ),
                     const SizedBox(height: 16),
                     _buildSectionTitle(context, '工具与历史', isDark),
+                    // API 配置卡片
+                    _buildMenuTile(
+                      context,
+                      icon: Icons.api_outlined,
+                      iconColor: cs.primary,
+                      title: 'AI 模型配置',
+                      subtitle: '配置自己的 API Key 或使用共享配置',
+                      onTap: () => context.push(R.profileApiConfig),
+                      isDark: isDark,
+                    ),
                     // AI使用强度统计卡片
                     _buildTokenUsageCard(context, ref, isDark),
                     _buildMenuTile(

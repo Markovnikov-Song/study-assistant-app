@@ -1,19 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="midnight_library_bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#0C1929"/>
       <stop offset="100%" style="stop-color:#1E3A5F"/>
     </linearGradient>
-    <radialGradient id="orb1" cx="70%" cy="25%" r="48%">
+    <radialGradient id="midnight_library_orb1" cx="70%" cy="25%" r="48%">
       <stop offset="0%" style="stop-color:#2563EB;stop-opacity:0.4"/>
       <stop offset="100%" style="stop-color:#1E40AF;stop-opacity:0"/>
     </radialGradient>
-    <radialGradient id="orb2" cx="15%" cy="75%" r="32%">
+    <radialGradient id="midnight_library_orb2" cx="15%" cy="75%" r="32%">
       <stop offset="0%" style="stop-color:#93C5FD;stop-opacity:0.28"/>
       <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:0"/>
     </radialGradient>
   </defs>
-  <rect width="400" height="800" fill="url(#bg)"/>
-  <ellipse cx="280" cy="200" rx="192" ry="192" fill="url(#orb1)"/>
-  <ellipse cx="60" cy="600" rx="128" ry="128" fill="url(#orb2)"/>
+  <rect width="400" height="800" fill="url(#midnight_library_bg)"/>
+  <ellipse cx="280" cy="200" rx="192" ry="192" fill="url(#midnight_library_orb1)"/>
+  <ellipse cx="60" cy="600" rx="128" ry="128" fill="url(#midnight_library_orb2)"/>
 </svg>

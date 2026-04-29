@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Generator, Optional
 
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     ForeignKey,
@@ -47,6 +48,15 @@ class User(Base):
     password_hash = Column(String(128), nullable=False)
     created_at = Column(DateTime, default=func.now(), nullable=False)
     avatar = Column(Text, nullable=True)
+    
+    # API 配置字段
+    use_shared_config = Column(Boolean, default=False, nullable=True)
+    shared_config_type = Column(String(50), nullable=True)
+    custom_llm_base_url = Column(Text, nullable=True)
+    custom_llm_api_key = Column(Text, nullable=True)
+    custom_vision_base_url = Column(Text, nullable=True)
+    custom_vision_api_key = Column(Text, nullable=True)
+    verified_at = Column(DateTime, nullable=True)
 
     subjects = relationship("Subject", back_populates="user", cascade="all, delete-orphan")
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")

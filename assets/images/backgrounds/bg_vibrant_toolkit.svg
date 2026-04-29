@@ -1,19 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="vibrant_toolkit_bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#FFF7ED"/>
       <stop offset="100%" style="stop-color:#FFEDD5"/>
     </linearGradient>
-    <radialGradient id="orb1" cx="25%" cy="30%" r="40%">
+    <radialGradient id="vibrant_toolkit_orb1" cx="25%" cy="30%" r="40%">
       <stop offset="0%" style="stop-color:#FB923C;stop-opacity:0.35"/>
       <stop offset="100%" style="stop-color:#F97316;stop-opacity:0"/>
     </radialGradient>
-    <radialGradient id="orb2" cx="75%" cy="80%" r="35%">
+    <radialGradient id="vibrant_toolkit_orb2" cx="75%" cy="80%" r="35%">
       <stop offset="0%" style="stop-color:#FDBA74;stop-opacity:0.4"/>
       <stop offset="100%" style="stop-color:#FB923C;stop-opacity:0"/>
     </radialGradient>
   </defs>
-  <rect width="400" height="800" fill="url(#bg)"/>
-  <ellipse cx="100" cy="240" rx="160" ry="160" fill="url(#orb1)"/>
-  <ellipse cx="300" cy="640" rx="140" ry="140" fill="url(#orb2)"/>
+  <rect width="400" height="800" fill="url(#vibrant_toolkit_bg)"/>
+  <ellipse cx="100" cy="240" rx="160" ry="160" fill="url(#vibrant_toolkit_orb1)"/>
+  <ellipse cx="300" cy="640" rx="140" ry="140" fill="url(#vibrant_toolkit_orb2)"/>
 </svg>

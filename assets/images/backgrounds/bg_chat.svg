@@ -1,52 +1,52 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <!-- 主背景渐变 -->
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- 主背景渐�?-->
+    <linearGradient id="default_chat_bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#1a1a4e"/>
       <stop offset="50%" stop-color="#2d1b69"/>
       <stop offset="100%" stop-color="#1a1a4e"/>
     </linearGradient>
     <!-- 光晕渐变 -->
-    <radialGradient id="glow1" cx="20%" cy="20%" r="50%">
+    <radialGradient id="default_chat_glow1" cx="20%" cy="20%" r="50%">
       <stop offset="0%" stop-color="#6366f1" stop-opacity="0.35"/>
       <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="glow2" cx="80%" cy="30%" r="45%">
+    <radialGradient id="default_chat_glow2" cx="80%" cy="30%" r="45%">
       <stop offset="0%" stop-color="#a855f7" stop-opacity="0.25"/>
       <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="glow3" cx="60%" cy="80%" r="40%">
+    <radialGradient id="default_chat_glow3" cx="60%" cy="80%" r="40%">
       <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.2"/>
       <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
     </radialGradient>
     <!-- 浮球渐变 -->
-    <radialGradient id="orb1" cx="40%" cy="40%" r="60%">
+    <radialGradient id="default_chat_orb1" cx="40%" cy="40%" r="60%">
       <stop offset="0%" stop-color="#c4b5fd" stop-opacity="0.6"/>
       <stop offset="100%" stop-color="#7c3aed" stop-opacity="0.1"/>
     </radialGradient>
-    <radialGradient id="orb2" cx="40%" cy="40%" r="60%">
+    <radialGradient id="default_chat_orb2" cx="40%" cy="40%" r="60%">
       <stop offset="0%" stop-color="#f0abfc" stop-opacity="0.5"/>
       <stop offset="100%" stop-color="#a855f7" stop-opacity="0.05"/>
     </radialGradient>
-    <radialGradient id="orb3" cx="40%" cy="40%" r="60%">
+    <radialGradient id="default_chat_orb3" cx="40%" cy="40%" r="60%">
       <stop offset="0%" stop-color="#93c5fd" stop-opacity="0.5"/>
       <stop offset="100%" stop-color="#6366f1" stop-opacity="0.05"/>
     </radialGradient>
   </defs>
   <!-- 背景 -->
-  <rect width="1024" height="1024" fill="url(#bgGrad)"/>
-  <!-- 光晕层 -->
-  <rect width="1024" height="1024" fill="url(#glow1)"/>
-  <rect width="1024" height="1024" fill="url(#glow2)"/>
-  <rect width="1024" height="1024" fill="url(#glow3)"/>
+  <rect width="1024" height="1024" fill="url(#default_chat_bgGrad)"/>
+  <!-- 光晕�?-->
+  <rect width="1024" height="1024" fill="url(#default_chat_glow1)"/>
+  <rect width="1024" height="1024" fill="url(#default_chat_glow2)"/>
+  <rect width="1024" height="1024" fill="url(#default_chat_glow3)"/>
   <!-- 浮动球体 -->
-  <ellipse cx="150" cy="180" rx="90" ry="90" fill="url(#orb1)"/>
-  <ellipse cx="820" cy="120" rx="70" ry="70" fill="url(#orb2)"/>
-  <ellipse cx="750" cy="750" rx="110" ry="110" fill="url(#orb1)"/>
-  <ellipse cx="200" cy="820" rx="60" ry="60" fill="url(#orb3)"/>
-  <ellipse cx="500" cy="500" rx="40" ry="40" fill="url(#orb2)"/>
-  <ellipse cx="600" cy="200" rx="55" ry="55" fill="url(#orb3)"/>
-  <!-- 星光点 -->
+  <ellipse cx="150" cy="180" rx="90" ry="90" fill="url(#default_chat_orb1)"/>
+  <ellipse cx="820" cy="120" rx="70" ry="70" fill="url(#default_chat_orb2)"/>
+  <ellipse cx="750" cy="750" rx="110" ry="110" fill="url(#default_chat_orb1)"/>
+  <ellipse cx="200" cy="820" rx="60" ry="60" fill="url(#default_chat_orb3)"/>
+  <ellipse cx="500" cy="500" rx="40" ry="40" fill="url(#default_chat_orb2)"/>
+  <ellipse cx="600" cy="200" rx="55" ry="55" fill="url(#default_chat_orb3)"/>
+  <!-- 星光�?-->
   <circle cx="300" cy="350" r="2" fill="#c4b5fd" opacity="0.6"/>
   <circle cx="720" cy="450" r="2.5" fill="#e9d5ff" opacity="0.5"/>
   <circle cx="450" cy="680" r="2" fill="#c4b5fd" opacity="0.5"/>

@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="nature_profile_bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#F0FDF4"/>
       <stop offset="100%" style="stop-color:#DCFCE7"/>
     </linearGradient>
-    <radialGradient id="orb1" cx="50%" cy="45%" r="48%">
+    <radialGradient id="nature_profile_orb1" cx="50%" cy="45%" r="48%">
       <stop offset="0%" style="stop-color:#22C55E;stop-opacity:0.4"/>
       <stop offset="100%" style="stop-color:#16A34A;stop-opacity:0"/>
     </radialGradient>
   </defs>
-  <rect width="400" height="800" fill="url(#bg)"/>
-  <ellipse cx="200" cy="360" rx="192" ry="192" fill="url(#orb1)"/>
+  <rect width="400" height="800" fill="url(#nature_profile_bg)"/>
+  <ellipse cx="200" cy="360" rx="192" ry="192" fill="url(#nature_profile_orb1)"/>
 </svg>

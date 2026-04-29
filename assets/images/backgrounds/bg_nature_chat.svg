@@ -1,19 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="nature_chat_bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#F0FDF4"/>
       <stop offset="100%" style="stop-color:#DCFCE7"/>
     </linearGradient>
-    <radialGradient id="orb1" cx="60%" cy="20%" r="45%">
+    <radialGradient id="nature_chat_orb1" cx="60%" cy="20%" r="45%">
       <stop offset="0%" style="stop-color:#22C55E;stop-opacity:0.35"/>
       <stop offset="100%" style="stop-color:#16A34A;stop-opacity:0"/>
     </radialGradient>
-    <radialGradient id="orb2" cx="15%" cy="70%" r="30%">
+    <radialGradient id="nature_chat_orb2" cx="15%" cy="70%" r="30%">
       <stop offset="0%" style="stop-color:#4ADE80;stop-opacity:0.3"/>
       <stop offset="100%" style="stop-color:#22C55E;stop-opacity:0"/>
     </radialGradient>
   </defs>
-  <rect width="400" height="800" fill="url(#bg)"/>
-  <ellipse cx="240" cy="160" rx="180" ry="180" fill="url(#orb1)"/>
-  <ellipse cx="60" cy="560" rx="120" ry="120" fill="url(#orb2)"/>
+  <rect width="400" height="800" fill="url(#nature_chat_bg)"/>
+  <ellipse cx="240" cy="160" rx="180" ry="180" fill="url(#nature_chat_orb1)"/>
+  <ellipse cx="60" cy="560" rx="120" ry="120" fill="url(#nature_chat_orb2)"/>
 </svg>

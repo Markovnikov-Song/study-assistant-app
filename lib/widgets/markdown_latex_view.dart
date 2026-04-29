@@ -103,10 +103,11 @@ class _BlockLatexSyntax extends md.BlockSyntax {
     final String endPattern;
     final StringBuffer buffer = StringBuffer();
 
+    // 必须是 $$ 开头（两个美元符），不能是单个 $ 的行内公式
     if (startLine.startsWith(r'$$')) {
       endPattern = r'$$';
       final rest = startLine.substring(2).trimLeft();
-      // 单行 $$...$$ 处理
+      // 单行 $$...$$ 处理：同一行内有结束符
       if (rest.contains(r'$$')) {
         final formula = rest.substring(0, rest.indexOf(r'$$')).trim();
         parser.advance();

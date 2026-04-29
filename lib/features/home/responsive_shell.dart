@@ -439,7 +439,11 @@ class _PageBackground extends ConsumerWidget {
         AnimatedOpacity(
           duration: const Duration(milliseconds: 300),
           opacity: style.svgOpacity,
-          child: SvgPicture.asset(bgAsset, fit: BoxFit.cover),
+          child: SvgPicture.asset(
+            bgAsset,
+            fit: BoxFit.cover,
+            placeholderBuilder: (_) => const SizedBox.expand(),
+          ),
         ),
       ],
     );

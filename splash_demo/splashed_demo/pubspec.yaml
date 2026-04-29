@@ -1,0 +1,36 @@
+name: splashed_demo
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_animate: ^4.5.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  fonts:
+    - family: LXGWWenKai
+      fonts:
+        - asset: assets/fonts/LXGWWenKai-Regular.ttf
+        - asset: assets/fonts/LXGWWenKai-Medium.ttf
+          weight: 500          
+    # 【演示悠然小楷】只需要写这短短两行，干干净净
+    - family: YanshiYouran
+      fonts:
+        - asset: assets/fonts/YanshiYouran-Regular.ttf
+    # 【新增】智莽行书配置
+    - family: ZhiMangXing
+      fonts:
+        - asset: assets/fonts/ZhiMangXing-Regular.ttf

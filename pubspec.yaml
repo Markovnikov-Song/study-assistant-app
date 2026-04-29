@@ -13,83 +13,83 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
 
-  # 状态管理
+  # State Management
   flutter_riverpod: ^2.6.1
   riverpod_annotation: ^2.6.1
 
-  # 路由
+  # Routing
   go_router: ^14.6.2
 
-  # 网络
+  # Network
   dio: ^5.7.0
   pretty_dio_logger: ^1.4.0
 
-  # 本地存储
+  # Local Storage
   shared_preferences: ^2.3.3
   flutter_secure_storage: ^9.2.2
 
-  # 图片/相机
+  # Image/Camera
   flutter_svg: ^2.0.10
   image_picker: ^1.1.2
   file_picker: ^8.1.2
 
-  # Markdown + LaTeX 渲染
+  # Markdown + LaTeX Rendering
   flutter_markdown: ^0.7.4
   flutter_math_fork: ^0.7.2
 
-  # 思维导图 WebView 渲染
+  # Mindmap WebView Rendering
   webview_flutter: ^4.10.0
   screenshot: ^3.0.0
   gal: ^2.3.0
 
-  # UUID 生成
+  # UUID Generation
   uuid: ^4.5.1
 
-  # ZIP 解压（用于 XMind 导入）
+  # ZIP Extraction (for XMind import)
   archive: ^3.6.1
 
-  # XML 解析（用于 XMind / FreeMind 导入）
+  # XML Parsing (for XMind / FreeMind import)
   xml: ^6.5.0
 
-  # 工具
+  # Utils
   freezed_annotation: ^2.4.4
   json_annotation: ^4.9.0
   intl: any
 
   markdown: any
 
-  # 富文本编辑器
+  # Rich Text Editor
   flutter_quill: ^11.5.0
   markdown_quill: ^4.3.0
 
-  # 分享与文件路径
+  # Share and File Path
   share_plus: ^10.0.0
   path_provider: ^2.1.4
 
-  # 文件保存
+  # File Saver
   file_saver: ^0.2.12
 
-  # PDF 生成
+  # PDF Generation
   pdf: ^3.11.1
   printing: ^5.13.2
 
-  # 网络状态监听
+  # Network Status Monitoring
   connectivity_plus: ^6.1.1
 
-  # 庆祝动画
+  # Celebration Animation
   confetti: ^0.7.0
   vector_math: ^2.2.0
   web: ^1.1.1
 
-  # 日历
+  # Calendar
   table_calendar: ^3.2.0
   flutter_local_notifications: ^18.0.0
   timezone: ^0.10.0
 
-  # 语音识别
+  # Speech Recognition
   speech_to_text: ^7.0.0
 
-  # 应用内更新
+  # In-App Update
   package_info_plus: ^8.0.0
   open_file: ^3.3.2
   permission_handler: ^11.3.1
@@ -105,7 +105,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # 应用资源
+  # App Assets
   assets:
     - assets/images/backgrounds/
     - assets/images/empty_states/
@@ -115,5 +115,16 @@ flutter:
     - family: Noto Sans SC
       fonts:
         - asset: assets/fonts/NotoSansSC-Regular.ttf
-
-
+    
+    # Splash Screen Fonts
+    - family: LXGWWenKai
+      fonts:
+        - asset: assets/fonts/LXGWWenKai-Regular.ttf
+        - asset: assets/fonts/LXGWWenKai-Medium.ttf
+          weight: 500
+    - family: YanshiYouran
+      fonts:
+        - asset: assets/fonts/YanshiYouran-Regular.ttf
+    - family: ZhiMangXing
+      fonts:
+        - asset: assets/fonts/ZhiMangXing-Regular.ttf

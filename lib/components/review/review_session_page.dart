@@ -542,7 +542,10 @@ class _ReviewSessionPageState extends ConsumerState<ReviewSessionPage> {
 
   void _openLecture(String nodeId) {
     final subjectId = widget.mistake.subjectId;
+    // 先关闭复盘页，再导航（避免 context 失效）
     Navigator.pop(context);
+    // Mistake 模型只有 subjectId，没有 sessionId，
+    // 跳到课程空间后用户可以选择对应导图进入讲义
     if (subjectId != null) {
       context.push('/course-space/$subjectId');
     } else {

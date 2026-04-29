@@ -1,50 +1,50 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <!-- 主背景渐变 - 暖琥珀色 -->
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- 主背景渐�?- 暖琥珀�?-->
+    <linearGradient id="default_library_bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#1e1a2e"/>
       <stop offset="40%" stop-color="#2a1f4e"/>
       <stop offset="100%" stop-color="#1a1a3e"/>
     </linearGradient>
     <!-- 光晕 -->
-    <radialGradient id="glow1" cx="30%" cy="25%" r="50%">
+    <radialGradient id="default_library_glow1" cx="30%" cy="25%" r="50%">
       <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.2"/>
       <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="glow2" cx="75%" cy="60%" r="40%">
+    <radialGradient id="default_library_glow2" cx="75%" cy="60%" r="40%">
       <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.15"/>
       <stop offset="100%" stop-color="#fbbf24" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="glow3" cx="50%" cy="85%" r="35%">
+    <radialGradient id="default_library_glow3" cx="50%" cy="85%" r="35%">
       <stop offset="0%" stop-color="#d97706" stop-opacity="0.12"/>
       <stop offset="100%" stop-color="#d97706" stop-opacity="0"/>
     </radialGradient>
     <!-- 浮球渐变 -->
-    <radialGradient id="orb1" cx="40%" cy="40%" r="60%">
+    <radialGradient id="default_library_orb1" cx="40%" cy="40%" r="60%">
       <stop offset="0%" stop-color="#fde68a" stop-opacity="0.5"/>
       <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.08"/>
     </radialGradient>
-    <radialGradient id="orb2" cx="40%" cy="40%" r="60%">
+    <radialGradient id="default_library_orb2" cx="40%" cy="40%" r="60%">
       <stop offset="0%" stop-color="#fcd34d" stop-opacity="0.4"/>
       <stop offset="100%" stop-color="#d97706" stop-opacity="0.05"/>
     </radialGradient>
-    <radialGradient id="orb3" cx="40%" cy="40%" r="60%">
+    <radialGradient id="default_library_orb3" cx="40%" cy="40%" r="60%">
       <stop offset="0%" stop-color="#fef3c7" stop-opacity="0.45"/>
       <stop offset="100%" stop-color="#fbbf24" stop-opacity="0.05"/>
     </radialGradient>
   </defs>
-  <rect width="1024" height="1024" fill="url(#bgGrad)"/>
-  <rect width="1024" height="1024" fill="url(#glow1)"/>
-  <rect width="1024" height="1024" fill="url(#glow2)"/>
-  <rect width="1024" height="1024" fill="url(#glow3)"/>
+  <rect width="1024" height="1024" fill="url(#default_library_bgGrad)"/>
+  <rect width="1024" height="1024" fill="url(#default_library_glow1)"/>
+  <rect width="1024" height="1024" fill="url(#default_library_glow2)"/>
+  <rect width="1024" height="1024" fill="url(#default_library_glow3)"/>
   <!-- 浮动球体 -->
-  <ellipse cx="200" cy="200" rx="100" ry="100" fill="url(#orb1)"/>
-  <ellipse cx="800" cy="300" rx="80" ry="80" fill="url(#orb2)"/>
-  <ellipse cx="600" cy="750" rx="120" ry="120" fill="url(#orb1)"/>
-  <ellipse cx="150" cy="700" rx="70" ry="70" fill="url(#orb3)"/>
-  <ellipse cx="450" cy="450" rx="50" ry="50" fill="url(#orb2)"/>
-  <ellipse cx="850" cy="800" rx="60" ry="60" fill="url(#orb3)"/>
-  <!-- 星光点 -->
+  <ellipse cx="200" cy="200" rx="100" ry="100" fill="url(#default_library_orb1)"/>
+  <ellipse cx="800" cy="300" rx="80" ry="80" fill="url(#default_library_orb2)"/>
+  <ellipse cx="600" cy="750" rx="120" ry="120" fill="url(#default_library_orb1)"/>
+  <ellipse cx="150" cy="700" rx="70" ry="70" fill="url(#default_library_orb3)"/>
+  <ellipse cx="450" cy="450" rx="50" ry="50" fill="url(#default_library_orb2)"/>
+  <ellipse cx="850" cy="800" rx="60" ry="60" fill="url(#default_library_orb3)"/>
+  <!-- 星光�?-->
   <circle cx="320" cy="380" r="2" fill="#fde68a" opacity="0.55"/>
   <circle cx="700" cy="500" r="2.5" fill="#fef3c7" opacity="0.5"/>
   <circle cx="480" cy="700" r="2" fill="#fde68a" opacity="0.5"/>
