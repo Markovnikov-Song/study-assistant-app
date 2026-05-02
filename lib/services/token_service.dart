@@ -3,6 +3,15 @@ import '../core/constants/api_constants.dart';
 import '../core/network/api_exception.dart';
 import '../core/network/dio_client.dart';
 
+/// 安全地将动态类型转换为 int
+int? _toInt(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is String) return int.tryParse(value);
+  if (value is double) return value.toInt();
+  return null;
+}
+
 /// Token配额信息
 class TokenQuota {
   final String tier;
@@ -51,21 +60,21 @@ class TokenQuota {
     return TokenQuota(
       tier: json['tier'] ?? 'free',
       tierName: json['tier_name'] ?? '免费版',
-      quotaDaily: json['quota_daily'] ?? 50000,
-      quotaMonthly: json['quota_monthly'] ?? 0,
-      usedToday: json['used_today'] ?? 0,
-      usedThisMonth: json['used_this_month'] ?? 0,
-      remainingToday: json['remaining_today'] ?? 0,
-      remainingMonthly: json['remaining_monthly'] ?? 0,
-      bonusTokens: json['bonus_tokens'] ?? 0,
-      bonusUsed: json['bonus_used'] ?? 0,
-      remainingBonus: json['remaining_bonus'] ?? 0,
+      quotaDaily: _toInt(json['quota_daily']) ?? 50000,
+      quotaMonthly: _toInt(json['quota_monthly']) ?? 0,
+      usedToday: _toInt(json['used_today']) ?? 0,
+      usedThisMonth: _toInt(json['used_this_month']) ?? 0,
+      remainingToday: _toInt(json['remaining_today']) ?? 0,
+      remainingMonthly: _toInt(json['remaining_monthly']) ?? 0,
+      bonusTokens: _toInt(json['bonus_tokens']) ?? 0,
+      bonusUsed: _toInt(json['bonus_used']) ?? 0,
+      remainingBonus: _toInt(json['remaining_bonus']) ?? 0,
       dailyUsagePercent: (json['daily_usage_percent'] ?? 0).toDouble(),
       monthlyUsagePercent: (json['monthly_usage_percent'] ?? 0).toDouble(),
       isBlocked: json['is_blocked'] ?? false,
-      rateLimitPerMin: json['rate_limit_per_min'] ?? 10,
-      rateLimitPerHour: json['rate_limit_per_hour'] ?? 100,
-      totalTokensAllTime: json['total_tokens_all_time'] ?? 0,
+      rateLimitPerMin: _toInt(json['rate_limit_per_min']) ?? 10,
+      rateLimitPerHour: _toInt(json['rate_limit_per_hour']) ?? 100,
+      totalTokensAllTime: _toInt(json['total_tokens_all_time']) ?? 0,
       totalCostAllTime: (json['total_cost_all_time'] ?? 0).toDouble(),
       priceMonthly: (json['price_monthly'] ?? 0).toDouble(),
     );
@@ -95,10 +104,10 @@ class UsageSummary {
       byEndpoint[key] = EndpointUsage.fromJson(value);
     });
     return UsageSummary(
-      periodDays: json['period_days'] ?? 30,
-      totalTokens: json['total_tokens'] ?? 0,
+      periodDays: _toInt(json['period_days']) ?? 30,
+      totalTokens: _toInt(json['total_tokens']) ?? 0,
       totalCost: (json['total_cost'] ?? 0).toDouble(),
-      totalRequests: json['total_requests'] ?? 0,
+      totalRequests: _toInt(json['total_requests']) ?? 0,
       byEndpoint: byEndpoint,
     );
   }
@@ -122,11 +131,11 @@ class EndpointUsage {
 
   factory EndpointUsage.fromJson(Map<String, dynamic> json) {
     return EndpointUsage(
-      totalTokens: json['total_tokens'] ?? 0,
-      inputTokens: json['input_tokens'] ?? 0,
-      outputTokens: json['output_tokens'] ?? 0,
+      totalTokens: _toInt(json['total_tokens']) ?? 0,
+      inputTokens: _toInt(json['input_tokens']) ?? 0,
+      outputTokens: _toInt(json['output_tokens']) ?? 0,
       totalCost: (json['total_cost'] ?? 0).toDouble(),
-      requestCount: json['request_count'] ?? 0,
+      requestCount: _toInt(json['request_count']) ?? 0,
     );
   }
 }
@@ -150,10 +159,10 @@ class DailyUsage {
   factory DailyUsage.fromJson(Map<String, dynamic> json) {
     return DailyUsage(
       date: json['date'] ?? '',
-      totalTokens: json['total_tokens'] ?? 0,
-      requestCount: json['request_count'] ?? 0,
-      inputTokens: json['input_tokens'] ?? 0,
-      outputTokens: json['output_tokens'] ?? 0,
+      totalTokens: _toInt(json['total_tokens']) ?? 0,
+      requestCount: _toInt(json['request_count']) ?? 0,
+      inputTokens: _toInt(json['input_tokens']) ?? 0,
+      outputTokens: _toInt(json['output_tokens']) ?? 0,
     );
   }
 }
@@ -180,8 +189,8 @@ class UsageHistory {
         .toList();
     return UsageHistory(
       data: dataList,
-      totalTokens: json['total_tokens'] ?? 0,
-      totalRequests: json['total_requests'] ?? 0,
+      totalTokens: _toInt(json['total_tokens']) ?? 0,
+      totalRequests: _toInt(json['total_requests']) ?? 0,
       startDate: json['start_date'] ?? '',
       endDate: json['end_date'] ?? '',
     );
@@ -191,6 +200,7 @@ class UsageHistory {
   Map<String, DailyUsage> get usageMap {
     return {for (var d in data) d.date: d};
   }
+}
 }
 
 /// Token服务

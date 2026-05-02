@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:go_router/go_router.dart';
 import '../../services/api_config_service.dart';
+import '../../services/token_service.dart';
+import '../../routes/app_router.dart';
 
 final apiConfigServiceProvider = Provider((ref) => ApiConfigService());
 
@@ -22,11 +25,34 @@ class _ApiConfigPageState extends ConsumerState<ApiConfigPage> {
   final _llmKeyCtrl = TextEditingController();
   final _visionBaseUrlCtrl = TextEditingController();
   final _visionKeyCtrl = TextEditingController();
+  
+  // Token 统计数据
+  TokenQuota? _quota;
+  UsageSummary? _todayUsage;
 
   @override
   void initState() {
     super.initState();
     _loadConfig();
+    _loadTokenStats();
+  }
+  
+  Future<void> _loadTokenStats() async {
+    try {
+      final service = TokenService();
+      final results = await Future.wait([
+        service.getQuota(),
+        service.getTodayUsage(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _quota = results[0] as TokenQuota;
+          _todayUsage = results[1] as UsageSummary;
+        });
+      }
+    } catch (e) {
+      // 忽略错误，不影响主功能
+    }
   }
 
   @override
@@ -193,6 +219,11 @@ class _ApiConfigPageState extends ConsumerState<ApiConfigPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Token 使用统计卡片
+          if (_quota != null && _todayUsage != null)
+            _buildTokenStatsCard(cs),
+          if (_quota != null && _todayUsage != null)
+            const SizedBox(height: 16),
           // 说明卡片
           Card(
             child: Padding(
@@ -287,6 +318,7 @@ class _ApiConfigPageState extends ConsumerState<ApiConfigPage> {
                     decoration: const InputDecoration(
                       labelText: 'Base URL',
                       hintText: 'https://api.openai.com/v1',
+                      helperText: '支持 OpenAI 兼容的 API',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
@@ -310,6 +342,7 @@ class _ApiConfigPageState extends ConsumerState<ApiConfigPage> {
                     decoration: const InputDecoration(
                       labelText: 'Base URL',
                       hintText: 'https://api.openai.com/v1',
+                      helperText: '支持 OpenAI 兼容的 API',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
@@ -341,5 +374,129 @@ class _ApiConfigPageState extends ConsumerState<ApiConfigPage> {
         ],
       ),
     );
+  }
+  
+  Widget _buildTokenStatsCard(ColorScheme cs) {
+    final todayTokens = _quota!.usedToday;
+    final todayRequests = _todayUsage!.totalRequests;
+    
+    return Card(
+      elevation: 0,
+      color: cs.primaryContainer.withOpacity(0.3),
+      child: InkWell(
+        onTap: () => context.push(R.profileTokenDetail),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: cs.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.analytics_outlined, color: cs.primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '今日使用统计',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(Icons.chevron_right, color: cs.onSurfaceVariant, size: 20),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '词元消耗',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatNumber(todayTokens),
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                            color: cs.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: 1,
+                    height: 40,
+                    color: cs.outline.withOpacity(0.3),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16),
+                          child: Text(
+                            '请求次数',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16),
+                          child: Text(
+                            '$todayRequests',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              color: cs.secondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '点击查看详细统计',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  String _formatNumber(int number) {
+    if (number >= 1000000) {
+      return '${(number / 1000000).toStringAsFixed(1)}M';
+    } else if (number >= 1000) {
+      return '${(number / 1000).toStringAsFixed(1)}K';
+    }
+    return number.toString();
   }
 }

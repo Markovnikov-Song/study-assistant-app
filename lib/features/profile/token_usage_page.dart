@@ -111,12 +111,11 @@ class _TokenUsagePageState extends ConsumerState<TokenUsagePage> {
     final todayUsage = _todayUsage!;
     final todayTokens = quota.usedToday;
     final todayRequests = todayUsage.totalRequests;
-    final dailyPercent = quota.dailyUsagePercent / 100;
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildTodayCard(cs, todayTokens, dailyPercent),
+        _buildTodayCard(cs, todayTokens),
         const SizedBox(height: 16),
         _buildStatCard(
           cs,
@@ -126,24 +125,13 @@ class _TokenUsagePageState extends ConsumerState<TokenUsagePage> {
           value: '$todayRequests',
           subtitle: '次',
         ),
-        const SizedBox(height: 16),
-        _buildStatCard(
-          cs,
-          icon: Icons.inventory_2_outlined,
-          iconColor: cs.primary,
-          title: '今日剩余',
-          value: _formatNumber(quota.remainingToday),
-          subtitle: 'tokens',
-        ),
-        const SizedBox(height: 16),
-        _buildTierCard(cs, quota),
         const SizedBox(height: 24),
         _buildDetailButton(cs),
       ],
     );
   }
 
-  Widget _buildTodayCard(ColorScheme cs, int tokens, double percent) {
+  Widget _buildTodayCard(ColorScheme cs, int tokens) {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -213,26 +201,6 @@ class _TokenUsagePageState extends ConsumerState<TokenUsagePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: percent.clamp(0.0, 1.0),
-                backgroundColor: Colors.white.withValues(alpha: 0.3),
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  percent > 0.9 ? Colors.orange : Colors.white,
-                ),
-                minHeight: 8,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${(percent * 100).toStringAsFixed(1)}% / 100%',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.8),
-                fontSize: 12,
-              ),
-            ),
           ],
         ),
       ),
@@ -297,78 +265,6 @@ class _TokenUsagePageState extends ConsumerState<TokenUsagePage> {
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTierCard(ColorScheme cs, TokenQuota quota) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.outline, width: 0.5),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [cs.tertiary, cs.tertiary.withValues(alpha: 0.7)],
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.workspace_premium, color: Colors.white, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '当前档位',
-                    style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    quota.tierName,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: cs.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (quota.tier != 'plus') ...[
-              GestureDetector(
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('升级功能即将上线，敬请期待')),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: cs.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '升级',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: cs.primary,
-                    ),
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),

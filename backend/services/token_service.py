@@ -288,6 +288,11 @@ class TokenService:
                 # 自动创建免费档
                 quota = self._create_default_quota(db, user_id)
             
+            # 确保配额已重置（如果是新的一天）
+            self._ensure_quota_reset(db, user_id)
+            # 重新查询以获取最新数据
+            quota = db.query(UserTokenQuota).filter_by(user_id=user_id).first()
+            
             tier_config = TIER_CONFIG.get(quota.tier, TIER_CONFIG["free"])
             
             remaining_today = max(0, quota.quota_daily - quota.used_today)
