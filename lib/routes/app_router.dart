@@ -9,6 +9,7 @@ import '../features/chat/chat_page.dart';
 import '../screens/splash_screen.dart';
 import '../features/spec/spec_page.dart';
 import '../features/toolkit/toolkit_page.dart';
+import '../features/toolkit/toolkit_settings_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/profile/edit_profile_page.dart';
 import '../features/profile/memory_page.dart';
@@ -76,6 +77,7 @@ class R {
   static String noteDetail(int nbId, int noteId)                  => '/toolkit/notebooks/$nbId/notes/$noteId';
   static const toolkitSolve = '/toolkit/solve';
   static const toolkitQuiz  = '/toolkit/quiz';
+  static const toolkitSettings = '/toolkit/settings';
 
   // 我的
   static const profileEdit     = '/profile/edit';
@@ -222,6 +224,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/toolkit/review',    builder: (_, _) => const ReviewPage()),
       GoRoute(path: R.toolkitSolve,       builder: (_, _) => const SolvePage()),
       GoRoute(path: R.toolkitQuiz,        builder: (_, _) => const QuizPage()),
+      GoRoute(path: R.toolkitSettings,    builder: (_, _) => const ToolkitSettingsPage()),
       GoRoute(path: '/my-skills',         builder: (_, _) => const MySkillsPage()),
       GoRoute(
         path: R.toolkitCalendar,

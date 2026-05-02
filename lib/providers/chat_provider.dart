@@ -20,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart'; // 状态管理
 import '../models/chat_message.dart';
 import '../providers/history_provider.dart';
 import '../services/chat_service.dart';
+import '../services/background_task_service.dart';
 
 // ─── Provider 1：ChatService 实例 ────────────────────────────
 // Provider<ChatService>：提供一个 ChatService 实例
@@ -137,6 +138,9 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
     StreamSubscription<String>? sub;
     bool cancelled = false;
 
+    // 启动后台任务保活，防止切换应用时中断 AI 输出
+    await BackgroundTaskService.instance.startTask(BackgroundTaskType.aiStreaming);
+
     try {
       final stream = _service.sendMessageStream(
         text,
@@ -223,6 +227,9 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       sub?.cancel();
       _cancelToken = null;
       onSendingChanged?.call(false);
+      
+      // 结束后台任务保活
+      await BackgroundTaskService.instance.endTask(BackgroundTaskType.aiStreaming);
 
       // 取消时：保留用户消息，移除空的 AI 占位消息
       if (cancelled && buffer.isEmpty) {

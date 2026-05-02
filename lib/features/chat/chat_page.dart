@@ -1022,8 +1022,14 @@ class _Bubble extends ConsumerWidget {
                       Theme.of(context).colorScheme.secondary,
                     ],
                   )
-                : null,
-            color: isUser ? null : Theme.of(context).colorScheme.surface,
+                : LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Theme.of(context).colorScheme.surface,
+                      Theme.of(context).colorScheme.surface.withValues(alpha: 0.0),
+                    ],
+                  ),
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(18),
               topRight: const Radius.circular(18),
@@ -1032,11 +1038,7 @@ class _Bubble extends ConsumerWidget {
             ),
             border: isSelected
                 ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
-                : (isUser
-                    ? null
-                    : Border.all(
-                        color: Theme.of(context).colorScheme.outline,
-                      )),
+                : null,
             boxShadow: [
               BoxShadow(
                 color: isUser

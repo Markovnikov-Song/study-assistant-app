@@ -5,6 +5,7 @@ import '../../../core/event_bus/calendar_events.dart';
 import '../../../providers/subject_provider.dart';
 import '../models/calendar_models.dart';
 import '../services/calendar_api_service.dart';
+import '../services/calendar_notification_service.dart';
 
 enum _EventType { event, routine, task }
 
@@ -142,6 +143,8 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
           eventId: event.id,
           eventDate: event.eventDate,
         ));
+        // 更新事件通知
+        await CalendarNotificationService.instance.scheduleEventNotification(event);
       } else {
         event = await api.createEvent(data);
         AppEventBus.instance.fire(CalendarEventCreated(
@@ -149,6 +152,8 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
           eventDate: event.eventDate,
           source: 'manual',
         ));
+        // 为新事件安排通知（提前 15 分钟）
+        await CalendarNotificationService.instance.scheduleEventNotification(event);
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -188,6 +193,8 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
     try {
       final api = ref.read(calendarApiServiceProvider);
       await api.deleteEvent(e.id);
+      // 取消事件通知
+      await CalendarNotificationService.instance.cancelEventNotification(e.id);
       AppEventBus.instance.fire(CalendarEventDeleted(
         eventId: e.id,
         eventDate: e.eventDate,

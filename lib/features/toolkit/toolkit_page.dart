@@ -108,6 +108,75 @@ class ToolIconsNotifier extends StateNotifier<Map<String, IconData>> {
   }
 }
 
+/// 工具顺序管理 Provider
+final toolOrderProvider = StateNotifierProvider<ToolOrderNotifier, List<String>>((ref) {
+  return ToolOrderNotifier();
+});
+
+class ToolOrderNotifier extends StateNotifier<List<String>> {
+  ToolOrderNotifier() : super([]) {
+    _loadSavedOrder();
+  }
+
+  Future<void> _loadSavedOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList('tool_order');
+    if (saved != null && saved.isNotEmpty) {
+      state = saved;
+    } else {
+      // 使用默认顺序
+      state = kDefaultTools.map((tool) => tool.id).toList();
+    }
+  }
+
+  Future<void> reorder(int oldIndex, int newIndex) async {
+    final newOrder = List<String>.from(state);
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final item = newOrder.removeAt(oldIndex);
+    newOrder.insert(newIndex, item);
+    state = newOrder;
+    await _saveOrder();
+  }
+
+  Future<void> resetToDefault() async {
+    state = kDefaultTools.map((tool) => tool.id).toList();
+    await _saveOrder();
+  }
+
+  Future<void> _saveOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('tool_order', state);
+  }
+
+  /// 根据保存的顺序获取排序后的工具列表
+  List<ToolItem> getOrderedTools() {
+    if (state.isEmpty) {
+      return kDefaultTools;
+    }
+    
+    final toolMap = {for (var tool in kDefaultTools) tool.id: tool};
+    final orderedTools = <ToolItem>[];
+    
+    for (final id in state) {
+      final tool = toolMap[id];
+      if (tool != null) {
+        orderedTools.add(tool);
+      }
+    }
+    
+    // 添加任何新工具（不在保存的顺序中）
+    for (final tool in kDefaultTools) {
+      if (!state.contains(tool.id)) {
+        orderedTools.add(tool);
+      }
+    }
+    
+    return orderedTools;
+  }
+}
+
 /// 工具项数据模型
 class ToolItem {
   final String id;
@@ -142,40 +211,7 @@ class ToolItem {
 
 /// 默认工具列表（数据驱动，扩展只需追加 ToolItem）
 const List<ToolItem> kDefaultTools = [
-  ToolItem(
-    id: 'mistake-book',
-    icon: Icons.error_outline_rounded,
-    filledIcon: Icons.error_rounded,
-    gradientColors: [Color(0xFFEF4444), Color(0xFFF87171)],
-    label: '复盘中心',
-    description: '错题复盘，SM-2间隔复习',
-    route: '/toolkit/review',
-    iconOptions: [
-      Icons.error_outline_rounded,
-      Icons.error_rounded,
-      Icons.warning_amber_outlined,
-      Icons.update_outlined,
-      Icons.replay_outlined,
-      Icons.refresh_outlined,
-    ],
-  ),
-  ToolItem(
-    id: 'notebooks',
-    icon: Icons.note_alt_outlined,
-    filledIcon: Icons.note_alt_rounded,
-    gradientColors: [Color(0xFF3B82F6), Color(0xFF60A5FA)],
-    label: '笔记本',
-    description: '收藏内容，整理笔记',
-    route: '/toolkit/notebooks',
-    iconOptions: [
-      Icons.note_alt_outlined,
-      Icons.note_alt_rounded,
-      Icons.sticky_note_2_outlined,
-      Icons.book_outlined,
-      Icons.auto_stories_outlined,
-      Icons.edit_note_outlined,
-    ],
-  ),
+  // 1. 解题（最常用）
   ToolItem(
     id: 'solve',
     icon: Icons.calculate_outlined,
@@ -193,6 +229,7 @@ const List<ToolItem> kDefaultTools = [
       Icons.quick_contacts_dialer_outlined,
     ],
   ),
+  // 2. 出题
   ToolItem(
     id: 'quiz',
     icon: Icons.quiz_outlined,
@@ -210,6 +247,43 @@ const List<ToolItem> kDefaultTools = [
       Icons.lightbulb_outline_rounded,
     ],
   ),
+  // 3. 复盘中心
+  ToolItem(
+    id: 'mistake-book',
+    icon: Icons.error_outline_rounded,
+    filledIcon: Icons.error_rounded,
+    gradientColors: [Color(0xFFEF4444), Color(0xFFF87171)],
+    label: '复盘中心',
+    description: '错题复盘，SM-2间隔复习',
+    route: '/toolkit/review',
+    iconOptions: [
+      Icons.error_outline_rounded,
+      Icons.error_rounded,
+      Icons.warning_amber_outlined,
+      Icons.update_outlined,
+      Icons.replay_outlined,
+      Icons.refresh_outlined,
+    ],
+  ),
+  // 4. 笔记本
+  ToolItem(
+    id: 'notebooks',
+    icon: Icons.note_alt_outlined,
+    filledIcon: Icons.note_alt_rounded,
+    gradientColors: [Color(0xFF3B82F6), Color(0xFF60A5FA)],
+    label: '笔记本',
+    description: '收藏内容，整理笔记',
+    route: '/toolkit/notebooks',
+    iconOptions: [
+      Icons.note_alt_outlined,
+      Icons.note_alt_rounded,
+      Icons.sticky_note_2_outlined,
+      Icons.book_outlined,
+      Icons.auto_stories_outlined,
+      Icons.edit_note_outlined,
+    ],
+  ),
+  // 5. 脑图工坊
   ToolItem(
     id: 'mindmap',
     icon: Icons.account_tree_outlined,
@@ -227,23 +301,7 @@ const List<ToolItem> kDefaultTools = [
       Icons.psychology_outlined,
     ],
   ),
-  ToolItem(
-    id: 'my-skills',
-    icon: Icons.auto_awesome_outlined,
-    filledIcon: Icons.auto_awesome_rounded,
-    gradientColors: [Color(0xFFEC4899), Color(0xFFF472B6)],
-    label: '方法库',
-    description: '查看并使用学习方法',
-    route: '/my-skills',
-    iconOptions: [
-      Icons.auto_awesome_outlined,
-      Icons.auto_awesome_rounded,
-      Icons.star_outline_rounded,
-      Icons.auto_fix_high_outlined,
-      Icons.psychology_outlined,
-      Icons.tips_and_updates_outlined,
-    ],
-  ),
+  // 6. 学习日历
   ToolItem(
     id: 'calendar',
     icon: Icons.calendar_today_outlined,
@@ -261,6 +319,24 @@ const List<ToolItem> kDefaultTools = [
       Icons.date_range_outlined,
     ],
   ),
+  // 7. 方法库
+  ToolItem(
+    id: 'my-skills',
+    icon: Icons.auto_awesome_outlined,
+    filledIcon: Icons.auto_awesome_rounded,
+    gradientColors: [Color(0xFFEC4899), Color(0xFFF472B6)],
+    label: '方法库',
+    description: '查看并使用学习方法',
+    route: '/my-skills',
+    iconOptions: [
+      Icons.auto_awesome_outlined,
+      Icons.auto_awesome_rounded,
+      Icons.star_outline_rounded,
+      Icons.auto_fix_high_outlined,
+      Icons.psychology_outlined,
+      Icons.tips_and_updates_outlined,
+    ],
+  ),
 ];
 
 /// 工具箱页：全新设计的卡片风格
@@ -270,6 +346,9 @@ class ToolkitPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
+    
+    // 获取排序后的工具列表
+    final orderedTools = ref.watch(toolOrderProvider.notifier).getOrderedTools();
 
     final screenWidth = MediaQuery.of(context).size.width;
     final isWideScreen = screenWidth > 600;
@@ -292,6 +371,14 @@ class ToolkitPage extends ConsumerWidget {
                     floating: true,
                     pinned: false,
                     backgroundColor: Colors.transparent,
+                    actions: [
+                      // 设置按钮
+                      IconButton(
+                        icon: Icon(Icons.settings_outlined, color: cs.onSurface),
+                        onPressed: () => context.push('/toolkit/settings'),
+                        tooltip: '工具排序',
+                      ),
+                    ],
                     flexibleSpace: FlexibleSpaceBar(
                       titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
                       title: Text(
@@ -316,10 +403,10 @@ class ToolkitPage extends ConsumerWidget {
                       ),
                       delegate: SliverChildBuilderDelegate(
                         (context, index) => _ToolCard(
-                          item: kDefaultTools[index],
+                          item: orderedTools[index],
                           iconSize: isWideScreen ? 48 : 44,
                         ),
-                        childCount: kDefaultTools.length,
+                        childCount: orderedTools.length,
                       ),
                     ),
                   ),

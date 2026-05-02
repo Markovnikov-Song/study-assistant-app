@@ -18,12 +18,20 @@ import 'core/storage/storage_service.dart';
 import 'providers/shared_preferences_provider.dart';
 import 'services/notification_service.dart';
 import 'services/level3_monitor.dart';
+import 'services/update_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await StorageService.instance.init();
   DioClient.instance.init();
+
+  // 初始化后台下载服务（用于应用更新）
+  try {
+    await UpdateService.initialize();
+  } catch (e) {
+    debugPrint('[main] UpdateService init failed: $e');
+  }
 
   // 初始化推送通知服务（失败不阻塞启动）
   try {

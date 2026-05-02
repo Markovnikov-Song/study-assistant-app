@@ -99,7 +99,7 @@ Write-Host "Done: Git commit completed" -ForegroundColor Green
 Write-Host "`n[8/8] Pushing to GitHub..." -ForegroundColor Yellow
 $pushChoice = Read-Host "Push to GitHub? (y/n)"
 if ($pushChoice -eq 'y') {
-    git push origin main
+    git push origin master
     git push origin "v$Version"
     Write-Host "Done: Pushed to GitHub" -ForegroundColor Green
 } else {
