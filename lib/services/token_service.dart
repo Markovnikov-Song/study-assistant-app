@@ -201,7 +201,6 @@ class UsageHistory {
     return {for (var d in data) d.date: d};
   }
 }
-}
 
 /// Token服务
 class TokenService {
