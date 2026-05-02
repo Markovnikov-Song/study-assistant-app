@@ -1,7 +1,7 @@
 name: study_assistant_app
 description: "伴学 - AI 学习助手"
 publish_to: 'none'
-version: 1.2.0+3
+version: 1.2.1+2
 
 environment:
   sdk: ^3.11.4
