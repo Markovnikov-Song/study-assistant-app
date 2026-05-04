@@ -16,7 +16,6 @@ class ApiConfigPage extends ConsumerStatefulWidget {
 }
 
 class _ApiConfigPageState extends ConsumerState<ApiConfigPage> {
-  bool _useSharedConfig = false;
   bool _sharedConfigVerified = false;
   bool _loading = true;
   
@@ -40,18 +39,33 @@ class _ApiConfigPageState extends ConsumerState<ApiConfigPage> {
   Future<void> _loadTokenStats() async {
     try {
       final service = TokenService();
-      final results = await Future.wait([
-        service.getQuota(),
-        service.getTodayUsage(),
-      ]);
+      final quota = await service.getQuota();
+      final todayUsage = await service.getTodayUsage();
+      
       if (mounted) {
         setState(() {
-          _quota = results[0] as TokenQuota;
-          _todayUsage = results[1] as UsageSummary;
+          _quota = quota;
+          _todayUsage = todayUsage;
+        });
+      }
+    } on TypeError catch (e) {
+      // 特别处理类型错误
+      debugPrint('Token统计类型错误: $e');
+      if (mounted) {
+        setState(() {
+          _quota = null;
+          _todayUsage = null;
         });
       }
     } catch (e) {
       // 忽略错误，不影响主功能
+      debugPrint('加载Token统计失败: $e');
+      if (mounted) {
+        setState(() {
+          _quota = null;
+          _todayUsage = null;
+        });
+      }
     }
   }
 
@@ -70,13 +84,19 @@ class _ApiConfigPageState extends ConsumerState<ApiConfigPage> {
       // 从后端获取配置状态
       final status = await ref.read(apiConfigServiceProvider).getConfigStatus();
       
+      // 添加类型检查，避免类型错误
       setState(() {
-        _useSharedConfig = status['use_shared_config'] ?? false;
-        _sharedConfigVerified = status['use_shared_config'] ?? false;
+        _sharedConfigVerified = status['shared_config_verified'] is bool 
+            ? status['shared_config_verified'] as bool 
+            : false;
       });
 
       // 如果用户有自己的配置，从本地加载
-      if (status['has_custom_config'] == true) {
+      final hasCustomConfig = status['has_custom_config'] is bool 
+          ? status['has_custom_config'] as bool 
+          : false;
+      
+      if (hasCustomConfig) {
         final storage = const FlutterSecureStorage();
         _llmBaseUrlCtrl.text = await storage.read(key: 'llm_base_url') ?? '';
         _llmKeyCtrl.text = await storage.read(key: 'llm_api_key') ?? '';
@@ -110,7 +130,6 @@ class _ApiConfigPageState extends ConsumerState<ApiConfigPage> {
       if (mounted) {
         if (result['verified'] == true) {
           setState(() {
-            _useSharedConfig = true;
             _sharedConfigVerified = true;
           });
           ScaffoldMessenger.of(context).showSnackBar(
@@ -158,7 +177,6 @@ class _ApiConfigPageState extends ConsumerState<ApiConfigPage> {
 
       if (mounted) {
         setState(() {
-          _useSharedConfig = false;
           _sharedConfigVerified = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -377,8 +395,8 @@ class _ApiConfigPageState extends ConsumerState<ApiConfigPage> {
   }
   
   Widget _buildTokenStatsCard(ColorScheme cs) {
-    final todayTokens = _quota!.usedToday;
-    final todayRequests = _todayUsage!.totalRequests;
+    final todayTokens = _quota?.usedToday ?? 0;
+    final todayRequests = _todayUsage?.totalRequests ?? 0;
     
     return Card(
       elevation: 0,

@@ -131,9 +131,10 @@ async def get_config_status(user=Depends(get_current_user)):
         u = db.query(User).filter_by(id=user_id).first()
         
         return {
-            "use_shared_config": u.use_shared_config or False,
-            "shared_config_type": u.shared_config_type,
-            "has_custom_config": bool(u.custom_llm_api_key),
+            "use_shared_config": bool(u.use_shared_config) if u.use_shared_config is not None else False,
+            "shared_config_type": u.shared_config_type or None,
+            "shared_config_verified": bool(u.use_shared_config) if u.use_shared_config is not None else False,
+            "has_custom_config": bool(u.custom_llm_api_key) if u.custom_llm_api_key is not None else False,
             # 不返回实际的 key
         }
 

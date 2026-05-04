@@ -99,10 +99,17 @@ class UsageSummary {
 
   factory UsageSummary.fromJson(Map<String, dynamic> json) {
     final byEndpoint = <String, EndpointUsage>{};
-    final rawEndpoints = json['by_endpoint'] as Map<String, dynamic>? ?? {};
-    rawEndpoints.forEach((key, value) {
-      byEndpoint[key] = EndpointUsage.fromJson(value);
-    });
+    final rawEndpoints = json['by_endpoint'];
+    
+    // 添加类型检查，避免类型错误
+    if (rawEndpoints is Map<String, dynamic>) {
+      rawEndpoints.forEach((key, value) {
+        if (value is Map<String, dynamic>) {
+          byEndpoint[key] = EndpointUsage.fromJson(value);
+        }
+      });
+    }
+    
     return UsageSummary(
       periodDays: _toInt(json['period_days']) ?? 30,
       totalTokens: _toInt(json['total_tokens']) ?? 0,
