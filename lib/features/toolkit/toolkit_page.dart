@@ -391,20 +391,20 @@ class ToolkitPage extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  // 工具卡片网格（固定2列，类似手机布局）
+                  // 工具卡片网格（固定2列，紧凑布局）
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 100),
                     sliver: SliverGrid(
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 0.82,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: 0.85,
                       ),
                       delegate: SliverChildBuilderDelegate(
                         (context, index) => _ToolCard(
                           item: orderedTools[index],
-                          iconSize: isWideScreen ? 48 : 44,
+                          iconSize: isWideScreen ? 40 : 36,
                         ),
                         childCount: orderedTools.length,
                       ),
@@ -486,14 +486,14 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
         child: Container(
           decoration: BoxDecoration(
             color: cs.surface,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
                 color: _isPressed
-                    ? Colors.black.withValues(alpha: 0.1)
-                    : Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
-                blurRadius: _isPressed ? 8 : 16,
-                offset: Offset(0, _isPressed ? 2 : 6),
+                    ? Colors.black.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: isDark ? 0.1 : 0.04),
+                blurRadius: _isPressed ? 6 : 10,
+                offset: Offset(0, _isPressed ? 1 : 4),
               ),
             ],
             border: Border.all(
@@ -502,9 +502,9 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
                 // 图标
@@ -517,69 +517,44 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
                       end: Alignment.bottomRight,
                       colors: widget.item.gradientColors,
                     ),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(10),
                     boxShadow: [
                       BoxShadow(
-                        color: widget.item.gradientColors.first.withValues(alpha: 0.35),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
+                        color: widget.item.gradientColors.first.withValues(alpha: 0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
                   child: Icon(
                     currentIcon,
-                    size: widget.iconSize * 0.52,
+                    size: widget.iconSize * 0.55,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 // 标签
                 Text(
                   widget.item.label,
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: cs.onSurface,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 3),
-                // 描述
+                // 描述（可选，缩小字体）
                 Text(
                   widget.item.description,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     color: cs.onSurfaceVariant,
-                    height: 1.3,
+                    height: 1.2,
                   ),
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                ),
-                const Spacer(),
-                // 底部指示
-                Row(
-                  children: [
-                    if (widget.item.iconOptions != null)
-                      Icon(
-                        Icons.touch_app_outlined,
-                        size: 12,
-                        color: cs.onSurface.withValues(alpha: 0.6),
-                      ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerHighest.withValues(alpha: isDark ? 0.5 : 1.0),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 12,
-                        color: cs.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),

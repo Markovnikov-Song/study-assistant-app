@@ -16,6 +16,7 @@ import '../features/profile/memory_page.dart';
 import '../features/profile/token_usage_page.dart';
 import '../features/profile/token_detail_page.dart';
 import '../features/profile/api_config_page.dart';
+import '../features/profile/logs_page.dart';
 import '../features/subjects/subjects_page.dart';
 import '../features/resources/resources_page.dart';
 import '../features/history/history_page.dart';
@@ -89,6 +90,7 @@ class R {
   static const profileTokenDetail = '/profile/token-usage/detail';
   static const profileNotifications = '/profile/notifications';
   static const profileApiConfig = '/profile/api-config';
+  static const profileLogs = '/profile/logs';
   static String subjectDetail(int id)                             => '/profile/resources/$id';
 
   // 其他独立页面
@@ -171,6 +173,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: R.profileTokenDetail, builder: (_, _) => const TokenDetailPage()),
       GoRoute(path: R.profileNotifications, builder: (_, _) => const NotificationSettingsPage()),
       GoRoute(path: R.profileApiConfig, builder: (_, _) => const ApiConfigPage()),
+      GoRoute(path: R.profileLogs,     builder: (_, _) => const LogsPage()),
       GoRoute(path: R.profileResources,  builder: (_, _) => const ResourcesPage()),
       GoRoute(path: R.profileHistory,    builder: (_, _) => const HistoryPage()),
       GoRoute(path: R.skillMarketplace,  builder: (_, _) => const MarketplacePage()),

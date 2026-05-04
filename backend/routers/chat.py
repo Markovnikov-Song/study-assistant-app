@@ -114,6 +114,10 @@ def query_stream(body: QueryIn, user=Depends(get_current_user)):
     def event_generator():
         ctx = RAGStreamContext()
         ctx.session_id = session_id
+        
+        # 立即发送空数据帧，通知前端连接已建立，减少感知延迟
+        yield "data: \n\n"
+        
         try:
             gen = _rag.query_stream(
                 question=body.message,

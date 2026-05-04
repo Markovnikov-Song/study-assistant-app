@@ -245,6 +245,16 @@ class ProfilePage extends ConsumerWidget {
                       onTap: () => context.push(R.profileApiConfig),
                       isDark: isDark,
                     ),
+                    // 系统日志
+                    _buildMenuTile(
+                      context,
+                      icon: Icons.file_copy_outlined,
+                      iconColor: cs.tertiary,
+                      title: '系统日志',
+                      subtitle: '查看应用运行日志，便于排查问题',
+                      onTap: () => context.push(R.profileLogs),
+                      isDark: isDark,
+                    ),
                     // AI使用强度统计卡片
                     _buildTokenUsageCard(context, ref, isDark),
                     _buildMenuTile(

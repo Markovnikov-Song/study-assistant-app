@@ -154,6 +154,9 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
 
       sub = stream.listen(
         (event) {
+          // 过滤空数据帧（用于快速建立连接的心跳）
+          if (event.isEmpty) return;
+          
           if (event == '[DONE]') {
             if (!completer.isCompleted) completer.complete();
             return;
@@ -219,10 +222,26 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
 
     } catch (e, st) {
       if (buffer.isEmpty) {
-        // 出错时保留用户消息，显示错误状态
-        state = AsyncValue.error(e, st);
+        // 出错时保留用户消息，显示友好的错误消息
+        final errorMessage = _formatErrorMessage(e);
+        final errorMsg = ChatMessage.local(
+          role: MessageRole.assistant,
+          content: errorMessage,
+          type: MessageType.error,
+        );
+        state = AsyncValue.data([...current, userMsg, errorMsg]);
+      } else {
+        // 有部分内容时保留已输出内容，追加错误提示
+        final errorMessage = _formatErrorMessage(e);
+        final msgs = state.value;
+        if (msgs != null && msgs.isNotEmpty && msgs.last.role == MessageRole.assistant) {
+          final updated = ChatMessage.local(
+            role: MessageRole.assistant,
+            content: '${msgs.last.content}\n\n⚠️ $errorMessage',
+          );
+          state = AsyncValue.data([...msgs.sublist(0, msgs.length - 1), updated]);
+        }
       }
-      // 有部分内容时保留已输出内容，不报错
     } finally {
       sub?.cancel();
       _cancelToken = null;
@@ -318,5 +337,34 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   void refreshState() {
     final current = state.value ?? [];
     state = AsyncValue.data(List.from(current));
+  }
+
+  // ─── 格式化错误消息，提供友好的用户提示 ───────────────────
+  String _formatErrorMessage(Object e) {
+    final errorStr = e.toString();
+    
+    // 检查是否是已知的错误类型
+    if (errorStr.contains("API 配置错误") || errorStr.contains("API Key")) {
+      return "API 配置错误\n\n请进入「我的」→「AI 模型配置」检查您的 API 配置。";
+    }
+    
+    if (errorStr.contains("余额不足") || errorStr.contains("insufficient")) {
+      return "账户余额不足\n\n请检查您的 API 账户余额或切换其他配置。";
+    }
+    
+    if (errorStr.contains("请求过于频繁") || errorStr.contains("RateLimit")) {
+      return "请求过于频繁\n\n请稍等片刻再试。";
+    }
+    
+    if (errorStr.contains("网络") || errorStr.contains("连接") || errorStr.contains("timeout")) {
+      return "网络连接异常\n\n请检查网络连接后重试。";
+    }
+    
+    if (errorStr.contains("AI 服务")) {
+      return "AI 服务暂时不可用\n\n请稍后重试。";
+    }
+    
+    // 其他未知错误，提供通用提示
+    return "服务暂时不可用\n\n请稍后重试或联系客服。";
   }
 }

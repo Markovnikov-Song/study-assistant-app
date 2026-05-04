@@ -28,6 +28,14 @@ Stream<String> ssePost(String url, Map<String, dynamic> body, String? token) {
   });
 
   xhr.onLoad.listen((_) {
+    // 检查 HTTP 状态码，非 2xx 直接抛出错误
+    if (xhr.status < 200 || xhr.status >= 300) {
+      final errorBody = xhr.responseText ?? '';
+      ctrl.addError(Exception('HTTP ${xhr.status}: ${errorBody.isNotEmpty ? errorBody : 'Request failed'}'));
+      ctrl.close();
+      return;
+    }
+    
     // 处理最后剩余内容
     final text = xhr.responseText ?? '';
     if (text.length > processed) {

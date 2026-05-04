@@ -14,6 +14,7 @@ import uuid
 from typing import Generator, List, Optional, Tuple
 
 from openai import OpenAI
+from openai import APIError, APIConnectionError, APITimeoutError, AuthenticationError, RateLimitError
 
 
 class LLMService:
@@ -328,8 +329,30 @@ class LLMService:
                     request_id=request_id,
                 )
                 
+        except AuthenticationError as e:
+            # API Key 认证失败
+            raise RuntimeError("API 配置错误：API Key 无效或未配置。请进入「我的」→「AI 模型配置」检查您的 API 配置。") from e
+        except RateLimitError as e:
+            # 限流错误
+            raise RuntimeError("请求过于频繁，请稍等片刻再试。") from e
+        except APIConnectionError as e:
+            # 连接错误
+            raise RuntimeError("无法连接到 AI 服务，请检查网络连接或稍后重试。") from e
+        except APITimeoutError as e:
+            # 超时错误
+            raise RuntimeError("AI 服务响应超时，请稍后重试。") from e
+        except APIError as e:
+            # 其他 API 错误 - 尝试解析具体错误信息
+            error_msg = str(e)
+            if "insufficient" in error_msg.lower() or "balance" in error_msg.lower():
+                raise RuntimeError("账户余额不足，请检查您的 API 账户余额或切换其他配置。") from e
+            raise RuntimeError(f"AI 服务暂时不可用：{error_msg}") from e
         except Exception as e:
-            raise RuntimeError(f"AI 流式服务暂时不可用，请稍后重试。（{e}）") from e
+            # 其他未知错误
+            error_msg = str(e)
+            if "insufficient" in error_msg.lower() or "balance" in error_msg.lower():
+                raise RuntimeError("账户余额不足，请检查您的 API 账户余额或切换其他配置。")
+            raise RuntimeError(f"AI 服务暂时不可用，请稍后重试。") from e
 
     def chat_stream(self, messages, **kwargs):
         """stream_chat 的别名，兼容 FastAPI 后端调用。"""

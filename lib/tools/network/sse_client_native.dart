@@ -16,6 +16,16 @@ Stream<String> ssePost(String url, Map<String, dynamic> body, String? token) {
       request.add(utf8.encode(jsonEncode(body)));
 
       final response = await request.close();
+      
+      // 检查 HTTP 状态码，非 2xx 直接抛出错误
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final errorBody = await response.transform(utf8.decoder).join();
+        client.close();
+        ctrl.addError(Exception('HTTP ${response.statusCode}: ${errorBody.isNotEmpty ? errorBody : 'Request failed'}'));
+        ctrl.close();
+        return;
+      }
+      
       String leftover = '';
 
       await for (final chunk in response.transform(utf8.decoder)) {

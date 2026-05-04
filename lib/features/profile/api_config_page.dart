@@ -141,7 +141,8 @@ class _ApiConfigPageState extends ConsumerState<ApiConfigPage> {
           );
         }
       }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('_verifyPassphrase error: $e\n$st');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('验证失败：$e')),

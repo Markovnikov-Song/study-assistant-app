@@ -26,6 +26,7 @@ import '../../core/event_bus/calendar_events.dart';
 import '../../tools/speech/speech_input_button.dart';
 import '../spec/widgets/today_task_card.dart';
 import '../../services/level2_monitor.dart';
+import '../../services/api_config_service.dart';
 import '../../providers/solve_prefill_provider.dart';
 import '../../routes/app_router.dart';
 
@@ -119,9 +120,59 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   // 自动检测到的学科 ID（静默归类用）
   int? _autoDetectedSubjectId;
 
+  /// 检查 API 配置状态，未配置时引导用户配置
+  Future<bool> _checkApiConfig() async {
+    try {
+      final service = ApiConfigService();
+      final status = await service.getConfigStatus();
+      
+      final hasConfig = status['has_custom_config'] as bool? ?? false;
+      final useShared = status['use_shared_config'] as bool? ?? false;
+      
+      if (!hasConfig && !useShared) {
+        if (!mounted) return false;
+        
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('需要配置 AI 模型'),
+            content: const Text(
+              '您还未配置 AI API。请进入「我的」页面配置您的 API Key，或使用共享配置（需要口令）。',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('稍后配置'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx, false);
+                  context.push('/profile/api-config');
+                },
+                child: const Text('去配置'),
+              ),
+            ],
+          ),
+        );
+        
+        return confirmed ?? false;
+      }
+      
+      return true;
+    } catch (e) {
+      debugPrint('[ChatPage] Failed to check API config: $e');
+      return true; // 检查失败时允许继续，后端会处理实际错误
+    }
+  }
+
   Future<void> _submit() async {
     final text = _inputCtrl.text.trim();
     if (text.isEmpty) return;
+
+    // 检查 API 配置状态
+    final configStatus = await _checkApiConfig();
+    if (!configStatus) return;
+
     _inputCtrl.clear();
 
     // 记录用户活跃（供 Level 2 监控使用）
@@ -1001,6 +1052,48 @@ class _Bubble extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final multiSelect = ref.watch(multiSelectProvider);
     final isSelected = multiSelect.selectedMessageIds.contains(message.id);
+    final isError = message.type == MessageType.error;
+
+    // 错误消息样式
+    if (isError) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.errorContainer,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.error,
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.error_outline,
+                color: Theme.of(context).colorScheme.error,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message.content,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                    height: 1.6,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,

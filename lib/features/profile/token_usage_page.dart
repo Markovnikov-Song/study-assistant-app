@@ -32,15 +32,13 @@ class _TokenUsagePageState extends ConsumerState<TokenUsagePage> {
 
     try {
       final service = TokenService();
-      final results = await Future.wait([
-        service.getQuota(),
-        service.getTodayUsage(),
-      ]);
+      final quota = await service.getQuota();
+      final todayUsage = await service.getTodayUsage();
 
       if (mounted) {
         setState(() {
-          _quota = results[0] as TokenQuota;
-          _todayUsage = results[1] as UsageSummary;
+          _quota = quota;
+          _todayUsage = todayUsage;
           _isLoading = false;
         });
       }

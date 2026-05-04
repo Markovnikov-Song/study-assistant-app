@@ -8,7 +8,7 @@
 enum MessageRole { user, assistant }
 
 // 消息类型：普通文本 or 场景识别卡片
-enum MessageType { text, sceneCard }
+enum MessageType { text, sceneCard, error }
 
 // 场景类型：学科 / 规划 / 工具 / Spec / 日历
 enum SceneType { subject, planning, tool, spec, calendar }

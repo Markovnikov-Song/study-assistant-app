@@ -66,20 +66,20 @@ Write-Host ""
 # Step 4: Restart service
 Write-Host "[4/5] Restarting backend service..." -ForegroundColor Yellow
 $restartScript = @"
-echo 'Finding uvicorn process...' && \
-ps aux | grep uvicorn | grep -v grep && \
-echo 'Killing old process...' && \
-pkill -f 'uvicorn main:app' && \
-sleep 3 && \
-echo 'Starting new process...' && \
 cd ${ProjectPath}/backend && \
-nohup ${ProjectPath}/backend/venv/bin/python3 ${ProjectPath}/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 > /tmp/uvicorn.log 2>&1 & \
-sleep 3 && \
-echo 'Checking if service is running...' && \
+echo 'Cleaning up old processes...' && \
+pkill -f 'uvicorn main:app' || true && \
+sleep 2 && \
+echo 'Starting backend with nohup...' && \
+source venv/bin/activate && \
+nohup uvicorn main:app --host 0.0.0.0 --port 8000 > uvicorn.log 2>&1 & \
+sleep 5 && \
+echo 'Checking if process is up...' && \
 ps aux | grep uvicorn | grep -v grep
 "@
 
 ssh "${ServerUser}@${ServerIP}" $restartScript
+
 Write-Host "Done: Service restarted" -ForegroundColor Green
 Write-Host ""
 

@@ -5,6 +5,33 @@ import '../core/network/dio_client.dart';
 class ApiConfigService {
   final Dio _dio = DioClient.instance.dio;
 
+  /// 安全地将响应数据转为 Map<String, dynamic>
+  Map<String, dynamic> _parseResponse(dynamic data, String apiName) {
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    if (data is String) {
+      // 响应是字符串，可能是 HTML 错误或纯文本
+      throw ApiException(
+        message: '$apiName 失败：服务器返回了非 JSON 数据',
+        statusCode: null,
+      );
+    }
+    if (data is List) {
+      throw ApiException(
+        message: '$apiName 失败：服务器返回了列表而非对象',
+        statusCode: null,
+      );
+    }
+    throw ApiException(
+      message: '$apiName 失败：无法识别的响应格式（${data.runtimeType}）',
+      statusCode: null,
+    );
+  }
+
   /// 验证共享配置口令
   Future<Map<String, dynamic>> verifySharedConfig(String passphrase) async {
     try {
@@ -12,7 +39,7 @@ class ApiConfigService {
         '/api/api-config/verify-shared-config',
         data: {'passphrase': passphrase},
       );
-      return res.data as Map<String, dynamic>;
+      return _parseResponse(res.data, '验证共享配置');
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -35,7 +62,7 @@ class ApiConfigService {
           'vision_api_key': visionApiKey,
         },
       );
-      return res.data as Map<String, dynamic>;
+      return _parseResponse(res.data, '保存配置');
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -45,7 +72,7 @@ class ApiConfigService {
   Future<Map<String, dynamic>> getConfigStatus() async {
     try {
       final res = await _dio.get('/api/api-config/config-status');
-      return res.data as Map<String, dynamic>;
+      return _parseResponse(res.data, '获取配置状态');
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -55,7 +82,7 @@ class ApiConfigService {
   Future<Map<String, dynamic>> disableSharedConfig() async {
     try {
       final res = await _dio.post('/api/api-config/disable-shared-config');
-      return res.data as Map<String, dynamic>;
+      return _parseResponse(res.data, '禁用共享配置');
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -65,7 +92,7 @@ class ApiConfigService {
   Future<Map<String, dynamic>> testConnection() async {
     try {
       final res = await _dio.get('/api/api-config/test-connection');
-      return res.data as Map<String, dynamic>;
+      return _parseResponse(res.data, '测试连接');
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
