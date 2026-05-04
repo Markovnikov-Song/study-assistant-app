@@ -56,11 +56,11 @@ Write-Host "Done: APK copied to $apkDest" -ForegroundColor Green
 
 # 6. Update .env file
 Write-Host "`n[6/8] Updating backend/.env..." -ForegroundColor Yellow
-$envPath = "backend\.env"
+$envPath = Join-Path (Get-Location) "backend\.env"
 
 # Check if file exists
 if (-not (Test-Path $envPath)) {
-    Write-Host "Warning: backend\.env not found, skipping update" -ForegroundColor Yellow
+    Write-Host "Warning: backend\.env not found at $envPath, skipping update" -ForegroundColor Yellow
     Write-Host "You will need to update it manually on the server" -ForegroundColor Yellow
 } else {
     $envContent = Get-Content $envPath -Raw -Encoding UTF8
@@ -76,6 +76,7 @@ if (-not (Test-Path $envPath)) {
     [System.IO.File]::WriteAllText($envPath, $envContent, $Utf8NoBomEncoding)
     Write-Host "Done: .env file updated" -ForegroundColor Green
 }
+
 
 # 7. Git commit
 Write-Host "`n[7/8] Committing to Git..." -ForegroundColor Yellow
