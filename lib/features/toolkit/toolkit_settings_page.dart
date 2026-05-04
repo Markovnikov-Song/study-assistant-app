@@ -11,7 +11,19 @@ class ToolkitSettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
-    final orderedTools = ref.watch(toolOrderProvider.notifier).getOrderedTools();
+    // 监听状态变化，并获取排序后的工具列表
+    final order = ref.watch(toolOrderProvider);
+    final toolMap = {for (var tool in kDefaultTools) tool.id: tool};
+    final orderedTools = order
+        .map((id) => toolMap[id])
+        .whereType<ToolItem>()
+        .toList();
+    // 添加默认列表中新增的工具（向后兼容）
+    for (final tool in kDefaultTools) {
+      if (!order.contains(tool.id)) {
+        orderedTools.add(tool);
+      }
+    }
 
     return Scaffold(
       backgroundColor: cs.surface,
@@ -94,9 +106,10 @@ class ToolkitSettingsPage extends ConsumerWidget {
             child: ReorderableListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               itemCount: orderedTools.length,
-              onReorder: (oldIndex, newIndex) async {
+              onReorder: (oldIndex, newIndex) {
                 HapticFeedback.mediumImpact();
-                await ref.read(toolOrderProvider.notifier).reorder(oldIndex, newIndex);
+                // Flutter 2.0+: newIndex 已经是移除后的正确位置，直接传递
+                ref.read(toolOrderProvider.notifier).reorder(oldIndex, newIndex);
               },
               itemBuilder: (context, index) {
                 final tool = orderedTools[index];

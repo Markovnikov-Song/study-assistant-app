@@ -131,9 +131,7 @@ class ToolOrderNotifier extends StateNotifier<List<String>> {
 
   Future<void> reorder(int oldIndex, int newIndex) async {
     final newOrder = List<String>.from(state);
-    if (oldIndex < newIndex) {
-      newIndex -= 1;
-    }
+    // Flutter 2.0+ onReorder: newIndex 已经是移除后的正确位置，不需要调整
     final item = newOrder.removeAt(oldIndex);
     newOrder.insert(newIndex, item);
     state = newOrder;
@@ -347,8 +345,19 @@ class ToolkitPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     
-    // 获取排序后的工具列表
-    final orderedTools = ref.watch(toolOrderProvider.notifier).getOrderedTools();
+    // 正确监听排序状态
+    final order = ref.watch(toolOrderProvider);
+    final toolMap = {for (var tool in kDefaultTools) tool.id: tool};
+    final orderedTools = order
+        .map((id) => toolMap[id])
+        .whereType<ToolItem>()
+        .toList();
+    // 添加默认列表中新增的工具（向后兼容）
+    for (final tool in kDefaultTools) {
+      if (!order.contains(tool.id)) {
+        orderedTools.add(tool);
+      }
+    }
 
     final screenWidth = MediaQuery.of(context).size.width;
     final isWideScreen = screenWidth > 600;
@@ -391,20 +400,20 @@ class ToolkitPage extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  // 工具卡片网格（固定2列，紧凑布局）
+                  // 工具卡片网格（响应式，像手机桌面一样）
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 100),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                     sliver: SliverGrid(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
+                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 100,  // 减小，让一行能放4-5个
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 16,
                         childAspectRatio: 0.85,
                       ),
                       delegate: SliverChildBuilderDelegate(
                         (context, index) => _ToolCard(
                           item: orderedTools[index],
-                          iconSize: isWideScreen ? 40 : 36,
+                          iconSize: 48,  // 图标改小，像桌面图标
                         ),
                         childCount: orderedTools.length,
                       ),
@@ -424,7 +433,7 @@ class _ToolCard extends ConsumerStatefulWidget {
   final ToolItem item;
   final double iconSize;
 
-  const _ToolCard({required this.item, this.iconSize = 44});
+  const _ToolCard({required this.item, this.iconSize = 48});
 
   @override
   ConsumerState<_ToolCard> createState() => _ToolCardState();
@@ -433,8 +442,8 @@ class _ToolCard extends ConsumerStatefulWidget {
 class _ToolCardState extends ConsumerState<_ToolCard> {
   bool _isPressed = false;
 
-  /// 长按显示图标选择器
-  void _showIconPicker() {
+  /// 长按显示功能说明和图标选择器
+  void _showToolOptions() {
     if (widget.item.iconOptions == null || widget.item.iconOptions!.isEmpty) {
       return;
     }
@@ -443,19 +452,18 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => _IconPickerSheet(
+      isScrollControlled: true,
+      builder: (context) => _ToolOptionsSheet(
         item: widget.item,
         currentIcon: ref.read(toolIconsProvider.notifier).getIcon(
               widget.item.id,
               widget.item.icon,
             ),
-        onSelect: (icon) {
+        onSelectIcon: (icon) {
           ref.read(toolIconsProvider.notifier).setIcon(widget.item.id, icon);
-          Navigator.pop(context);
         },
-        onReset: () {
+        onResetIcon: () {
           ref.read(toolIconsProvider.notifier).resetIcon(widget.item.id);
-          Navigator.pop(context);
         },
       ),
     );
@@ -463,7 +471,6 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final cs = Theme.of(context).colorScheme;
 
     // 获取用户自定义图标或默认图标
@@ -477,106 +484,73 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
       onTapUp: (_) => setState(() => _isPressed = false),
       onTapCancel: () => setState(() => _isPressed = false),
       onTap: () => context.push(widget.item.route),
-      // 长按显示图标选择（仅对有 iconOptions 的工具生效）
-      onLongPress: widget.item.iconOptions != null ? _showIconPicker : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        // ignore: deprecated_member_use
-        transform: Matrix4.identity()..scale(_isPressed ? 0.96 : 1.0),
-        child: Container(
-          decoration: BoxDecoration(
-            color: cs.surface,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: _isPressed
-                    ? Colors.black.withValues(alpha: 0.08)
-                    : Colors.black.withValues(alpha: isDark ? 0.1 : 0.04),
-                blurRadius: _isPressed ? 6 : 10,
-                offset: Offset(0, _isPressed ? 1 : 4),
+      // 长按显示功能说明和图标选择（仅对有 iconOptions 的工具生效）
+      onLongPress: widget.item.iconOptions != null ? _showToolOptions : null,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 图标（像手机桌面图标，小方块）
+          Transform.scale(
+            scale: _isPressed ? 0.9 : 1.0,
+            child: Container(
+              width: widget.iconSize,
+              height: widget.iconSize,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: widget.item.gradientColors,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.item.gradientColors.first.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-            ],
-            border: Border.all(
-              color: cs.outline,
-              width: 0.5,
+              child: Icon(
+                currentIcon,
+                size: widget.iconSize * 0.5,
+                color: Colors.white,
+              ),
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 图标
-                Container(
-                  width: widget.iconSize,
-                  height: widget.iconSize,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: widget.item.gradientColors,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: widget.item.gradientColors.first.withValues(alpha: 0.3),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    currentIcon,
-                    size: widget.iconSize * 0.55,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // 标签
-                Text(
-                  widget.item.label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: cs.onSurface,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                // 描述（可选，缩小字体）
-                Text(
-                  widget.item.description,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: cs.onSurfaceVariant,
-                    height: 1.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
-              ],
+          const SizedBox(height: 6),
+          // 文字（在图标下方，像手机桌面）
+          SizedBox(
+            width: widget.iconSize + 16,
+            child: Text(
+              widget.item.label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: cs.onSurface,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-/// 图标选择器底部弹窗
-class _IconPickerSheet extends StatelessWidget {
+/// 工具选项底部弹窗（功能说明 + 图标选择）
+class _ToolOptionsSheet extends StatelessWidget {
   final ToolItem item;
   final IconData currentIcon;
-  final ValueChanged<IconData> onSelect;
-  final VoidCallback onReset;
+  final ValueChanged<IconData> onSelectIcon;
+  final VoidCallback onResetIcon;
 
-  const _IconPickerSheet({
+  const _ToolOptionsSheet({
     required this.item,
     required this.currentIcon,
-    required this.onSelect,
-    required this.onReset,
+    required this.onSelectIcon,
+    required this.onResetIcon,
   });
 
   @override
@@ -603,61 +577,97 @@ class _IconPickerSheet extends StatelessWidget {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            // 标题
+            // 功能说明区域
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
               child: Row(
                 children: [
+                  // 当前图标
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: item.gradientColors,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
-                      item.icon,
+                      currentIcon,
                       color: Colors.white,
-                      size: 22,
+                      size: 26,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
+                  // 标题和说明
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '选择${item.label}图标',
+                          item.label,
                           style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
                             color: cs.onSurface,
                           ),
                         ),
+                        const SizedBox(height: 4),
                         Text(
-                          '长按卡片可随时更换',
+                          item.description,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             color: cs.onSurfaceVariant,
+                            height: 1.3,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
+                ],
+              ),
+            ),
+            // 分割线
+            Divider(
+              height: 1,
+              thickness: 0.5,
+              color: cs.outline.withValues(alpha: 0.5),
+              indent: 20,
+              endIndent: 20,
+            ),
+            // 图标选择标题
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+              child: Row(
+                children: [
+                  Text(
+                    '选择图标',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  const Spacer(),
                   // 重置按钮
-                  if (item.availableIcons.contains(item.icon))
-                    TextButton(
-                      onPressed: onReset,
-                      child: Text(
-                        '恢复默认',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: cs.primary,
-                        ),
+                  GestureDetector(
+                    onTap: () {
+                      onResetIcon();
+                      Navigator.pop(context);
+                    },
+                    child: Text(
+                      '恢复默认',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: cs.primary,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
@@ -670,7 +680,10 @@ class _IconPickerSheet extends StatelessWidget {
                 children: icons.map((icon) {
                   final isSelected = icon == currentIcon;
                   return GestureDetector(
-                    onTap: () => onSelect(icon),
+                    onTap: () {
+                      onSelectIcon(icon);
+                      Navigator.pop(context);
+                    },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       width: 56,

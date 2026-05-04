@@ -65,6 +65,7 @@ Write-Host ""
 
 # Step 4: Restart service
 Write-Host "[4/5] Restarting backend service..." -ForegroundColor Yellow
+Write-Host "Note: Service runs in ${ProjectPath}/backend (no separate backend folder needed)" -ForegroundColor Gray
 $restartScript = @"
 cd ${ProjectPath}/backend && \
 echo 'Cleaning up old processes...' && \
