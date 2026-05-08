@@ -52,10 +52,22 @@ class User(Base):
     # API 配置字段
     use_shared_config = Column(Boolean, default=False, nullable=True)
     shared_config_type = Column(String(50), nullable=True)
+    # 语言模型（三要素）
     custom_llm_base_url = Column(Text, nullable=True)
     custom_llm_api_key = Column(Text, nullable=True)
+    custom_llm_model = Column(Text, nullable=True)
+    # 视觉模型 OCR（三要素）
     custom_vision_base_url = Column(Text, nullable=True)
     custom_vision_api_key = Column(Text, nullable=True)
+    custom_vision_model = Column(Text, nullable=True)
+    # 向量化模型 Embedding（三要素）
+    custom_embedding_base_url = Column(Text, nullable=True)
+    custom_embedding_api_key = Column(Text, nullable=True)
+    custom_embedding_model = Column(Text, nullable=True)
+    # 重排序模型 Reranker（三要素）
+    custom_reranker_base_url = Column(Text, nullable=True)
+    custom_reranker_api_key = Column(Text, nullable=True)
+    custom_reranker_model = Column(Text, nullable=True)
     verified_at = Column(DateTime, nullable=True)
 
     subjects = relationship("Subject", back_populates="user", cascade="all, delete-orphan")
@@ -105,6 +117,12 @@ class Document(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     filename = Column(String(256), nullable=False)
     status = Column(String(16), default="pending", nullable=False)  # pending/processing/completed/failed
+    processing_stage = Column(String(32), default="queued", nullable=False)
+    progress = Column(SmallInteger, default=0, nullable=False)
+    parser_backend = Column(String(64), nullable=True)
+    chunk_count = Column(Integer, default=0, nullable=False)
+    outline = Column(JSONB, nullable=True)
+    mindmap_ready = Column(Boolean, default=False, nullable=False)
     error = Column(Text)
     created_at = Column(DateTime, default=func.now(), nullable=False)
 
@@ -121,10 +139,35 @@ class Chunk(Base):
     subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
     chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
+    heading_path = Column(String(1024), nullable=True)
+    token_count = Column(Integer, default=0, nullable=False)
+    is_secondary = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=func.now(), nullable=False)
 
     document = relationship("Document", back_populates="chunks")
     subject = relationship("Subject", back_populates="chunks")
+
+
+class SubjectKnowledgeBase(Base):
+    """One isolated material knowledge base per user subject."""
+    __tablename__ = "subject_knowledge_bases"
+    __table_args__ = (
+        UniqueConstraint("user_id", "subject_id", name="uq_subject_knowledge_base"),
+        Index("idx_subject_kb_user_subject", "user_id", "subject_id"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String(16), default="empty", nullable=False)  # empty/processing/ready/failed
+    document_count = Column(Integer, default=0, nullable=False)
+    chunk_count = Column(Integer, default=0, nullable=False)
+    outline = Column(JSONB, nullable=True)
+    mindmap_ready = Column(Boolean, default=False, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User")
+    subject = relationship("Subject")
 
 
 class ConversationSession(Base):
@@ -441,6 +484,10 @@ class PlanItem(Base):
     estimated_minutes = Column(Integer, nullable=False, default=20)
     priority = Column(String(8), nullable=False, default="medium")  # high/medium/low
     dependency_node_ids = Column(JSONB, nullable=True, default=list)
+    capability_id = Column(String(128), nullable=True)
+    capability_params = Column(JSONB, nullable=True, default=dict)
+    completion_contract = Column(JSONB, nullable=True, default=dict)
+    completion_result = Column(JSONB, nullable=True, default=dict)
     planned_date = Column(DateTime(timezone=True), nullable=True)
     status = Column(String(16), nullable=False, default="pending")  # pending/done/skipped
     completed_at = Column(DateTime(timezone=True), nullable=True)

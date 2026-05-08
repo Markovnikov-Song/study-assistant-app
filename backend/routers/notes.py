@@ -19,7 +19,7 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from database import Chunk, Document, Note, Notebook, get_session
+from database import Chunk, Document, Note, Notebook, Subject, get_session
 from deps import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -245,6 +245,12 @@ def import_to_rag(note_id: int, user=Depends(get_current_user)):
         subject_id = note.subject_id
         if not subject_id:
             raise HTTPException(400, "通用栏笔记无关联学科，无法导入资料库")
+        subject = db.query(Subject).filter(
+            Subject.id == subject_id,
+            Subject.user_id == user["id"],
+        ).first()
+        if not subject:
+            raise HTTPException(403, "无权访问该学科")
 
         title = note.title or content[:20]
         filename = f"笔记：{title}"
@@ -256,30 +262,73 @@ def import_to_rag(note_id: int, user=Depends(get_current_user)):
             if old_doc:
                 try:
                     from services.document_service import DocumentService
-                    DocumentService()._delete_vectors(note.imported_to_doc_id, subject_id)
+                    DocumentService()._delete_vectors(note.imported_to_doc_id, subject_id, user_id=user["id"])
                 except Exception as e:
                     logger.warning("删除旧向量失败：%s", e)
                 db.delete(old_doc)
                 db.flush()
 
-        new_doc = Document(subject_id=subject_id, user_id=user["id"], filename=filename, status="pending")
+        new_doc = Document(
+            subject_id=subject_id,
+            user_id=user["id"],
+            filename=filename,
+            status="pending",
+            processing_stage="queued",
+            progress=0,
+            parser_backend="note",
+            mindmap_ready=False,
+        )
         db.add(new_doc)
         db.flush()
         new_doc_id = new_doc.id
 
         try:
             from services.document_service import DocumentService
-            from services.embedding_service import EmbeddingService
+            from services.chunker import HierarchicalChunker
+
             svc = DocumentService()
             new_doc.status = "processing"
+            new_doc.processing_stage = "indexing"
+            new_doc.progress = 40
             db.flush()
-            chunks = svc.chunk_text(full_text)
+
+            try:
+                chunks = HierarchicalChunker().chunk(full_text, {"filename": filename})
+            except Exception as exc:
+                logger.warning("笔记结构化切片失败，降级为普通切片：%s", exc)
+                chunks = [
+                    {
+                        "content": item,
+                        "heading_path": "",
+                        "chunk_index": idx,
+                        "filename": filename,
+                        "is_secondary": False,
+                        "token_count": max(1, len(item) // 4),
+                    }
+                    for idx, item in enumerate(svc.chunk_text(full_text))
+                ]
+
+            outline = svc._build_outline(chunks)
             if chunks:
-                vectors = EmbeddingService().embed_texts(chunks)
-                svc._store_vectors(chunks, vectors, new_doc_id, subject_id, filename)
+                svc._store_vectors(chunks, new_doc_id, subject_id, filename, user_id=user["id"])
             for idx, chunk_content in enumerate(chunks):
-                db.add(Chunk(document_id=new_doc_id, subject_id=subject_id, chunk_index=idx, content=chunk_content))
+                db.add(Chunk(
+                    document_id=new_doc_id,
+                    subject_id=subject_id,
+                    chunk_index=svc._chunk_index(chunk_content, idx),
+                    content=svc._chunk_for_storage(chunk_content),
+                    heading_path=svc._chunk_heading_path(chunk_content),
+                    token_count=int(svc._chunk_attr(chunk_content, "token_count", 0) or 0),
+                    is_secondary=bool(svc._chunk_attr(chunk_content, "is_secondary", False)),
+                ))
             new_doc.status = "completed"
+            new_doc.processing_stage = "ready"
+            new_doc.progress = 100
+            new_doc.parser_backend = "note"
+            new_doc.chunk_count = len(chunks)
+            new_doc.outline = outline
+            new_doc.mindmap_ready = True
+            svc._refresh_subject_knowledge_base(subject_id, user["id"])
         except Exception as e:
             logger.error("导入资料库失败：%s", e)
             db.delete(new_doc)

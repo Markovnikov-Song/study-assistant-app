@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../models/document.dart';
 import '../../../providers/document_provider.dart';
 
@@ -10,85 +11,296 @@ class DocsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final docsAsync = ref.watch(documentsProvider(subjectId));
+    final kbAsync = ref.watch(subjectKnowledgeBaseProvider(subjectId));
     final uploadState = ref.watch(documentActionsProvider(subjectId));
 
-    // 显示错误
     ref.listen(documentActionsProvider(subjectId), (_, next) {
       if (next.error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('上传失败：${next.error}'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('上传失败：${next.error}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
         ref.read(documentActionsProvider(subjectId).notifier).clearError();
       }
     });
 
+    final hasActiveJob = docsAsync.maybeWhen(
+      data: (docs) => docs.any(
+        (d) =>
+            d.status == DocumentStatus.pending ||
+            d.status == DocumentStatus.processing,
+      ),
+      orElse: () => uploadState.isUploading,
+    );
+
     return Column(
       children: [
-        // 上传区
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: OutlinedButton.icon(
-            onPressed: uploadState.isUploading
-                ? null
-                : () => ref.read(documentActionsProvider(subjectId).notifier).pickAndUpload(),
-            icon: uploadState.isUploading
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.upload_file),
-            label: Text(uploadState.isUploading ? '上传中…' : '上传资料（PDF / Word / PPT / TXT / MD）'),
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: OutlinedButton.icon(
-            onPressed: uploadState.isUploading
-                ? null
-                : () async {
-                    try {
-                      await ref.read(documentActionsProvider(subjectId).notifier).reindexAll();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('已触发重新索引，请稍候…')),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('重新索引失败：$e'), backgroundColor: Colors.red),
-                        );
-                      }
-                    }
-                  },
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('重新索引全部（修复检索不到的问题）'),
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(40)),
-          ),
-        ),
-        const Divider(height: 1),
-        // 处理中进度条
-        if (docsAsync.maybeWhen(
-          data: (docs) => docs.any((d) =>
-              d.status == DocumentStatus.pending ||
-              d.status == DocumentStatus.processing),
-          orElse: () => false,
-        ))
-          const LinearProgressIndicator(),
-        // 文件列表
+        if (hasActiveJob) const LinearProgressIndicator(minHeight: 2),
         Expanded(
-          child: docsAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('加载失败：$e')),
-            data: (docs) {
-              if (docs.isEmpty) {
-                return const Center(child: Text('暂无资料，请上传文件'));
-              }
-              return ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: docs.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (_, i) => _DocCard(doc: docs[i], subjectId: subjectId),
-              );
+          child: RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(documentsProvider(subjectId));
+              ref.invalidate(subjectKnowledgeBaseProvider(subjectId));
             },
+            child: docsAsync.when(
+              loading: () => const _DocsLoadingView(),
+              error: (e, _) => _DocsErrorView(message: '加载失败：$e'),
+              data: (docs) {
+                return CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                      sliver: SliverToBoxAdapter(
+                        child: kbAsync.maybeWhen(
+                          data: (kb) => _KnowledgeBasePanel(kb: kb),
+                          loading: () => const _KnowledgeBaseSkeleton(),
+                          orElse: () => const SizedBox.shrink(),
+                        ),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                      sliver: SliverToBoxAdapter(
+                        child: _ActionBar(
+                          isUploading: uploadState.isUploading,
+                          onUpload: () => ref
+                              .read(documentActionsProvider(subjectId).notifier)
+                              .pickAndUpload(),
+                          onReindexAll: () => _reindexAll(context, ref),
+                        ),
+                      ),
+                    ),
+                    if (docs.isEmpty)
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _EmptyDocsView(),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                        sliver: SliverList.separated(
+                          itemCount: docs.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 10),
+                          itemBuilder: (_, i) => _DocTile(
+                            doc: docs[i],
+                            subjectId: subjectId,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _reindexAll(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(documentActionsProvider(subjectId).notifier).reindexAll();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已开始重建索引')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('重建索引失败：$e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+}
+
+class _KnowledgeBasePanel extends StatelessWidget {
+  final SubjectKnowledgeBase kb;
+  const _KnowledgeBasePanel({required this.kb});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final ready = kb.mindmapReady;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border.all(color: cs.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: (ready ? cs.primary : cs.tertiary).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  ready ? Icons.account_tree_rounded : Icons.folder_open_rounded,
+                  color: ready ? cs.primary : cs.tertiary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      kb.statusLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      ready ? '可用于问答、讲义和思维导图' : '资料处理完成后自动可用',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _MetricPill(
+                  icon: Icons.description_outlined,
+                  label: '资料',
+                  value: '${kb.documentCount}',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _MetricPill(
+                  icon: Icons.grid_view_rounded,
+                  label: '知识块',
+                  value: '${kb.chunkCount}',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _MetricPill(
+                  icon: ready
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.timelapse_rounded,
+                  label: '导图',
+                  value: ready ? '就绪' : '待处理',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _MetricPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Container(
+      height: 58,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: cs.onSurfaceVariant),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall,
+                ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionBar extends StatelessWidget {
+  final bool isUploading;
+  final VoidCallback onUpload;
+  final VoidCallback onReindexAll;
+
+  const _ActionBar({
+    required this.isUploading,
+    required this.onUpload,
+    required this.onReindexAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: isUploading ? null : onUpload,
+            icon: isUploading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.upload_file_rounded),
+            label: Text(isUploading ? '上传中' : '上传资料'),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Tooltip(
+          message: '重建全部索引',
+          child: IconButton.outlined(
+            onPressed: isUploading ? null : onReindexAll,
+            icon: const Icon(Icons.sync_rounded),
           ),
         ),
       ],
@@ -96,69 +308,140 @@ class DocsTab extends ConsumerWidget {
   }
 }
 
-class _DocCard extends ConsumerWidget {
+class _DocTile extends ConsumerWidget {
   final StudyDocument doc;
   final int subjectId;
-  const _DocCard({required this.doc, required this.subjectId});
+  const _DocTile({required this.doc, required this.subjectId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Card(
-      child: ListTile(
-        leading: _statusIcon(doc.status),
-        title: Text(doc.filename, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(doc.statusLabel),
-            if (doc.error != null)
-              Text(doc.error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (doc.status == DocumentStatus.completed)
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 20),
-                tooltip: '重新索引',
-                onPressed: () async {
-                  try {
-                    await ref.read(documentActionsProvider(subjectId).notifier).reindex(doc.id);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('重新索引中…')),
-                      );
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('失败：$e'), backgroundColor: Colors.red),
-                      );
-                    }
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final processing =
+        doc.status == DocumentStatus.pending ||
+        doc.status == DocumentStatus.processing;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border.all(color: _statusColor(cs, doc.status).withValues(alpha: 0.36)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DocStatusIcon(status: doc.status),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      doc.filename,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 5),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _StatusChip(label: _stageLabel(doc), status: doc.status),
+                        if (doc.chunkCount > 0)
+                          _TinyChip(
+                            icon: Icons.grid_view_rounded,
+                            label: '${doc.chunkCount} 块',
+                          ),
+                        if ((doc.parserBackend ?? '').isNotEmpty)
+                          _TinyChip(
+                            icon: Icons.memory_rounded,
+                            label: doc.parserBackend!,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<_DocAction>(
+                tooltip: '资料操作',
+                onSelected: (action) {
+                  switch (action) {
+                    case _DocAction.reindex:
+                      _reindex(context, ref);
+                    case _DocAction.delete:
+                      _confirmDelete(context, ref);
                   }
                 },
+                itemBuilder: (_) => [
+                  if (doc.status == DocumentStatus.completed)
+                    const PopupMenuItem(
+                      value: _DocAction.reindex,
+                      child: ListTile(
+                        leading: Icon(Icons.sync_rounded),
+                        title: Text('重建索引'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  const PopupMenuItem(
+                    value: _DocAction.delete,
+                    child: ListTile(
+                      leading: Icon(Icons.delete_outline_rounded),
+                      title: Text('删除资料'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
               ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () => _confirmDelete(context, ref),
+            ],
+          ),
+          if (processing) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: doc.progress > 0 ? doc.progress / 100 : null,
+                minHeight: 6,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text('${doc.progress.clamp(0, 100)}%', style: theme.textTheme.labelSmall),
+          ],
+          if (doc.error != null && doc.error!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              doc.error!,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
 
-  Widget _statusIcon(DocumentStatus status) {
-    switch (status) {
-      case DocumentStatus.completed:
-        return const Icon(Icons.check_circle, color: Colors.green);
-      case DocumentStatus.processing:
-        return const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2));
-      case DocumentStatus.failed:
-        return const Icon(Icons.error, color: Colors.red);
-      case DocumentStatus.pending:
-        return const Icon(Icons.hourglass_empty, color: Colors.orange);
+  Future<void> _reindex(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(documentActionsProvider(subjectId).notifier).reindex(doc.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已开始重建索引')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('操作失败：$e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     }
   }
 
@@ -166,19 +449,27 @@ class _DocCard extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('确认删除'),
-        content: Text('确定删除「${doc.filename}」？'),
+        title: const Text('删除资料'),
+        content: Text('确定删除「${doc.filename}」吗？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () async {
               Navigator.pop(context);
               try {
-                await ref.read(documentActionsProvider(subjectId).notifier).delete(doc.id);
+                await ref
+                    .read(documentActionsProvider(subjectId).notifier)
+                    .delete(doc.id);
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
+                    SnackBar(
+                      content: Text('删除失败：$e'),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                    ),
                   );
                 }
               }
@@ -189,4 +480,172 @@ class _DocCard extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _DocStatusIcon extends StatelessWidget {
+  final DocumentStatus status;
+  const _DocStatusIcon({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = _statusColor(cs, status);
+    final icon = switch (status) {
+      DocumentStatus.completed => Icons.check_circle_rounded,
+      DocumentStatus.processing => Icons.autorenew_rounded,
+      DocumentStatus.failed => Icons.error_rounded,
+      DocumentStatus.pending => Icons.schedule_rounded,
+    };
+
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(icon, size: 20, color: color),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final String label;
+  final DocumentStatus status;
+  const _StatusChip({required this.label, required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = _statusColor(cs, status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
+      ),
+    );
+  }
+}
+
+class _TinyChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _TinyChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.68),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: cs.onSurfaceVariant),
+          const SizedBox(width: 4),
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyDocsView extends StatelessWidget {
+  const _EmptyDocsView();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.folder_open_rounded, size: 44, color: cs.onSurfaceVariant),
+          const SizedBox(height: 12),
+          Text('暂无资料', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            '上传教材、课件或讲义后，会自动解析为可检索的知识块。',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DocsLoadingView extends StatelessWidget {
+  const _DocsLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: CircularProgressIndicator());
+  }
+}
+
+class _DocsErrorView extends StatelessWidget {
+  final String message;
+  const _DocsErrorView({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(message, textAlign: TextAlign.center),
+      ),
+    );
+  }
+}
+
+class _KnowledgeBaseSkeleton extends StatelessWidget {
+  const _KnowledgeBaseSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      height: 132,
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border.all(color: cs.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
+enum _DocAction { reindex, delete }
+
+String _stageLabel(StudyDocument doc) {
+  return switch (doc.processingStage) {
+    'queued' => '等待解析',
+    'parsing' => '正在解析',
+    'indexing' => '正在索引',
+    'preprocessing' => '预处理',
+    'ready' => '已就绪',
+    'failed' => '失败',
+    _ => doc.statusLabel,
+  };
+}
+
+Color _statusColor(ColorScheme cs, DocumentStatus status) {
+  return switch (status) {
+    DocumentStatus.completed => cs.primary,
+    DocumentStatus.processing => cs.secondary,
+    DocumentStatus.failed => cs.error,
+    DocumentStatus.pending => cs.tertiary,
+  };
 }

@@ -17,6 +17,9 @@ cd "$BACKEND_DIR"
 source venv/bin/activate
 pip install -r requirements.txt -q
 
+echo ">>> Running database migrations..."
+python migrations/run_016.py
+
 echo ">>> 重启服务..."
 sudo systemctl restart "$SERVICE_NAME"
 

@@ -121,6 +121,35 @@ class AppConfig:
     # 会话标题：最大字符数
     SESSION_TITLE_MAX_CHARS: int = 15
 
+    # ── 解题流水线配置 ────────────────────────────────────────────────────────
+    SOLVE_OCR_TIMEOUT_SECONDS: int = 15        # OCR API 调用超时（秒）
+    SOLVE_REASONING_MAX_TOKENS: int = 4096     # 解题推理最大 Token 数
+    SOLVE_MAX_IMAGES: int = 4                  # 单次解题最大图片数量
+    SOLVE_IMAGE_MAX_LONG_EDGE: int = 1920      # 图片压缩长边上限（px）
+    SOLVE_IMAGE_PREPROCESS_ENABLED: bool = False  # 是否启用 OpenCV 图像预处理（默认关闭）
+
+    # ── RAG 升级配置 ──────────────────────────────────────────────────────────
+    # 解析层
+    DOCUMENT_PARSER_BACKEND: str = "mineru"   # 解析后端（mineru | marker | markitdown | pdfplumber）
+    DOCUMENT_PARSER_TIMEOUT_SECONDS: int = 120  # 子进程调用超时
+
+    # 检索层
+    RECALL_TOP_K: int = 50                    # 粗筛召回数
+    RERANK_TOP_N: int = 5                     # 精排保留数
+    RERANK_THRESHOLD: float = 0.4             # 低于此分触发 Fallback
+    RERANK_MODEL: str = "BAAI/bge-reranker-v2-m3"  # 重排模型名称
+    RERANKER_MODE: str = "api"                # api | local
+    RERANKER_API_URL: str = ""                # HTTP Reranker API 地址
+    RERANKER_API_KEY: str = ""                # Reranker API 密钥（可为空）
+
+    # 切片层
+    CHUNK_MAX_TOKENS: int = 512               # 单 Chunk 最大 token 数
+    CHUNK_OVERLAP_TOKENS: int = 64            # 相邻 Chunk 重叠 token 数
+
+    # 生成层
+    MINDMAP_MAX_DEPTH: int = 3                # 递归最大深度
+    MINDMAP_LEAF_THRESHOLD: int = 200         # 叶节点 token 阈值
+
     # ── 超时配置（秒）────────────────────────────────────────────────────────
     # 讲义生成（流式）超时
     LECTURE_GENERATION_TIMEOUT_SECONDS: int = 120
@@ -142,6 +171,7 @@ class AppConfig:
     # ── 文件类型白名单 ────────────────────────────────────────────────────────
     # 学科资料支持的文件格式
     DOCUMENT_ALLOWED_EXTENSIONS: str = ".pdf,.docx,.pptx,.txt,.md"
+    DOCUMENT_MAX_UPLOAD_MB: int = 200
     # 历年题支持的文件格式
     PAST_EXAM_ALLOWED_EXTENSIONS: str = ".pdf,.jpg,.jpeg,.png,.docx"
 
@@ -244,6 +274,7 @@ def get_config() -> AppConfig:
             AGENT_EXECUTE_NODE_TIMEOUT_SECONDS=float(os.getenv("AGENT_EXECUTE_NODE_TIMEOUT_SECONDS", "10.0")),
             # 文件类型
             DOCUMENT_ALLOWED_EXTENSIONS=os.getenv("DOCUMENT_ALLOWED_EXTENSIONS", ".pdf,.docx,.pptx,.txt,.md"),
+            DOCUMENT_MAX_UPLOAD_MB=int(os.getenv("DOCUMENT_MAX_UPLOAD_MB", "200")),
             PAST_EXAM_ALLOWED_EXTENSIONS=os.getenv("PAST_EXAM_ALLOWED_EXTENSIONS", ".pdf,.jpg,.jpeg,.png,.docx"),
             # 功能默认值
             DEFAULT_RAG_MODE=os.getenv("DEFAULT_RAG_MODE", "strict"),
@@ -252,6 +283,26 @@ def get_config() -> AppConfig:
             # 认证
             JWT_SECRET=jwt_secret,
             JWT_EXPIRE_HOURS=int(os.getenv("JWT_EXPIRE_HOURS", str(24 * 7))),
+            # 解题流水线
+            SOLVE_OCR_TIMEOUT_SECONDS=int(os.getenv("SOLVE_OCR_TIMEOUT_SECONDS", "15")),
+            SOLVE_REASONING_MAX_TOKENS=int(os.getenv("SOLVE_REASONING_MAX_TOKENS", "4096")),
+            SOLVE_MAX_IMAGES=int(os.getenv("SOLVE_MAX_IMAGES", "4")),
+            SOLVE_IMAGE_MAX_LONG_EDGE=int(os.getenv("SOLVE_IMAGE_MAX_LONG_EDGE", "1920")),
+            SOLVE_IMAGE_PREPROCESS_ENABLED=os.getenv("SOLVE_IMAGE_PREPROCESS_ENABLED", "false").lower() == "true",
+            # RAG 升级配置
+            DOCUMENT_PARSER_BACKEND=os.getenv("DOCUMENT_PARSER_BACKEND", "mineru"),
+            DOCUMENT_PARSER_TIMEOUT_SECONDS=int(os.getenv("DOCUMENT_PARSER_TIMEOUT_SECONDS", "120")),
+            RECALL_TOP_K=int(os.getenv("RECALL_TOP_K", "50")),
+            RERANK_TOP_N=int(os.getenv("RERANK_TOP_N", "5")),
+            RERANK_THRESHOLD=float(os.getenv("RERANK_THRESHOLD", "0.4")),
+            RERANK_MODEL=os.getenv("RERANK_MODEL", "BAAI/bge-reranker-v2-m3"),
+            RERANKER_MODE=os.getenv("RERANKER_MODE", "api"),
+            RERANKER_API_URL=os.getenv("RERANKER_API_URL", ""),
+            RERANKER_API_KEY=os.getenv("RERANKER_API_KEY", ""),
+            CHUNK_MAX_TOKENS=int(os.getenv("CHUNK_MAX_TOKENS", "512")),
+            CHUNK_OVERLAP_TOKENS=int(os.getenv("CHUNK_OVERLAP_TOKENS", "64")),
+            MINDMAP_MAX_DEPTH=int(os.getenv("MINDMAP_MAX_DEPTH", "3")),
+            MINDMAP_LEAF_THRESHOLD=int(os.getenv("MINDMAP_LEAF_THRESHOLD", "200")),
         )
     return _config
 

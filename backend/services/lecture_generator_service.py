@@ -64,12 +64,18 @@ def _markdown_to_blocks(markdown: str) -> list[dict]:
     return blocks
 
 
-def _retrieve_context(node_title: str, subject_id: int, top_k: int, threshold: float) -> str:
+def _retrieve_context(
+    node_title: str,
+    subject_id: int,
+    top_k: int,
+    threshold: float,
+    user_id: Optional[int] = None,
+) -> str:
     """用 PGVector 检索与节点标题相关的文档片段，返回拼接后的上下文字符串。"""
     try:
         from services.rag_pipeline import RAGPipeline
         pipeline = RAGPipeline()
-        vector_store = pipeline.get_vector_store(subject_id)
+        vector_store = pipeline.get_vector_store(subject_id, user_id=user_id)
         docs_with_scores = vector_store.similarity_search_with_score(node_title, k=top_k)
         chunks = [
             doc.page_content
@@ -104,6 +110,7 @@ class LectureGeneratorService:
             node_title, subject_id,
             top_k=cfg.TOP_K,
             threshold=cfg.SIMILARITY_THRESHOLD,
+            user_id=user_id,
         )
         prompt = self._build_prompt(node_title, context)
         content_text = LLMService().chat(
@@ -143,6 +150,7 @@ class LectureGeneratorService:
         node_title: str,
         subject_id: int,
         session_id: int,
+        user_id: Optional[int] = None,
         resource_scope: Optional[dict] = None,
     ) -> Generator[str, None, None]:
         """流式生成节点讲义（只 yield token，保存由调用方负责）。"""
@@ -153,6 +161,7 @@ class LectureGeneratorService:
             node_title, subject_id,
             top_k=cfg.TOP_K,
             threshold=cfg.SIMILARITY_THRESHOLD,
+            user_id=user_id,
         )
         prompt = self._build_prompt(node_title, context)
 

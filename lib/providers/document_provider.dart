@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../models/document.dart';
@@ -8,6 +9,11 @@ final documentServiceProvider = Provider<DocumentService>((ref) => DocumentServi
 
 final documentsProvider = FutureProviderFamily<List<StudyDocument>, int>(
   (ref, subjectId) => ref.watch(documentServiceProvider).getDocuments(subjectId),
+);
+
+final subjectKnowledgeBaseProvider =
+    FutureProviderFamily<SubjectKnowledgeBase, int>(
+  (ref, subjectId) => ref.watch(documentServiceProvider).getKnowledgeBase(subjectId),
 );
 
 // 上传状态
@@ -34,8 +40,8 @@ class DocumentActionsNotifier extends StateNotifier<UploadState> {
 
   Future<void> pickAndUpload() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'docx', 'pptx', 'txt', 'md'],
+      type: kIsWeb ? FileType.any : FileType.custom,
+      allowedExtensions: kIsWeb ? null : ['pdf', 'docx', 'pptx', 'txt', 'md'],
       withData: true,
     );
     if (result == null || result.files.isEmpty) return;
@@ -51,6 +57,7 @@ class DocumentActionsNotifier extends StateNotifier<UploadState> {
       );
       // 立即刷新列表（此时状态为 pending/processing），然后开始轮询
       _ref.invalidate(documentsProvider(_subjectId));
+      _ref.invalidate(subjectKnowledgeBaseProvider(_subjectId));
       _startPolling();
     } catch (e) {
       state = UploadState(error: e.toString());
@@ -61,6 +68,7 @@ class DocumentActionsNotifier extends StateNotifier<UploadState> {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
       _ref.invalidate(documentsProvider(_subjectId));
+      _ref.invalidate(subjectKnowledgeBaseProvider(_subjectId));
       // 检查是否还有 pending/processing 的文件
       final docs = await _service.getDocuments(_subjectId);
       final stillProcessing = docs.any(
@@ -76,17 +84,20 @@ class DocumentActionsNotifier extends StateNotifier<UploadState> {
   Future<void> delete(int docId) async {
     await _service.deleteDocument(docId, _subjectId);
     _ref.invalidate(documentsProvider(_subjectId));
+    _ref.invalidate(subjectKnowledgeBaseProvider(_subjectId));
   }
 
   Future<void> reindex(int docId) async {
     await _service.reindexDocument(docId, _subjectId);
     _ref.invalidate(documentsProvider(_subjectId));
+    _ref.invalidate(subjectKnowledgeBaseProvider(_subjectId));
     _startPolling();
   }
 
   Future<void> reindexAll() async {
     await _service.reindexAll(_subjectId);
     _ref.invalidate(documentsProvider(_subjectId));
+    _ref.invalidate(subjectKnowledgeBaseProvider(_subjectId));
     _startPolling();
   }
 

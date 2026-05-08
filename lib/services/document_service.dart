@@ -16,6 +16,18 @@ class DocumentService {
     }
   }
 
+  Future<SubjectKnowledgeBase> getKnowledgeBase(int subjectId) async {
+    try {
+      final res = await _dio.get(
+        '${ApiConstants.documents}/knowledge-base',
+        queryParameters: {'subject_id': subjectId},
+      );
+      return SubjectKnowledgeBase.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<int> uploadDocument({
     required List<int> fileBytes,
     required String filename,

@@ -774,6 +774,7 @@ def create_lecture_stream(body: LectureCreateIn, user=Depends(get_current_user))
                 node_title=node_title,
                 subject_id=subject_id,
                 session_id=body.session_id,
+                user_id=user_id,
                 resource_scope=body.resource_scope,
             ):
                 accumulated.append(token)

@@ -5,11 +5,14 @@ RAG 流水线：向量检索 + LLM 问答/解题，支持 strict / broad / solve
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import List, Optional
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres import PGVector
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -23,6 +26,8 @@ class Source:
     chunk_index: int
     content: str
     score: float
+    heading_path: str = ""   # 知识块在文档中的层级路径
+    rerank_score: float = 0.0  # Reranker 得分（0 表示未经 Rerank）
 
 
 @dataclass
@@ -32,6 +37,9 @@ class RAGResult:
     needs_confirmation: bool = False  # 相关性不足，需用户确认
     top_score: float = 0.0
     mode: str = "strict"  # strict | broad | solve
+    top_rerank_score: float = 0.0    # Reranker 最高得分
+    fallback_triggered: bool = False  # 是否触发 Fallback
+    fallback_reason: str = ""         # Fallback 原因说明
 
 
 # ---------------------------------------------------------------------------
@@ -105,25 +113,20 @@ class RAGPipeline:
     """RAG 检索增强生成流水线。"""
 
     def __init__(self) -> None:
-        self._embeddings: Optional[OpenAIEmbeddings] = None
+        self._embeddings_by_user: dict[int | None, OpenAIEmbeddings] = {}
 
     # ------------------------------------------------------------------
     # 内部辅助
     # ------------------------------------------------------------------
 
-    def _get_embeddings(self) -> OpenAIEmbeddings:
+    def _get_embeddings(self, user_id: Optional[int] = None) -> OpenAIEmbeddings:
         """懒加载 OpenAIEmbeddings 实例。"""
-        if self._embeddings is None:
-            from config import get_config
-            cfg = get_config()
-            self._embeddings = OpenAIEmbeddings(
-                model=cfg.LLM_EMBEDDING_MODEL,
-                openai_api_key=cfg.LLM_API_KEY,
-                openai_api_base=cfg.LLM_BASE_URL,
-            )
-        return self._embeddings
+        if user_id not in self._embeddings_by_user:
+            from services.embedding_service import EmbeddingService
+            self._embeddings_by_user[user_id] = EmbeddingService.create_langchain_embeddings(user_id)
+        return self._embeddings_by_user[user_id]
 
-    def get_vector_store(self, subject_id: int) -> PGVector:
+    def get_vector_store(self, subject_id: int, user_id: Optional[int] = None) -> PGVector:
         """
         返回指定学科的 PGVector 实例。
 
@@ -133,7 +136,7 @@ class RAGPipeline:
         from config import get_config
         cfg = get_config()
         return PGVector(
-            embeddings=self._get_embeddings(),
+            embeddings=self._get_embeddings(user_id),
             collection_name=f"subject_{subject_id}",
             connection=cfg.DATABASE_URL,
             use_jsonb=True,
@@ -236,19 +239,73 @@ class RAGPipeline:
 
         # 1. 向量检索 Top-K，带相似度分数（无 subject_id 时跳过检索，降级为 broad）
         sources: List[Source] = []
+        top_rerank_score: float = 0.0
+        fallback_triggered: bool = False
+        fallback_reason: str = ""
         if subject_id:
-            vector_store = self.get_vector_store(subject_id)
-            docs_with_scores = vector_store.similarity_search_with_score(question, k=top_k)
-            for doc, score in docs_with_scores:
-                metadata = doc.metadata or {}
-                sources.append(
-                    Source(
+            vector_store = self.get_vector_store(subject_id, user_id=user_id)
+
+            # 阶段 1：向量粗筛 Top-RECALL_TOP_K
+            recall_docs = vector_store.similarity_search_with_score(question, k=cfg.RECALL_TOP_K)
+
+            # 阶段 2：Reranker 精排
+            from services.rerank_service import RerankService, RerankUnavailableError
+            rerank_svc = RerankService()
+
+            if rerank_svc.is_available(user_id=user_id) and recall_docs:
+                doc_texts = [doc.page_content for doc, _ in recall_docs]
+                doc_metadata = [
+                    {
+                        "heading_path": (doc.metadata or {}).get("heading_path", ""),
+                        "chunk_index": int((doc.metadata or {}).get("chunk_index", 0)),
+                        "filename": (doc.metadata or {}).get("filename", ""),
+                    }
+                    for doc, _ in recall_docs
+                ]
+                try:
+                    rerank_results = rerank_svc.rerank(
+                        question, doc_texts, top_n=cfg.RERANK_TOP_N, metadata=doc_metadata, user_id=user_id
+                    )
+                    if rerank_results:
+                        top_rerank_score = rerank_results[0].score
+                        if top_rerank_score < cfg.RERANK_THRESHOLD:
+                            fallback_triggered = True
+                            fallback_reason = f"最高 Rerank 得分 {top_rerank_score:.3f} 低于阈值 {cfg.RERANK_THRESHOLD}"
+                            mode = "broad"
+                    for r in rerank_results:
+                        sources.append(Source(
+                            filename=r.filename,
+                            chunk_index=r.chunk_index,
+                            content=r.content,
+                            score=r.score,
+                            heading_path=r.heading_path,
+                            rerank_score=r.score,
+                        ))
+                except RerankUnavailableError as e:
+                    logger.warning("Reranker 不可用，降级为向量 Top-K：%s", e)
+                    fallback_triggered = True
+                    fallback_reason = f"Reranker 不可用：{e}"
+                    # 降级：使用向量检索 Top-K
+                    for doc, score in recall_docs[:cfg.TOP_K]:
+                        metadata = doc.metadata or {}
+                        sources.append(Source(
+                            filename=metadata.get("filename", ""),
+                            chunk_index=int(metadata.get("chunk_index", 0)),
+                            content=doc.page_content,
+                            score=float(score),
+                            heading_path=metadata.get("heading_path", ""),
+                        ))
+            else:
+                # Reranker 不可用，直接使用向量 Top-K
+                for doc, score in recall_docs[:cfg.TOP_K]:
+                    metadata = doc.metadata or {}
+                    sources.append(Source(
                         filename=metadata.get("filename", ""),
                         chunk_index=int(metadata.get("chunk_index", 0)),
                         content=doc.page_content,
                         score=float(score),
-                    )
-                )
+                        heading_path=metadata.get("heading_path", ""),
+                    ))
         else:
             mode = "broad"  # 无学科上下文，自动切换通用知识模式
 
@@ -308,6 +365,9 @@ class RAGPipeline:
             needs_confirmation=False,
             top_score=top_score,
             mode=mode,
+            top_rerank_score=top_rerank_score,
+            fallback_triggered=fallback_triggered,
+            fallback_reason=fallback_reason,
         )
 
 
@@ -324,6 +384,9 @@ class RAGStreamContext:
     """流式问答上下文，用于在 generator 结束后传递 sources 和 session_id。"""
     session_id: int = 0
     sources: list = _field(default_factory=list)
+    top_rerank_score: float = 0.0
+    fallback_triggered: bool = False
+    fallback_reason: str = ""
 
 
 class RAGNeedsConfirmation(Exception):
@@ -356,17 +419,73 @@ def _patch_rag_pipeline():
 
         # 向量检索
         sources = []
+        top_rerank_score = 0.0
+        fallback_triggered = False
+        fallback_reason = ""
         if mode in ("strict", "hybrid", "solve", "feynman") and subject_id:
-            vector_store = self.get_vector_store(subject_id)
-            docs_with_scores = vector_store.similarity_search_with_score(question, k=cfg.TOP_K)
-            for doc, score in docs_with_scores:
-                meta = doc.metadata or {}
-                sources.append(Source(
-                    filename=meta.get("filename", ""),
-                    chunk_index=int(meta.get("chunk_index", 0)),
-                    content=doc.page_content,
-                    score=float(score),
-                ))
+            vector_store = self.get_vector_store(subject_id, user_id=user_id)
+
+            # 阶段 1：向量粗筛 Top-RECALL_TOP_K
+            recall_docs = vector_store.similarity_search_with_score(question, k=cfg.RECALL_TOP_K)
+
+            # 阶段 2：Reranker 精排
+            from services.rerank_service import RerankService, RerankUnavailableError
+            rerank_svc = RerankService()
+
+            if rerank_svc.is_available(user_id=user_id) and recall_docs:
+                doc_texts = [doc.page_content for doc, _ in recall_docs]
+                doc_metadata = [
+                    {
+                        "heading_path": (doc.metadata or {}).get("heading_path", ""),
+                        "chunk_index": int((doc.metadata or {}).get("chunk_index", 0)),
+                        "filename": (doc.metadata or {}).get("filename", ""),
+                    }
+                    for doc, _ in recall_docs
+                ]
+                try:
+                    rerank_results = rerank_svc.rerank(
+                        question, doc_texts, top_n=cfg.RERANK_TOP_N, metadata=doc_metadata, user_id=user_id
+                    )
+                    if rerank_results:
+                        top_rerank_score = rerank_results[0].score
+                        if top_rerank_score < cfg.RERANK_THRESHOLD:
+                            fallback_triggered = True
+                            fallback_reason = f"最高 Rerank 得分 {top_rerank_score:.3f} 低于阈值 {cfg.RERANK_THRESHOLD}"
+                            mode = "broad"
+                    for r in rerank_results:
+                        sources.append(Source(
+                            filename=r.filename,
+                            chunk_index=r.chunk_index,
+                            content=r.content,
+                            score=r.score,
+                            heading_path=r.heading_path,
+                            rerank_score=r.score,
+                        ))
+                except RerankUnavailableError as e:
+                    logger.warning("Reranker 不可用，降级为向量 Top-K：%s", e)
+                    fallback_triggered = True
+                    fallback_reason = f"Reranker 不可用：{e}"
+                    # 降级：使用向量检索 Top-K
+                    for doc, score in recall_docs[:cfg.TOP_K]:
+                        meta = doc.metadata or {}
+                        sources.append(Source(
+                            filename=meta.get("filename", ""),
+                            chunk_index=int(meta.get("chunk_index", 0)),
+                            content=doc.page_content,
+                            score=float(score),
+                            heading_path=meta.get("heading_path", ""),
+                        ))
+            else:
+                # Reranker 不可用，直接使用向量 Top-K
+                for doc, score in recall_docs[:cfg.TOP_K]:
+                    meta = doc.metadata or {}
+                    sources.append(Source(
+                        filename=meta.get("filename", ""),
+                        chunk_index=int(meta.get("chunk_index", 0)),
+                        content=doc.page_content,
+                        score=float(score),
+                        heading_path=meta.get("heading_path", ""),
+                    ))
 
         # 没有 subject_id 时自动降级为 broad 模式（通用知识回答）
         if not subject_id:
@@ -443,6 +562,9 @@ def _patch_rag_pipeline():
 
         _ctx.sources = sources
         _ctx.session_id = session_id
+        _ctx.top_rerank_score = top_rerank_score
+        _ctx.fallback_triggered = fallback_triggered
+        _ctx.fallback_reason = fallback_reason
 
     RAGPipeline.query_stream = query_stream
 

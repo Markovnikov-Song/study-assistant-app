@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../models/document.dart';
@@ -33,8 +34,8 @@ class ExamActionsNotifier extends StateNotifier<UploadState> {
 
   Future<void> pickAndUpload() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'docx'],
+      type: kIsWeb ? FileType.any : FileType.custom,
+      allowedExtensions: kIsWeb ? null : ['pdf', 'jpg', 'jpeg', 'png', 'docx'],
       withData: true,
     );
     if (result == null || result.files.isEmpty) return;
