@@ -4,6 +4,7 @@ RAG 流水线：向量检索 + LLM 问答/解题，支持 strict / broad / solve
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
@@ -114,6 +115,48 @@ class RAGPipeline:
 
     def __init__(self) -> None:
         self._embeddings_by_user: dict[int | None, OpenAIEmbeddings] = {}
+
+    def _is_low_quality_source(self, source: Source) -> bool:
+        """Filter obvious parser/OCR noise before it reaches the prompt."""
+        content = (source.content or "").strip()
+        if len(content) < 40:
+            return True
+
+        lowered = content.lower()
+        noise_markers = (
+            "anna's archive",
+            "annas-archive",
+            "annas-biog",
+            "duxiu",
+            "exclusive",
+            "padding to disable",
+            "request entity too large",
+        )
+        if any(marker in lowered for marker in noise_markers):
+            return True
+
+        visible = [ch for ch in content if not ch.isspace()]
+        if not visible:
+            return True
+        alnum_or_cjk = sum(1 for ch in visible if ch.isalnum() or "\u4e00" <= ch <= "\u9fff")
+        return alnum_or_cjk / max(len(visible), 1) < 0.45
+
+    def _dedupe_sources(self, sources: List[Source], limit: Optional[int] = None) -> List[Source]:
+        """Drop duplicate and noisy chunks while preserving ranking order."""
+        clean: List[Source] = []
+        seen: set[tuple[str, int, str]] = set()
+        for source in sources:
+            if self._is_low_quality_source(source):
+                continue
+            digest = hashlib.sha1((source.content or "").strip().encode("utf-8", errors="ignore")).hexdigest()
+            key = (source.filename or "", int(source.chunk_index or 0), digest)
+            if key in seen:
+                continue
+            seen.add(key)
+            clean.append(source)
+            if limit is not None and len(clean) >= limit:
+                break
+        return clean
 
     # ------------------------------------------------------------------
     # 内部辅助
@@ -281,6 +324,7 @@ class RAGPipeline:
                             heading_path=r.heading_path,
                             rerank_score=r.score,
                         ))
+                    sources = self._dedupe_sources(sources, limit=cfg.TOP_K)
                 except RerankUnavailableError as e:
                     logger.warning("Reranker 不可用，降级为向量 Top-K：%s", e)
                     fallback_triggered = True
@@ -295,6 +339,7 @@ class RAGPipeline:
                             score=float(score),
                             heading_path=metadata.get("heading_path", ""),
                         ))
+                    sources = self._dedupe_sources(sources, limit=cfg.TOP_K)
             else:
                 # Reranker 不可用，直接使用向量 Top-K
                 for doc, score in recall_docs[:cfg.TOP_K]:
@@ -306,6 +351,7 @@ class RAGPipeline:
                         score=float(score),
                         heading_path=metadata.get("heading_path", ""),
                     ))
+                sources = self._dedupe_sources(sources, limit=cfg.TOP_K)
         else:
             mode = "broad"  # 无学科上下文，自动切换通用知识模式
 
@@ -461,6 +507,7 @@ def _patch_rag_pipeline():
                             heading_path=r.heading_path,
                             rerank_score=r.score,
                         ))
+                    sources = self._dedupe_sources(sources, limit=cfg.TOP_K)
                 except RerankUnavailableError as e:
                     logger.warning("Reranker 不可用，降级为向量 Top-K：%s", e)
                     fallback_triggered = True
@@ -475,6 +522,7 @@ def _patch_rag_pipeline():
                             score=float(score),
                             heading_path=meta.get("heading_path", ""),
                         ))
+                    sources = self._dedupe_sources(sources, limit=cfg.TOP_K)
             else:
                 # Reranker 不可用，直接使用向量 Top-K
                 for doc, score in recall_docs[:cfg.TOP_K]:
@@ -486,6 +534,7 @@ def _patch_rag_pipeline():
                         score=float(score),
                         heading_path=meta.get("heading_path", ""),
                     ))
+                sources = self._dedupe_sources(sources, limit=cfg.TOP_K)
 
         # 没有 subject_id 时自动降级为 broad 模式（通用知识回答）
         if not subject_id:
