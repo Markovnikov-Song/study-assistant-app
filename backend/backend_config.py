@@ -36,7 +36,7 @@ class AppConfig:
     LLM_CHAT_MODEL: str
     LLM_EMBEDDING_MODEL: str
     LLM_VISION_MODEL: str = "PaddlePaddle/PaddleOCR-VL-1.5"
-    LLM_VISION_FALLBACK_MODEL: str = "Qwen/Qwen2.5-VL-7B-Instruct"
+    LLM_VISION_FALLBACK_MODEL: str = "Qwen/Qwen2.5-VL-32B-Instruct"
     # 场景化模型（不配置则回退到 LLM_CHAT_MODEL）
     LLM_FAST_MODEL: str = ""    # 轻量模型：简单问答、标题生成、hints
     LLM_HEAVY_MODEL: str = ""   # 大模型：解题、讲义生成、council
@@ -123,7 +123,7 @@ class AppConfig:
     SESSION_TITLE_MAX_CHARS: int = 15
 
     # ── 解题流水线配置 ────────────────────────────────────────────────────────
-    SOLVE_OCR_TIMEOUT_SECONDS: int = 15        # OCR API 调用超时（秒）
+    SOLVE_OCR_TIMEOUT_SECONDS: int = 45        # OCR API 调用超时（秒，PaddleOCR 较慢）
     SOLVE_REASONING_MAX_TOKENS: int = 4096     # 解题推理最大 Token 数
     SOLVE_MAX_IMAGES: int = 4                  # 单次解题最大图片数量
     SOLVE_IMAGE_MAX_LONG_EDGE: int = 1920      # 图片压缩长边上限（px）
@@ -224,7 +224,7 @@ def get_config() -> AppConfig:
             LLM_EMBEDDING_MODEL=os.environ["LLM_EMBEDDING_MODEL"],
             LLM_VISION_MODEL=os.getenv("LLM_VISION_MODEL", "PaddlePaddle/PaddleOCR-VL-1.5"),
             LLM_VISION_FALLBACK_MODEL=os.getenv(
-                "LLM_VISION_FALLBACK_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct"
+                "LLM_VISION_FALLBACK_MODEL", "Qwen/Qwen2.5-VL-32B-Instruct"
             ),
             LLM_FAST_MODEL=os.getenv("LLM_FAST_MODEL", ""),
             LLM_HEAVY_MODEL=os.getenv("LLM_HEAVY_MODEL", ""),
@@ -288,7 +288,7 @@ def get_config() -> AppConfig:
             JWT_SECRET=jwt_secret,
             JWT_EXPIRE_HOURS=int(os.getenv("JWT_EXPIRE_HOURS", str(24 * 7))),
             # 解题流水线
-            SOLVE_OCR_TIMEOUT_SECONDS=int(os.getenv("SOLVE_OCR_TIMEOUT_SECONDS", "15")),
+            SOLVE_OCR_TIMEOUT_SECONDS=int(os.getenv("SOLVE_OCR_TIMEOUT_SECONDS", "45")),
             SOLVE_REASONING_MAX_TOKENS=int(os.getenv("SOLVE_REASONING_MAX_TOKENS", "4096")),
             SOLVE_MAX_IMAGES=int(os.getenv("SOLVE_MAX_IMAGES", "4")),
             SOLVE_IMAGE_MAX_LONG_EDGE=int(os.getenv("SOLVE_IMAGE_MAX_LONG_EDGE", "1920")),

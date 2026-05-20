@@ -24,9 +24,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # 默认可用的视觉模型回退链（去重后按顺序尝试）
+# SiliconFlow 上 7B-VL 已下架；优先 32B / Qwen3-VL 小模型
 _DEFAULT_VISION_FALLBACKS = (
-    "Qwen/Qwen2.5-VL-7B-Instruct",
-    "deepseek-ai/deepseek-vl2",
+    "Qwen/Qwen2.5-VL-32B-Instruct",
+    "Qwen/Qwen3-VL-8B-Instruct",
 )
 
 

@@ -266,14 +266,14 @@ class LLMService:
                     model
                     or user_config.get("vision_model")
                     or getattr(cfg, "LLM_VISION_MODEL", None)
-                    or "Qwen/Qwen2.5-VL-7B-Instruct"
+                    or "Qwen/Qwen2.5-VL-32B-Instruct"
                 )
             else:
                 # 使用默认配置
                 vision_model = (
                     model
                     or getattr(cfg, "LLM_VISION_MODEL", None)
-                    or "Qwen/Qwen2.5-VL-7B-Instruct"
+                    or "Qwen/Qwen2.5-VL-32B-Instruct"
                 )
                 vision_client = self._get_client(user_id)
             
