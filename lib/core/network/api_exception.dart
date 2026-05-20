@@ -11,10 +11,21 @@ class ApiException implements Exception {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.receiveTimeout:
         return const ApiException(message: '网络连接超时，请检查网络');
+      case DioExceptionType.connectionError:
+        return const ApiException(
+          message: '无法连接服务器，请检查网络后下拉刷新重试',
+        );
       case DioExceptionType.badResponse:
         final code = e.response?.statusCode;
         final data = e.response?.data;
         String msg;
+
+        if (code == 401) {
+          return const ApiException(
+            message: '登录已过期，请重新登录',
+            statusCode: 401,
+          );
+        }
 
         // 安全解析错误信息，处理 data 可能是 List 或 Map 的情况
         if (data is Map<String, dynamic>) {
@@ -42,9 +53,18 @@ class ApiException implements Exception {
         return ApiException(message: msg, statusCode: code);
       case DioExceptionType.cancel:
         return const ApiException(message: '请求已取消');
+      case DioExceptionType.unknown:
+        return ApiException(
+          message: e.message != null && e.message!.isNotEmpty
+              ? '网络异常：${e.message}'
+              : '网络异常，请检查网络连接后重试',
+        );
       default:
-        final detail = e.message != null ? '（${e.message}）' : '';
-        return ApiException(message: '网络异常，请检查服务器是否启动$detail');
+        return ApiException(
+          message: e.message != null && e.message!.isNotEmpty
+              ? '请求失败：${e.message}'
+              : '网络异常，请稍后重试',
+        );
     }
   }
 

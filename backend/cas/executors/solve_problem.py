@@ -232,9 +232,20 @@ async def solve_problem_executor(params: dict, user_id: int) -> StreamingRespons
             ocr_service = OCRService()
             ocr_text = await ocr_service.extract_text_from_base64_list(images)
         except RuntimeError as e:
-            # OCR 完全失败时，通过 SSE 推送错误并关闭流
-            error_msg = str(e)
-            logger.error("solve_problem: OCR 失败 session=%s error=%s", session_id, error_msg)
+            # OCR 完全失败时，通过 SSE 推送错误并关闭流（不向用户暴露 API 原始堆栈）
+            raw = str(e)
+            if any(
+                k in raw
+                for k in ("图片识别", "视觉服务", "OCR", "50507", "PaddleOCR", "Unknown error")
+            ):
+                error_msg = (
+                    raw
+                    if raw.startswith("图片识别")
+                    else "图片识别暂时失败，请换一张更清晰的照片后重试；若持续失败请稍后再试。"
+                )
+            else:
+                error_msg = "图片识别失败，请稍后重试。"
+            logger.error("solve_problem: OCR 失败 session=%s error=%s", session_id, raw)
 
             async def _error_stream():
                 yield f"data: {json.dumps({'content': '[ERROR]', 'error': error_msg}, ensure_ascii=False)}\n\n"

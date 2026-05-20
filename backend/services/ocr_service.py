@@ -23,6 +23,29 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# 默认可用的视觉模型回退链（去重后按顺序尝试）
+_DEFAULT_VISION_FALLBACKS = (
+    "Qwen/Qwen2.5-VL-7B-Instruct",
+    "deepseek-ai/deepseek-vl2",
+)
+
+
+def _vision_model_chain(config) -> list[str]:
+    """主模型 → 配置的降级模型 → 内置备选，去重保序。"""
+    candidates = [
+        getattr(config, "LLM_VISION_MODEL", None),
+        getattr(config, "LLM_VISION_FALLBACK_MODEL", None),
+        *_DEFAULT_VISION_FALLBACKS,
+    ]
+    seen: set[str] = set()
+    chain: list[str] = []
+    for m in candidates:
+        if m and m not in seen:
+            seen.add(m)
+            chain.append(m)
+    return chain
+
+
 # OCR 提示词：要求严格 LaTeX 格式输出数学公式，禁止输出解答
 _OCR_PROMPT = (
     "提取图片中所有文本内容。"
@@ -107,42 +130,64 @@ class OCRService:
             }
         ]
 
+        models = _vision_model_chain(config)
+        loop = asyncio.get_event_loop()
+        last_error: Exception | None = None
+
         # 并发限流：async with 保证同时最多 2 个视觉 API 请求
         async with self._semaphore:
-            # 1. 优先：PaddleOCR-VL-1.5
-            try:
-                loop = asyncio.get_event_loop()
-                result = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        None,
-                        lambda: self._llm_service.chat(
-                            messages, model=config.LLM_VISION_MODEL
+            for model in models:
+                try:
+                    result = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None,
+                            lambda m=model: self._llm_service.chat(
+                                messages, model=m
+                            ),
                         ),
-                    ),
-                    timeout=config.SOLVE_OCR_TIMEOUT_SECONDS,
-                )
-                return result.strip()
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "OCRService: PaddleOCR-VL-1.5 超时（>%ds），降级到通用视觉",
-                    config.SOLVE_OCR_TIMEOUT_SECONDS,
-                )
-            except Exception as e:
-                logger.warning("OCRService: PaddleOCR-VL-1.5 失败（%s），降级到通用视觉", e)
+                        timeout=config.SOLVE_OCR_TIMEOUT_SECONDS,
+                    )
+                    text = (result or "").strip()
+                    if text:
+                        if model != models[0]:
+                            logger.info("OCRService: 使用备选视觉模型 %s 成功", model)
+                        return text
+                    logger.warning("OCRService: 模型 %s 返回空文本，尝试下一个", model)
+                except asyncio.TimeoutError as e:
+                    last_error = e
+                    logger.warning(
+                        "OCRService: 模型 %s 超时（>%ds），尝试下一个",
+                        model,
+                        config.SOLVE_OCR_TIMEOUT_SECONDS,
+                    )
+                except Exception as e:
+                    last_error = e
+                    logger.warning("OCRService: 模型 %s 失败（%s），尝试下一个", model, e)
 
-            # 2. 降级：专用视觉接口（禁止用 LLM_CHAT_MODEL，纯文本模型会 400）
-            try:
-                loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(
-                    None,
-                    lambda: self._llm_service.chat_with_vision(
-                        [{"role": "user", "content": _OCR_PROMPT}],
-                        image_b64,
-                    ),
-                )
-                return result.strip()
-            except Exception as e:
-                raise RuntimeError(f"OCR 服务不可用（主模型和降级模型均失败）：{e}") from e
+            # 最后尝试 chat_with_vision（显式传入与主模型不同的备选）
+            for model in models[1:]:
+                try:
+                    result = await loop.run_in_executor(
+                        None,
+                        lambda m=model: self._llm_service.chat_with_vision(
+                            [{"role": "user", "content": _OCR_PROMPT}],
+                            image_b64,
+                            model=m,
+                        ),
+                    )
+                    text = (result or "").strip()
+                    if text:
+                        logger.info("OCRService: chat_with_vision 备选模型 %s 成功", model)
+                        return text
+                except Exception as e:
+                    last_error = e
+                    logger.warning(
+                        "OCRService: chat_with_vision 模型 %s 失败（%s）", model, e
+                    )
+
+        raise RuntimeError(
+            "图片识别暂时失败，请换一张更清晰的照片后重试；若持续失败请稍后再试。"
+        ) from last_error
 
     async def extract_text_from_base64_list(self, images: list[str]) -> str:
         """

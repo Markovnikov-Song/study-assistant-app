@@ -76,8 +76,8 @@ class LLMService:
 
     def _get_user_api_config(self, user_id: int) -> Optional[dict]:
         """
-        获取用户的 API 配置
-        返回 None 表示使用默认配置
+        获取用户的 API 配置（四个模型的三要素）。
+        返回 None 表示使用默认配置（.env 中的系统配置）。
         """
         import os
         from database import get_session, User
@@ -89,21 +89,42 @@ class LLMService:
             
             # 如果用户使用共享配置
             if getattr(user, 'use_shared_config', False):
-                config_type = getattr(user, 'shared_config_type', 'developer')
                 return {
                     "llm_base_url": os.getenv("DEV_LLM_BASE_URL", "https://api.openai.com/v1"),
                     "llm_api_key": os.getenv("DEV_LLM_API_KEY", ""),
+                    "llm_model": None,  # 共享配置使用系统默认模型名
                     "vision_base_url": os.getenv("DEV_VISION_BASE_URL", "https://api.openai.com/v1"),
                     "vision_api_key": os.getenv("DEV_VISION_API_KEY", ""),
+                    "vision_model": None,
+                    "embedding_base_url": os.getenv("DEV_LLM_BASE_URL", "https://api.openai.com/v1"),
+                    "embedding_api_key": os.getenv("DEV_LLM_API_KEY", ""),
+                    "embedding_model": None,
+                    "reranker_base_url": os.getenv("DEV_LLM_BASE_URL", "https://api.openai.com/v1"),
+                    "reranker_api_key": os.getenv("DEV_LLM_API_KEY", ""),
+                    "reranker_model": None,
                 }
             
-            # 如果用户有自定义配置
+            # 如果用户有自定义配置（至少填了语言模型 Key）
             if getattr(user, 'custom_llm_api_key', None):
+                from config import get_config
+                cfg = get_config()
                 return {
+                    # 语言模型
                     "llm_base_url": user.custom_llm_base_url or "https://api.openai.com/v1",
                     "llm_api_key": user.custom_llm_api_key,
-                    "vision_base_url": getattr(user, 'custom_vision_base_url', None) or "https://api.openai.com/v1",
-                    "vision_api_key": getattr(user, 'custom_vision_api_key', None) or "",
+                    "llm_model": getattr(user, 'custom_llm_model', None) or None,
+                    # 视觉模型（未填则回退到语言模型配置）
+                    "vision_base_url": getattr(user, 'custom_vision_base_url', None) or user.custom_llm_base_url or "https://api.openai.com/v1",
+                    "vision_api_key": getattr(user, 'custom_vision_api_key', None) or user.custom_llm_api_key,
+                    "vision_model": getattr(user, 'custom_vision_model', None) or None,
+                    # 向量化模型（未填则回退到语言模型配置）
+                    "embedding_base_url": getattr(user, 'custom_embedding_base_url', None) or user.custom_llm_base_url or "https://api.openai.com/v1",
+                    "embedding_api_key": getattr(user, 'custom_embedding_api_key', None) or user.custom_llm_api_key,
+                    "embedding_model": getattr(user, 'custom_embedding_model', None) or None,
+                    # 重排序模型（未填则回退到语言模型配置）
+                    "reranker_base_url": getattr(user, 'custom_reranker_base_url', None) or user.custom_llm_base_url or "https://api.openai.com/v1",
+                    "reranker_api_key": getattr(user, 'custom_reranker_api_key', None) or user.custom_llm_api_key,
+                    "reranker_model": getattr(user, 'custom_reranker_model', None) or None,
                 }
             
             return None
@@ -172,8 +193,14 @@ class LLMService:
             # 记录请求ID
             request_id = str(uuid.uuid4())
             
-            # 优先使用调用方传入的 model，否则使用默认模型
-            model = kwargs.pop("model", None) or self._get_model()
+            # 优先使用调用方传入的 model，其次用户自定义模型名，最后用系统默认
+            model = kwargs.pop("model", None)
+            if not model and user_id:
+                _ucfg = self._get_user_api_config(user_id)
+                if _ucfg:
+                    model = _ucfg.get("llm_model") or None
+            if not model:
+                model = self._get_model()
 
             response = client.chat.completions.create(
                 model=model,
@@ -209,11 +236,19 @@ class LLMService:
         except Exception as e:
             raise RuntimeError(f"AI 服务暂时不可用，请稍后重试。（{e}）") from e
 
-    def chat_with_vision(self, messages: List[dict], image_b64: str, user_id: Optional[int] = None, **kwargs) -> str:
+    def chat_with_vision(
+        self,
+        messages: List[dict],
+        image_b64: str,
+        user_id: Optional[int] = None,
+        model: Optional[str] = None,
+        **kwargs,
+    ) -> str:
         """
         将 base64 图片嵌入消息，调用支持视觉的模型（用于 OCR）。
-        优先使用 LLM_VISION_MODEL 配置，未配置则使用 Qwen2.5-VL-7B-Instruct。
+        model 未指定时使用 LLM_VISION_MODEL，失败时由 OCRService 切换备选模型重试。
         """
+        vision_model = model or ""
         try:
             from config import get_config
             cfg = get_config()
@@ -227,10 +262,19 @@ class LLMService:
                     api_key=user_config["vision_api_key"],
                     base_url=user_config["vision_base_url"],
                 )
-                vision_model = getattr(cfg, "LLM_VISION_MODEL", None) or "PaddlePaddle/PaddleOCR-VL-1.5"
+                vision_model = (
+                    model
+                    or user_config.get("vision_model")
+                    or getattr(cfg, "LLM_VISION_MODEL", None)
+                    or "Qwen/Qwen2.5-VL-7B-Instruct"
+                )
             else:
                 # 使用默认配置
-                vision_model = getattr(cfg, "LLM_VISION_MODEL", None) or "PaddlePaddle/PaddleOCR-VL-1.5"
+                vision_model = (
+                    model
+                    or getattr(cfg, "LLM_VISION_MODEL", None)
+                    or "Qwen/Qwen2.5-VL-7B-Instruct"
+                )
                 vision_client = self._get_client(user_id)
             
             vision_messages = list(messages) + [
@@ -254,7 +298,10 @@ class LLMService:
             )
             return response.choices[0].message.content or ""
         except Exception as e:
-            raise RuntimeError(f"AI 视觉服务暂时不可用，请稍后重试。（模型：{vision_model}，错误：{e}）") from e
+            logger_msg = f"model={vision_model or 'unknown'} err={e}"
+            raise RuntimeError(
+                f"AI 视觉服务暂时不可用，请稍后重试。（{logger_msg}）"
+            ) from e
 
     def stream_chat(
         self,
