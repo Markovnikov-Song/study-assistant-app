@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import '../../models/subject.dart';
 import '../../services/intent_detector.dart';
 import 'cas_service.dart';
@@ -40,6 +41,14 @@ class CasIntentDetector implements IntentDetector {
 
     // 根据 action_id 映射到 IntentType
     switch (actionId) {
+      case 'create_mini_app':
+        return DetectedIntent(
+          type: IntentType.tool,
+          params: {
+            'actionId': actionId,
+            ...result.data,
+          },
+        );
       case 'make_quiz':
         return DetectedIntent(
           type: IntentType.tool,
@@ -71,9 +80,133 @@ class CasIntentDetector implements IntentDetector {
           type: IntentType.tool,
           params: {'actionId': actionId, 'render_type': 'navigate', 'route': '/toolkit/mistake-book'},
         );
+      case 'start_feynman':
+        return DetectedIntent(
+          type: IntentType.tool,
+          params: {'actionId': actionId, ...result.data},
+        );
+      case 'explain_concept':
+        return DetectedIntent(
+          type: IntentType.tool,
+          params: {'actionId': actionId, ...result.data},
+        );
       case 'unknown_intent':
       default:
         return DetectedIntent.none;
     }
+  }
+
+  /// 检测规划意图并提取参数
+  /// 调用后端 API 提取参数，返回提取的参数和缺失参数列表
+  Future<PlanningIntentResult> detectPlanningIntent(String text) async {
+    try {
+      final response = await _casService.extractPlanningParams(text);
+      return PlanningIntentResult.fromJson(response);
+    } on DioException {
+      // 网络错误时返回本地提取结果作为降级
+      return _localExtractPlanningParams(text);
+    } catch (_) {
+      return _localExtractPlanningParams(text);
+    }
+  }
+
+  /// 本地规则降级提取规划参数
+  PlanningIntentResult _localExtractPlanningParams(String text) {
+    // 简单的本地规则提取
+    final params = <String, dynamic>{};
+    final missingParams = <String>[];
+    
+    // 提取学科
+    final subjects = ['数学', '语文', '英语', '物理', '化学', '生物', '历史', '地理', '政治'];
+    String? foundSubject;
+    for (final subject in subjects) {
+      if (text.contains(subject)) {
+        foundSubject = subject;
+        break;
+      }
+    }
+    
+    if (foundSubject != null) {
+      params['subject'] = foundSubject;
+    } else {
+      missingParams.add('subject');
+    }
+    
+    // 提取日期
+    if (text.contains('下周') || text.contains('下个月') || text.contains('期末') || text.contains('期中')) {
+      params['exam_date'] = _extractDateFromText(text);
+    } else {
+      missingParams.add('exam_date');
+    }
+    
+    // 提取范围
+    if (text.contains('前') || text.contains('全书') || text.contains('全部')) {
+      params['exam_scope'] = _extractScopeFromText(text);
+    } else {
+      missingParams.add('exam_scope');
+    }
+    
+    // 默认每日2小时
+    params['daily_hours'] = 2.0;
+    
+    final isComplete = missingParams.isEmpty;
+    
+    return PlanningIntentResult(
+      type: isComplete ? IntentType.planning : IntentType.none,
+      params: params,
+      missingParams: missingParams,
+      isComplete: isComplete,
+    );
+  }
+
+  String? _extractDateFromText(String text) {
+    if (text.contains('下周')) return '下周';
+    if (text.contains('下个月')) return '下个月';
+    if (text.contains('期末')) return '期末';
+    if (text.contains('期中')) return '期中';
+    return null;
+  }
+
+  String? _extractScopeFromText(String text) {
+    final match = RegExp(r'前(\d+)章').firstMatch(text);
+    if (match != null) {
+      return '前${match.group(1)}章';
+    }
+    if (text.contains('全书') || text.contains('全部')) {
+      return '全书';
+    }
+    return null;
+  }
+}
+/// 规划意图识别结果
+class PlanningIntentResult {
+  final IntentType type;
+  final Map<String, dynamic> params;
+  final List<String> missingParams;
+  final bool isComplete;
+
+  const PlanningIntentResult({
+    required this.type,
+    this.params = const {},
+    this.missingParams = const [],
+    this.isComplete = false,
+  });
+
+  factory PlanningIntentResult.fromJson(Map<String, dynamic> json) {
+    return PlanningIntentResult(
+      type: IntentType.planning,
+      params: json['params'] as Map<String, dynamic>? ?? {},
+      missingParams: (json['missing_params'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      isComplete: json['is_complete'] as bool? ?? false,
+    );
+  }
+
+  factory PlanningIntentResult.empty() {
+    return const PlanningIntentResult(
+      type: IntentType.none,
+      params: {},
+      missingParams: [],
+      isComplete: false,
+    );
   }
 }

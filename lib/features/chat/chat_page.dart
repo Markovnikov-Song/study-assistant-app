@@ -19,6 +19,8 @@ import '../../widgets/scene_card.dart';
 import '../../widgets/session_history_sheet.dart';
 import '../../widgets/markdown_latex_view.dart';
 import '../../widgets/mcp_status_indicator.dart';
+import '../../widgets/multimodal_input_bar.dart';
+import '../../widgets/solve_result_action_bar.dart';
 import '../../components/notebook/widgets/notebook_picker_sheet.dart';
 import '../calendar/calendar_page.dart';
 import '../../core/event_bus/app_event_bus.dart';
@@ -27,18 +29,27 @@ import '../../tools/speech/speech_input_button.dart';
 import '../spec/widgets/today_task_card.dart';
 import '../../services/level2_monitor.dart';
 import '../../services/api_config_service.dart';
+import '../../services/solve_sse_client.dart';
+import '../../core/network/dio_client.dart';
+import '../../core/storage/storage_service.dart';
 import '../../providers/solve_prefill_provider.dart';
 import '../../routes/app_router.dart';
 
 // ─── ChatPage（参数化，支持通用/学科/任务三种场景）────────────
 
 class ChatPage extends ConsumerStatefulWidget {
-  final String? chatId;       // null = 通用对话（根路由 /）
-  final int? subjectId;       // 学科专属对话
-  final String? taskId;       // 任务对话
+  final String? chatId; // null = 通用对话（根路由 /）
+  final int? subjectId; // 学科专属对话
+  final String? taskId; // 任务对话
   final String? feynmanTopic; // 费曼学习模式：知识点主题
 
-  const ChatPage({super.key, this.chatId, this.subjectId, this.taskId, this.feynmanTopic});
+  const ChatPage({
+    super.key,
+    this.chatId,
+    this.subjectId,
+    this.taskId,
+    this.feynmanTopic,
+  });
 
   @override
   ConsumerState<ChatPage> createState() => _ChatPageState();
@@ -50,6 +61,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _useHybrid = false;
   bool _sending = false;
   final _intentDetector = CasIntentDetector(CasService());
+
+  // 多模态解题：正在流式接收中
+  bool _solveSending = false;
 
   // chatKey: 'general' for general chat, subjectId string for subject chat, chatId for task chat
   String get _chatKey {
@@ -76,7 +90,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           id: _chatKey,
           title: widget.feynmanTopic != null
               ? '费曼学习：${widget.feynmanTopic}'
-              : widget.subjectId != null ? '学科对话' : '通用对话',
+              : widget.subjectId != null
+              ? '科目对话'
+              : '通用对话',
           updatedAt: DateTime.now(),
           subjectId: widget.subjectId?.toString(),
           taskId: widget.taskId,
@@ -87,7 +103,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           final topic = widget.feynmanTopic!;
           final greeting = ChatMessage.local(
             role: MessageRole.assistant,
-            content: '好，我们来用费曼学习法练习「$topic」。\n\n'
+            content:
+                '好，我们来用费曼学习法练习「$topic」。\n\n'
                 '请用你自己的话，向我解释一下「$topic」是什么——就像在给一个完全不懂的人讲解一样。'
                 '不用担心说错，说出你现在的理解就好。',
           );
@@ -125,13 +142,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     try {
       final service = ApiConfigService();
       final status = await service.getConfigStatus();
-      
+
       final hasConfig = status['has_custom_config'] as bool? ?? false;
       final useShared = status['use_shared_config'] as bool? ?? false;
-      
+
       if (!hasConfig && !useShared) {
         if (!mounted) return false;
-        
+
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -154,10 +171,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             ],
           ),
         );
-        
+
         return confirmed ?? false;
       }
-      
+
       return true;
     } catch (e) {
       debugPrint('[ChatPage] Failed to check API config: $e');
@@ -180,7 +197,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     // 清除末尾残留的空白 AI 气泡（上次请求失败或跳转后留下的）
     final msgs = ref.read(chatProvider(_key)).value;
-    if (msgs != null && msgs.isNotEmpty &&
+    if (msgs != null &&
+        msgs.isNotEmpty &&
         msgs.last.role == MessageRole.assistant &&
         msgs.last.content.isEmpty &&
         msgs.last.type == MessageType.text) {
@@ -198,9 +216,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
       // navigate 类型：直接跳转，只在消息列表里显示用户消息，不调 AI
       if (actionId != null && renderType == 'navigate') {
-        ref.read(chatProvider(_key).notifier).appendMessage(
-          ChatMessage.local(role: MessageRole.user, content: text),
-        );
+        ref
+            .read(chatProvider(_key).notifier)
+            .appendMessage(
+              ChatMessage.local(role: MessageRole.user, content: text),
+            );
         _handleCasIntent(intent, text);
         _scrollToBottom();
         return;
@@ -208,42 +228,51 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
       // 其他意图：正常发给 AI，然后处理意图
       _bindSendingCallback();
-      await ref.read(chatProvider(_key).notifier).sendMessage(
-        text,
-        mode: SessionType.qa,
-        useHybrid: _useHybrid,
-        overrideSubjectId: _autoDetectedSubjectId,
-      );
+      await ref
+          .read(chatProvider(_key).notifier)
+          .sendMessage(
+            text,
+            mode: SessionType.qa,
+            useHybrid: _useHybrid,
+            overrideSubjectId: _autoDetectedSubjectId,
+          );
       _scrollToBottom();
-      _handleIntentAfterSend(intent, text);
+      await _handleIntentAfterSend(intent, text);
       return;
     }
 
     // 费曼学习模式：直接发给 AI，使用 feynman session type
     if (widget.feynmanTopic != null) {
       _bindSendingCallback();
-      await ref.read(chatProvider(_key).notifier).sendMessage(
-        text,
-        mode: SessionType.feynman,
-        overrideSubjectId: widget.subjectId,
-      );
+      await ref
+          .read(chatProvider(_key).notifier)
+          .sendMessage(
+            text,
+            mode: SessionType.feynman,
+            overrideSubjectId: widget.subjectId,
+          );
       _scrollToBottom();
       return;
     }
 
     // 学科/任务对话：直接发给 AI
     _bindSendingCallback();
-    await ref.read(chatProvider(_key).notifier).sendMessage(
-      text,
-      mode: SessionType.qa,
-      useHybrid: _useHybrid,
-      overrideSubjectId: _autoDetectedSubjectId,
-    );
+    await ref
+        .read(chatProvider(_key).notifier)
+        .sendMessage(
+          text,
+          mode: SessionType.qa,
+          useHybrid: _useHybrid,
+          overrideSubjectId: _autoDetectedSubjectId,
+        );
     _scrollToBottom();
   }
 
   /// 发送给 AI 后处理意图（subject 静默归类 / SceneCard）
-  void _handleIntentAfterSend(DetectedIntent intent, String userInput) {
+  Future<void> _handleIntentAfterSend(
+    DetectedIntent intent,
+    String userInput,
+  ) async {
     if (intent.type == IntentType.subject) {
       final subjectId = intent.params['subjectId'] as int?;
       final subjectName = intent.params['subjectName'] as String? ?? '';
@@ -270,16 +299,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
 
     if (intent.type != IntentType.subject && intent.type != IntentType.none) {
-      final sceneCardData = _buildSceneCardData(intent);
+      final sceneCardData = await _buildSceneCardData(intent, userInput);
       if (sceneCardData == null) return;
-      ref.read(chatProvider(_key).notifier).appendMessage(
-        ChatMessage.local(
-          role: MessageRole.assistant,
-          content: '',
-          type: MessageType.sceneCard,
-          sceneCardData: sceneCardData,
-        ),
-      );
+      ref
+          .read(chatProvider(_key).notifier)
+          .appendMessage(
+            ChatMessage.local(
+              role: MessageRole.assistant,
+              content: '',
+              type: MessageType.sceneCard,
+              sceneCardData: sceneCardData,
+            ),
+          );
     }
   }
 
@@ -295,9 +326,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         if (route != null) {
           // 先插入确认气泡，再跳转（气泡留在对话流里）
           final confirmText = _navigateConfirmText(actionId, route);
-          ref.read(chatProvider(_key).notifier).appendMessage(
-            ChatMessage.local(role: MessageRole.assistant, content: confirmText),
-          );
+          ref
+              .read(chatProvider(_key).notifier)
+              .appendMessage(
+                ChatMessage.local(
+                  role: MessageRole.assistant,
+                  content: confirmText,
+                ),
+              );
           // 短暂延迟让气泡渲染后再跳转，避免页面切换时气泡闪烁
           Future.delayed(const Duration(milliseconds: 150), () {
             if (mounted) context.push(route);
@@ -305,9 +341,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         }
       case 'text':
         if (text != null && text.isNotEmpty) {
-          ref.read(chatProvider(_key).notifier).appendMessage(
-            ChatMessage.local(role: MessageRole.assistant, content: text),
-          );
+          ref
+              .read(chatProvider(_key).notifier)
+              .appendMessage(
+                ChatMessage.local(role: MessageRole.assistant, content: text),
+              );
         }
       case 'card':
         // 结构化卡片：将 card 数据转为 Markdown 文本气泡展示
@@ -318,19 +356,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             context: context,
             isScrollControlled: true,
             useSafeArea: true,
-            builder: (_) => Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(text),
-            ),
+            builder: (_) =>
+                Padding(padding: const EdgeInsets.all(24), child: Text(text)),
           );
         }
       case 'param_fill':
         // 缺参时插入引导文字，再跳转到对应工具页
         if (actionId != null) {
           final guideText = _paramFillGuideText(actionId);
-          ref.read(chatProvider(_key).notifier).appendMessage(
-            ChatMessage.local(role: MessageRole.assistant, content: guideText),
-          );
+          ref
+              .read(chatProvider(_key).notifier)
+              .appendMessage(
+                ChatMessage.local(
+                  role: MessageRole.assistant,
+                  content: guideText,
+                ),
+              );
           Future.delayed(const Duration(milliseconds: 150), () {
             if (mounted) _handleParamFillFallback(actionId);
           });
@@ -343,6 +384,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   /// navigate 跳转后的确认气泡文案（Markdown 链接格式）
   String _navigateConfirmText(String? actionId, String route) {
     switch (actionId) {
+      case 'create_mini_app':
+        return '好的，我带你进入学习小软件工坊，并把这条需求带过去。';
       case 'open_calendar':
         return '已为您打开 [学习日历]($route) ✓';
       case 'open_notebook':
@@ -369,7 +412,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   String _paramFillGuideText(String actionId) {
     switch (actionId) {
       case 'make_quiz':
-        return '好的，带你去出题页面，可以在那里选择学科和题型 →';
+        return '好的，带你去出题页面，可以在那里选择科目和题型 →';
       case 'make_plan':
         return '好的，带你去规划页面，可以在那里制定学习计划 →';
       case 'add_calendar_event':
@@ -383,6 +426,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   /// 从路由路径推断显示名称
   String _routeDisplayName(String route) {
+    if (route.contains('workshop')) return '学习小软件工坊';
     if (route.contains('calendar')) return '学习日历';
     if (route.contains('notebook')) return '笔记本';
     if (route.contains('course-space')) return '课程空间';
@@ -397,11 +441,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void _handleParamFillFallback(String actionId) {
     final routeMap = {
       'make_quiz': '/toolkit/quiz',
+      'create_mini_app': '/workshop/builder',
       'make_plan': '/spec',
       'open_calendar': '/toolkit/calendar',
       'add_calendar_event': '/toolkit/calendar',
       'recommend_mistake_practice': '/toolkit/mistake-book',
       'open_notebook': '/toolkit/notebooks',
+      'open_course_space': '/course-space',
+      'start_feynman': '/chat/feynman',
       'solve_problem': '/toolkit/solve',
     };
     final route = routeMap[actionId];
@@ -424,7 +471,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           final item = items[i] as Map<String, dynamic>;
           final itemTitle = item['title'] as String? ?? '错题 ${i + 1}';
           final category = item['category'] as String? ?? '';
-          buf.writeln('${i + 1}. $itemTitle${category.isNotEmpty ? '（$category）' : ''}');
+          buf.writeln(
+            '${i + 1}. $itemTitle${category.isNotEmpty ? '（$category）' : ''}',
+          );
         }
         if (actionRoute != null) {
           buf.writeln('\n[→ 前往复盘中心]($actionRoute)');
@@ -439,13 +488,53 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     final content = buf.toString().trim();
     if (content.isNotEmpty) {
-      ref.read(chatProvider(_key).notifier).appendMessage(
-        ChatMessage.local(role: MessageRole.assistant, content: content),
-      );
+      ref
+          .read(chatProvider(_key).notifier)
+          .appendMessage(
+            ChatMessage.local(role: MessageRole.assistant, content: content),
+          );
     }
   }
 
-  SceneCardData? _buildSceneCardData(DetectedIntent intent) {
+  Future<Map<String, dynamic>?> _loadExamPrepDraft(String goal) async {
+    try {
+      final res = await DioClient.instance.dio.post(
+        '/api/exam-prep/intake',
+        data: {'goal': goal},
+      );
+      return (res.data as Map).cast<String, dynamic>();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _examPrepSubtitle(Map<String, dynamic> draft) {
+    final missing =
+        (draft['missing_slots'] as List?)?.cast<String>() ?? const [];
+    final daily = draft['daily_minutes'];
+    final deadline = draft['deadline'];
+    final parts = <String>[
+      if (deadline != null) '截止 $deadline',
+      if (daily != null) '每天 $daily 分钟',
+      if (missing.isNotEmpty) '还需补充 ${missing.length} 项信息',
+    ];
+    return parts.isEmpty ? '已准备好知识地图、工具搭配和排期草案' : parts.join(' · ');
+  }
+
+  Map<String, dynamic> _scenePayload(
+    DetectedIntent intent,
+    String userInput,
+    Map<String, dynamic>? draft,
+  ) {
+    final payload = <String, dynamic>{...intent.params, 'context': userInput};
+    if (draft != null) payload['examPrepDraft'] = draft;
+    return payload;
+  }
+
+  Future<SceneCardData?> _buildSceneCardData(
+    DetectedIntent intent,
+    String userInput,
+  ) async {
     switch (intent.type) {
       case IntentType.subject:
         return SceneCardData(
@@ -454,16 +543,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           subtitle: '切换到专属对话获得更精准的辅导',
           confirmLabel: '切换',
           dismissLabel: '继续通用对话',
-          payload: intent.params,
+          payload: {...intent.params, 'context': userInput},
         );
       case IntentType.planning:
+        final draft = await _loadExamPrepDraft(userInput);
         return SceneCardData(
           sceneType: SceneType.planning,
-          title: '检测到学习规划需求',
-          subtitle: '为你生成结构化的学习计划',
-          confirmLabel: '生成计划',
-          dismissLabel: '稍后再说',
-          payload: intent.params,
+          title: draft?['subject_name'] != null
+              ? '${draft!['subject_name']} exam prep'
+              : 'Learning plan detected',
+          subtitle: draft == null
+              ? 'Build a structured study plan'
+              : _examPrepSubtitle(draft),
+          confirmLabel: 'Start plan',
+          dismissLabel: 'Later',
+          payload: _scenePayload(intent, userInput, draft),
         );
       case IntentType.tool:
         final toolName = intent.params['toolName'] as String? ?? '工具';
@@ -475,21 +569,24 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           payload: intent.params,
         );
       case IntentType.spec:
+        final draft = await _loadExamPrepDraft(userInput);
         return SceneCardData(
           sceneType: SceneType.spec,
-          title: '检测到大型学习任务',
-          subtitle: '启动 Spec 规划模式进行系统性拆解',
-          confirmLabel: '启动',
-          dismissLabel: '普通对话',
-          payload: intent.params,
+          title: draft?['subject_name'] != null
+              ? '${draft!['subject_name']} exam workshop'
+              : 'Large study task detected',
+          subtitle: draft == null
+              ? 'Open Spec mode to break it down'
+              : _examPrepSubtitle(draft),
+          confirmLabel: 'Start',
+          dismissLabel: 'Chat',
+          payload: _scenePayload(intent, userInput, draft),
         );
       case IntentType.calendar:
         return SceneCardData(
           sceneType: SceneType.calendar,
           title: '检测到日程需求',
-          subtitle: intent.params['date'] != null
-              ? '添加到日历？'
-              : '添加到学习日历？',
+          subtitle: intent.params['date'] != null ? '添加到日历？' : '添加到学习日历？',
           confirmLabel: '添加到日历',
           dismissLabel: '稍后再说',
           payload: intent.params,
@@ -504,7 +601,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _pickAndOcr(ImageSource source) async {
-    final file = await ImagePicker().pickImage(source: source, imageQuality: 85);
+    final file = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 85,
+    );
     if (file == null) return;
 
     // 显示 loading
@@ -513,22 +613,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     try {
       final b64 = base64Encode(await file.readAsBytes());
       if (!mounted) return;
-      final text = await ref.read(chatProvider(_key).notifier).recognizeOcr(b64);
+      final text = await ref
+          .read(chatProvider(_key).notifier)
+          .recognizeOcr(b64);
       if (!mounted) return;
 
       if (text == null || text.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('识别失败，请确保图片清晰且包含文字')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('识别失败，请确保图片清晰且包含文字')));
         return;
       }
 
       // 学科对话：跳转到解题页面并预填文字
       if (widget.subjectId != null) {
         // 先在当前对话里插入一条用户图片消息（让用户看到反馈）
-        ref.read(chatProvider(_key).notifier).appendMessage(
-          ChatMessage.local(role: MessageRole.user, content: '📷 图片识别：$text'),
-        );
+        ref
+            .read(chatProvider(_key).notifier)
+            .appendMessage(
+              ChatMessage.local(
+                role: MessageRole.user,
+                content: '📷 图片识别：$text',
+              ),
+            );
         _scrollToBottom();
         // 跳转到解题页，并把识别文字预填到输入框
         if (mounted) {
@@ -546,9 +653,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       await _submit();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('识别出错：$e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('识别出错：$e')));
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -565,6 +672,118 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         );
       }
     });
+  }
+
+  /// 处理多模态发送（含图片时走 CAS 解题路径，纯文字走原有逻辑）
+  Future<void> _handleMultimodalSend(Map<String, dynamic> payload) async {
+    final images = (payload['images'] as List?)?.cast<String>() ?? [];
+    final text = payload['supplement_text'] as String? ?? '';
+
+    if (images.isNotEmpty) {
+      // 有图片：走 CAS 解题路径
+      await _submitWithImages(images: images, supplementText: text);
+    } else if (text.isNotEmpty) {
+      // 纯文字：走原有逻辑
+      _inputCtrl.text = text;
+      await _submit();
+    }
+  }
+
+  /// 含图片时走 /api/cas/dispatch SSE 接口（解题路径）
+  Future<void> _submitWithImages({
+    required List<String> images,
+    required String supplementText,
+  }) async {
+    final validImages =
+        images.map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    final text = supplementText.trim();
+
+    if (validImages.isEmpty && text.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('图片处理失败，请重新拍照或换一张更清晰的图')),
+        );
+      }
+      return;
+    }
+
+    // 检查 API 配置状态
+    final configStatus = await _checkApiConfig();
+    if (!configStatus) return;
+
+    Level2Monitor.recordActivity();
+
+    // 追加用户消息气泡（含图片标记）
+    final userContent = text.isNotEmpty
+        ? '📷 图片 × ${validImages.length}  $text'
+        : '📷 图片 × ${validImages.length}';
+    ref
+        .read(chatProvider(_key).notifier)
+        .appendMessage(
+          ChatMessage.local(role: MessageRole.user, content: userContent),
+        );
+
+    // 追加空 AI 气泡（流式填充），标记为解题类型
+    ref
+        .read(chatProvider(_key).notifier)
+        .appendMessage(
+          ChatMessage.local(
+            role: MessageRole.assistant,
+            content: '',
+            type: MessageType.solve,
+          ),
+        );
+    setState(() => _solveSending = true);
+    _scrollToBottom();
+
+    try {
+      final token = await StorageService.instance.getToken() ?? '';
+      final dio = DioClient.instance.dio;
+      final client = SolveSSEClient(dio);
+
+      final requestPayload = {
+        'text': text,
+        'session_id': null,
+        'images': validImages,
+        'supplement_text': text,
+      };
+
+      final stream = client.connect(
+        url: '/api/cas/dispatch',
+        payload: requestPayload,
+        token: token,
+      );
+
+      await for (final event in stream) {
+        if (!mounted) break;
+        switch (event) {
+          case SolveTokenEvent(:final text):
+            ref.read(chatProvider(_key).notifier).appendToLastMessage(text);
+            _scrollToBottom();
+          case SolveDoneEvent():
+            break;
+          case SolveChartEvent():
+            // chat_page 不渲染图表，忽略该事件
+            break;
+          case SolveErrorEvent(:final message):
+            ref
+                .read(chatProvider(_key).notifier)
+                .replaceLastAssistantWithError(message);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ref.read(chatProvider(_key).notifier).replaceLastAssistantWithError(
+              '解题失败，请稍后重试',
+            );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('解题失败，请稍后重试')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _solveSending = false);
+    }
+    _scrollToBottom();
   }
 
   @override
@@ -596,6 +815,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               isGeneral: widget.subjectId == null && widget.taskId == null,
               useHybrid: _useHybrid,
               sending: _sending,
+              solveSending: _solveSending,
               inputCtrl: _inputCtrl,
               scrollCtrl: _scrollCtrl,
               onHybridChanged: (v) => setState(() => _useHybrid = v),
@@ -603,6 +823,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               onCancel: _cancelSending,
               onCamera: () => _pickAndOcr(ImageSource.camera),
               onGallery: () => _pickAndOcr(ImageSource.gallery),
+              onMultimodalSend: _handleMultimodalSend,
             )
           : _ChatPageWithSliverAppBar(
               chatKey: _chatKey,
@@ -611,6 +832,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               taskId: widget.taskId,
               useHybrid: _useHybrid,
               sending: _sending,
+              solveSending: _solveSending,
               inputCtrl: _inputCtrl,
               scrollCtrl: _scrollCtrl,
               onHybridChanged: (v) => setState(() => _useHybrid = v),
@@ -618,6 +840,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               onCancel: _cancelSending,
               onCamera: () => _pickAndOcr(ImageSource.camera),
               onGallery: () => _pickAndOcr(ImageSource.gallery),
+              onMultimodalSend: _handleMultimodalSend,
             ),
     );
   }
@@ -630,11 +853,12 @@ class _ChatPageWithSliverAppBar extends ConsumerWidget {
   final String sessionType;
   final int? subjectId;
   final String? taskId;
-  final bool useHybrid, sending;
+  final bool useHybrid, sending, solveSending;
   final TextEditingController inputCtrl;
   final ScrollController scrollCtrl;
   final ValueChanged<bool> onHybridChanged;
   final VoidCallback onSubmit, onCancel, onCamera, onGallery;
+  final void Function(Map<String, dynamic> payload) onMultimodalSend;
 
   const _ChatPageWithSliverAppBar({
     required this.chatKey,
@@ -643,6 +867,7 @@ class _ChatPageWithSliverAppBar extends ConsumerWidget {
     required this.taskId,
     required this.useHybrid,
     required this.sending,
+    required this.solveSending,
     required this.inputCtrl,
     required this.scrollCtrl,
     required this.onHybridChanged,
@@ -650,6 +875,7 @@ class _ChatPageWithSliverAppBar extends ConsumerWidget {
     required this.onCancel,
     required this.onCamera,
     required this.onGallery,
+    required this.onMultimodalSend,
   });
 
   @override
@@ -658,13 +884,15 @@ class _ChatPageWithSliverAppBar extends ConsumerWidget {
     String title = '助教';
     if (subjectId != null) {
       final subjectsAsync = ref.watch(subjectsProvider);
-      title = subjectsAsync.valueOrNull
+      title =
+          subjectsAsync.valueOrNull
               ?.firstWhere(
                 (s) => s.id == subjectId,
-                orElse: () => Subject(id: 0, name: '学科对话', createdAt: DateTime.now()),
+                orElse: () =>
+                    Subject(id: 0, name: '科目对话', createdAt: DateTime.now()),
               )
               .name ??
-          '学科对话';
+          '科目对话';
     } else if (taskId != null) {
       title = taskId!;
     }
@@ -692,6 +920,7 @@ class _ChatPageWithSliverAppBar extends ConsumerWidget {
         isGeneral: subjectId == null && taskId == null,
         useHybrid: useHybrid,
         sending: sending,
+        solveSending: solveSending,
         inputCtrl: inputCtrl,
         scrollCtrl: scrollCtrl,
         onHybridChanged: onHybridChanged,
@@ -699,6 +928,7 @@ class _ChatPageWithSliverAppBar extends ConsumerWidget {
         onCancel: onCancel,
         onCamera: onCamera,
         onGallery: onGallery,
+        onMultimodalSend: onMultimodalSend,
       ),
     );
   }
@@ -711,11 +941,14 @@ class _ChatBody extends ConsumerStatefulWidget {
   final String sessionType;
   final int subjectId;
   final bool isGeneral;
-  final bool useHybrid, sending;
+  final bool useHybrid, sending, solveSending;
   final TextEditingController inputCtrl;
   final ScrollController scrollCtrl;
   final ValueChanged<bool> onHybridChanged;
   final VoidCallback onSubmit, onCancel, onCamera, onGallery;
+
+  /// 多模态发送回调（含图片时走 CAS 解题路径）
+  final void Function(Map<String, dynamic> payload) onMultimodalSend;
 
   const _ChatBody({
     required this.chatKey,
@@ -724,6 +957,7 @@ class _ChatBody extends ConsumerStatefulWidget {
     required this.isGeneral,
     required this.useHybrid,
     required this.sending,
+    required this.solveSending,
     required this.inputCtrl,
     required this.scrollCtrl,
     required this.onHybridChanged,
@@ -731,6 +965,7 @@ class _ChatBody extends ConsumerStatefulWidget {
     required this.onCancel,
     required this.onCamera,
     required this.onGallery,
+    required this.onMultimodalSend,
   });
 
   @override
@@ -781,7 +1016,7 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
     final multiSelect = ref.watch(multiSelectProvider);
 
     // 每次消息列表更新时，若用户没有上翻则跟随滚底
-    if (widget.sending) {
+    if (widget.sending || widget.solveSending) {
       _maybeScrollToBottom();
     } else {
       // 流式结束后重置上翻标记，允许下次发送时重新跟随
@@ -790,14 +1025,23 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
 
     return Column(
       children: [
-        _SessionBar(chatKey: widget.chatKey, sessionType: widget.sessionType, subjectId: widget.subjectId),
+        _SessionBar(
+          chatKey: widget.chatKey,
+          sessionType: widget.sessionType,
+          subjectId: widget.subjectId,
+        ),
         Expanded(
           child: chatState.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('$e', style: const TextStyle(color: Colors.red))),
+            error: (e, _) => Center(
+              child: Text('$e', style: const TextStyle(color: Colors.red)),
+            ),
             data: (msgs) => msgs.isEmpty
                 ? SingleChildScrollView(
-                    child: _EmptyHints(subjectId: widget.subjectId, onTap: (h) => widget.inputCtrl.text = h),
+                    child: _EmptyHints(
+                      subjectId: widget.subjectId,
+                      onTap: (h) => widget.inputCtrl.text = h,
+                    ),
                   )
                 : ListView.builder(
                     controller: widget.scrollCtrl,
@@ -811,11 +1055,13 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
                         );
                       }
                       final msg = msgs[i];
-                      if (msg.type == MessageType.sceneCard && msg.sceneCardData != null) {
+                      if (msg.type == MessageType.sceneCard &&
+                          msg.sceneCardData != null) {
                         return SceneCard(
                           key: ValueKey('scene_${msg.id}'),
                           data: msg.sceneCardData!,
-                          onConfirm: () => _handleSceneCardConfirm(msg, ref, context, key),
+                          onConfirm: () =>
+                              _handleSceneCardConfirm(msg, ref, context, key),
                           onDismiss: () {
                             msg.sceneCardData!.dismissed = true;
                             ref.read(chatProvider(key).notifier).refreshState();
@@ -826,17 +1072,26 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
                         return const SizedBox.shrink();
                       }
                       // 流式期间最后一条 AI 消息用纯文本渲染，避免 Markdown 解析导致高度突变
-                      final isStreamingLastMsg = widget.sending &&
-                          !msg.isUser &&
+                      final isStreamingLastMsg =
+                          widget.sending && !msg.isUser && i == msgs.length - 1;
+                      // 解题流式：最后一条 solve 类型消息也用容错渲染
+                      final isSolveStreamingLastMsg =
+                          widget.solveSending &&
+                          msg.type == MessageType.solve &&
                           i == msgs.length - 1;
                       return _Bubble(
                         // 用 forceRawText 状态作为 key 的一部分，确保流式结束后强制重建触发完整渲染
-                        key: ValueKey('bubble_${msg.id}_$isStreamingLastMsg'),
+                        key: ValueKey(
+                          'bubble_${msg.id}_${isStreamingLastMsg || isSolveStreamingLastMsg}',
+                        ),
                         message: msg,
-                        forceRawText: isStreamingLastMsg,
+                        forceRawText:
+                            isStreamingLastMsg || isSolveStreamingLastMsg,
                         onDelete: multiSelect.isActive
                             ? null
-                            : () => ref.read(chatProvider(key).notifier).deleteMessage(i),
+                            : () => ref
+                                  .read(chatProvider(key).notifier)
+                                  .deleteMessage(i),
                       );
                     },
                   ),
@@ -859,21 +1114,21 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
                   const SizedBox(width: 4),
                   const Tooltip(
                     message: '优先检索知识库，检索不到时自动用通用知识回答',
-                    child: Icon(Icons.info_outline, size: 14, color: Colors.grey),
+                    child: Icon(
+                      Icons.info_outline,
+                      size: 14,
+                      color: Colors.grey,
+                    ),
                   ),
                 ],
               ),
             ),
           SafeArea(
             top: false,
-            child: _InputBar(
-              controller: widget.inputCtrl,
-              sending: widget.sending,
-              placeholder: '输入问题…',
-              onSubmit: widget.onSubmit,
-              onCancel: widget.onCancel,
-              onCamera: widget.onCamera,
-              onGallery: widget.onGallery,
+            child: MultimodalInputBar(
+              onSend: widget.onMultimodalSend,
+              hintText: '输入问题…',
+              isSending: widget.sending || widget.solveSending,
             ),
           ),
         ] else
@@ -881,7 +1136,10 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
             top: false,
             child: _MultiSelectBar(
               subjectId: widget.subjectId,
-              messages: chatState.maybeWhen(data: (msgs) => msgs, orElse: () => []),
+              messages: chatState.maybeWhen(
+                data: (msgs) => msgs,
+                orElse: () => [],
+              ),
             ),
           ),
       ],
@@ -906,15 +1164,27 @@ void _handleSceneCardConfirm(
     case SceneType.subject:
       final subjectId = data.payload['subjectId'] as int?;
       if (subjectId != null) {
-        context.push('/chat/${DateTime.now().millisecondsSinceEpoch}/subject/$subjectId');
+        context.push(
+          '/chat/${DateTime.now().millisecondsSinceEpoch}/subject/$subjectId',
+        );
       }
     case SceneType.planning:
-      context.push('/spec');
+      final original = data.payload['context'] as String?;
+      if (original == null || original.isEmpty) {
+        context.push('/spec');
+      } else {
+        context.push('/spec?context=${Uri.encodeQueryComponent(original)}');
+      }
     case SceneType.tool:
       final route = data.payload['toolRoute'] as String?;
       if (route != null) context.push(route);
     case SceneType.spec:
-      context.push('/spec');
+      // context.push('/spec') is the fallback route when no prefilled context exists.
+      final original = data.payload['context'] as String?;
+      if (original == null || original.isEmpty) context.push('/spec');
+      if (original != null && original.isNotEmpty) {
+        context.push('/spec?context=${Uri.encodeQueryComponent(original)}');
+      }
     case SceneType.calendar:
       final payload = data.payload;
       showModalBottomSheet(
@@ -931,18 +1201,22 @@ void _handleSceneCardConfirm(
             if (result.success) {
               final eventId = result.data['eventId'] as int?;
               final eventDate = result.data['eventDate'] as DateTime?;
-              ref.read(chatProvider(key).notifier).appendMessage(
-                ChatMessage.local(
-                  role: MessageRole.assistant,
-                  content: '已添加到日历 ✓ [查看日历](/toolkit/calendar)',
-                ),
-              );
+              ref
+                  .read(chatProvider(key).notifier)
+                  .appendMessage(
+                    ChatMessage.local(
+                      role: MessageRole.assistant,
+                      content: '已添加到日历 ✓ [查看日历](/toolkit/calendar)',
+                    ),
+                  );
               if (eventId != null && eventDate != null) {
-                AppEventBus.instance.fire(CalendarEventCreated(
-                  eventId: eventId,
-                  eventDate: eventDate,
-                  source: 'agent',
-                ));
+                AppEventBus.instance.fire(
+                  CalendarEventCreated(
+                    eventId: eventId,
+                    eventDate: eventDate,
+                    source: 'agent',
+                  ),
+                );
               }
             }
           },
@@ -957,14 +1231,20 @@ class _SessionBar extends ConsumerWidget {
   final String chatKey;
   final String sessionType;
   final int subjectId;
-  const _SessionBar({required this.chatKey, required this.sessionType, required this.subjectId});
+  const _SessionBar({
+    required this.chatKey,
+    required this.sessionType,
+    required this.subjectId,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final key = (chatKey, sessionType);
     return Container(
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+        border: Border(
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
+        ),
       ),
       child: Row(
         children: [
@@ -976,7 +1256,10 @@ class _SessionBar extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.search, size: 20),
             tooltip: '搜索聊天记录',
-            onPressed: () => showSearch(context: context, delegate: MessageSearchDelegate(ref)),
+            onPressed: () => showSearch(
+              context: context,
+              delegate: MessageSearchDelegate(ref),
+            ),
           ),
           const Spacer(),
           TextButton.icon(
@@ -1004,9 +1287,15 @@ class _SessionBar extends ConsumerWidget {
 class _Bubble extends ConsumerWidget {
   final ChatMessage message;
   final VoidCallback? onDelete;
+
   /// 流式期间传 true，用纯文本渲染避免 Markdown 解析导致高度突变
   final bool forceRawText;
-  const _Bubble({super.key, required this.message, this.onDelete, this.forceRawText = false});
+  const _Bubble({
+    super.key,
+    required this.message,
+    this.onDelete,
+    this.forceRawText = false,
+  });
 
   void _onLongPress(BuildContext context, WidgetRef ref) {
     final multiSelect = ref.read(multiSelectProvider);
@@ -1028,7 +1317,10 @@ class _Bubble extends ConsumerWidget {
                 Navigator.pop(ctx);
                 Clipboard.setData(ClipboardData(text: message.content));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('已复制'), duration: Duration(seconds: 1)),
+                  const SnackBar(
+                    content: Text('已复制'),
+                    duration: Duration(seconds: 1),
+                  ),
                 );
               },
             ),
@@ -1060,7 +1352,9 @@ class _Bubble extends ConsumerWidget {
         alignment: Alignment.centerLeft,
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.82,
+          ),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.errorContainer,
             borderRadius: BorderRadius.circular(16),
@@ -1095,16 +1389,123 @@ class _Bubble extends ConsumerWidget {
       );
     }
 
+    // 解题气泡样式（区别于普通问答气泡，带边框和背景色区分）
+    if (message.type == MessageType.solve && !isUser) {
+      final cs = Theme.of(context).colorScheme;
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: GestureDetector(
+          onLongPress: () => _onLongPress(context, ref),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.95,
+            ),
+            decoration: BoxDecoration(
+              color: cs.secondaryContainer.withValues(alpha: 0.3),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+                bottomLeft: Radius.circular(6),
+                bottomRight: Radius.circular(18),
+              ),
+              border: Border.all(
+                color: cs.secondary.withValues(alpha: 0.4),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 解题标签
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.calculate_outlined,
+                      size: 14,
+                      color: cs.secondary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '解题结果',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.secondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // 内容（流式时用容错渲染）
+                if (message.content.isEmpty)
+                  SizedBox(
+                    width: 48,
+                    child: LinearProgressIndicator(
+                      borderRadius: BorderRadius.circular(4),
+                      color: cs.secondary,
+                      backgroundColor: cs.surfaceContainerHighest,
+                    ),
+                  )
+                else
+                  MarkdownLatexView(
+                    data: message.content,
+                    isStreaming: forceRawText,
+                    textStyle: TextStyle(
+                      color: cs.onSurface,
+                      height: 1.6,
+                      fontSize: 15,
+                    ),
+                    codeBackgroundColor: cs.surfaceContainerHighest,
+                  ),
+                // 流式完成后显示操作栏
+                if (!forceRawText && message.content.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  SolveResultActionBar(
+                    isSaved: false,
+                    onSaveToNotebook: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('请在解题专页中保存结果')),
+                      );
+                    },
+                    onSaveToMistakes: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('请在解题专页中保存结果')),
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
         onLongPress: () => _onLongPress(context, ref),
         onTap: () {
-          if (multiSelect.isActive) ref.read(multiSelectProvider.notifier).toggle(message.id);
+          if (multiSelect.isActive) {
+            ref.read(multiSelectProvider.notifier).toggle(message.id);
+          }
         },
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.82,
+          ),
           decoration: BoxDecoration(
             gradient: isUser
                 ? LinearGradient(
@@ -1120,7 +1521,9 @@ class _Bubble extends ConsumerWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       Theme.of(context).colorScheme.surface,
-                      Theme.of(context).colorScheme.surface.withValues(alpha: 0.0),
+                      Theme.of(
+                        context,
+                      ).colorScheme.surface.withValues(alpha: 0.0),
                     ],
                   ),
             borderRadius: BorderRadius.only(
@@ -1130,12 +1533,17 @@ class _Bubble extends ConsumerWidget {
               bottomRight: Radius.circular(isUser ? 6 : 18),
             ),
             border: isSelected
-                ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
+                ? Border.all(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 2,
+                  )
                 : null,
             boxShadow: [
               BoxShadow(
                 color: isUser
-                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.25)
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.25)
                     : Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
@@ -1156,24 +1564,28 @@ class _Bubble extends ConsumerWidget {
                       ),
                     )
                   : forceRawText
-                      ? Text(
-                          message.content,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            height: 1.6,
-                            fontSize: 15,
-                          ),
-                        )
-                      : MarkdownLatexView(
-                          data: message.content,
-                          textStyle: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            height: 1.6,
-                            fontSize: 15,
-                          ),
-                          codeBackgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        ),
-              if (!isUser && message.sources != null && message.sources!.isNotEmpty)
+                  ? Text(
+                      message.content,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        height: 1.6,
+                        fontSize: 15,
+                      ),
+                    )
+                  : MarkdownLatexView(
+                      data: message.content,
+                      textStyle: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        height: 1.6,
+                        fontSize: 15,
+                      ),
+                      codeBackgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                    ),
+              if (!isUser &&
+                  message.sources != null &&
+                  message.sources!.isNotEmpty)
                 _SourcesWidget(sources: message.sources!),
             ],
           ),
@@ -1249,9 +1661,9 @@ class _MultiSelectBar extends ConsumerWidget {
             child: FilledButton(
               onPressed: () {
                 if (selectedCount == 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('请至少选择一条消息')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('请至少选择一条消息')));
                   return;
                 }
                 showModalBottomSheet(
@@ -1288,40 +1700,68 @@ class _SourcesWidget extends StatelessWidget {
         child: ExpansionTile(
           tilePadding: EdgeInsets.zero,
           dense: true,
-          title: Row(children: [
-            const Icon(Icons.menu_book_outlined, size: 13, color: Colors.grey),
-            const SizedBox(width: 4),
-            Text('参考来源（${sources.length}处）', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          ]),
-          children: sources.map((s) => Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  const Icon(Icons.insert_drive_file_outlined, size: 12, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      '${s.filename}  第${s.chunkIndex + 1}段',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w500),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+          title: Row(
+            children: [
+              const Icon(
+                Icons.menu_book_outlined,
+                size: 13,
+                color: Colors.grey,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '参考来源（${sources.length}处）',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+          children: sources
+              .map(
+                (s) => Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(6),
                   ),
-                ]),
-                const SizedBox(height: 4),
-                Text(
-                  s.content.length > 100 ? '${s.content.substring(0, 100)}…' : s.content,
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.insert_drive_file_outlined,
+                            size: 12,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              '${s.filename}  第${s.chunkIndex + 1}段',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        s.content.length > 100
+                            ? '${s.content.substring(0, 100)}…'
+                            : s.content,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-          )).toList(),
+              )
+              .toList(),
         ),
       ),
     );
@@ -1343,7 +1783,8 @@ class _EmptyHints extends ConsumerWidget {
       hints = const ['今天学了什么？', '帮我解释一个概念', '我想制定学习计划'];
     } else {
       final hintsAsync = ref.watch(hintProvider((subjectId, true)));
-      hints = hintsAsync.valueOrNull ??
+      hints =
+          hintsAsync.valueOrNull ??
           const ['这道题的解题思路是什么？', '帮我总结这章的重点', '这个概念怎么理解？'];
     }
     final cs = Theme.of(context).colorScheme;
@@ -1354,9 +1795,7 @@ class _EmptyHints extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // 今日任务卡片（仅通用对话显示）
-            if (subjectId == 0) ...[
-              const TodayTaskCard(),
-            ],
+            if (subjectId == 0) ...[const TodayTaskCard()],
             // 装饰图标
             Container(
               width: 100,
@@ -1386,37 +1825,37 @@ class _EmptyHints extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 16),
-            ...hints.map((h) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: cs.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: cs.outline,
-                  ),
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    onTap: () => onTap(h),
+            ...hints.map(
+              (h) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: cs.surface,
                     borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      child: Text(
-                        h,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: cs.onSurface,
+                    border: Border.all(color: cs.outline),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      onTap: () => onTap(h),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        child: Text(
+                          h,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 14, color: cs.onSurface),
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            )),
+            ),
           ],
         ),
       ),
@@ -1426,6 +1865,7 @@ class _EmptyHints extends ConsumerWidget {
 
 // ─── _InputBar ────────────────────────────────────────────────
 
+// ignore: unused_element
 class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;
@@ -1450,10 +1890,7 @@ class _InputBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: cs.surface,
         border: Border(
-          top: BorderSide(
-            color: cs.outline.withValues(alpha: 0.5),
-            width: 0.5,
-          ),
+          top: BorderSide(color: cs.outline.withValues(alpha: 0.5), width: 0.5),
         ),
       ),
       child: Row(
@@ -1466,10 +1903,7 @@ class _InputBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: IconButton(
-              icon: Icon(
-                Icons.camera_alt_outlined,
-                color: cs.onSurfaceVariant,
-              ),
+              icon: Icon(Icons.camera_alt_outlined, color: cs.onSurfaceVariant),
               onPressed: sending ? null : onCamera,
               tooltip: '拍照识题',
             ),
@@ -1482,10 +1916,7 @@ class _InputBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: IconButton(
-              icon: Icon(
-                Icons.image_outlined,
-                color: cs.onSurfaceVariant,
-              ),
+              icon: Icon(Icons.image_outlined, color: cs.onSurfaceVariant),
               onPressed: sending ? null : onGallery,
               tooltip: '图库识题',
             ),
@@ -1497,25 +1928,24 @@ class _InputBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: cs.outline,
-                ),
+                border: Border.all(color: cs.outline),
               ),
               child: TextField(
                 controller: controller,
                 maxLines: 5,
                 minLines: 1,
                 enabled: !sending,
-                style: TextStyle(
-                  color: cs.onSurface,
-                ),
+                style: TextStyle(color: cs.onSurface),
                 decoration: InputDecoration(
                   hintText: placeholder,
                   hintStyle: TextStyle(
                     color: cs.onSurfaceVariant.withValues(alpha: 0.7),
                   ),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   isDense: true,
                 ),
               ),
@@ -1535,9 +1965,7 @@ class _InputBar extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: sending
                   ? null
-                  : LinearGradient(
-                      colors: [cs.primary, cs.secondary],
-                    ),
+                  : LinearGradient(colors: [cs.primary, cs.secondary]),
               color: sending ? Colors.red.shade400 : null,
               borderRadius: BorderRadius.circular(20),
               boxShadow: sending

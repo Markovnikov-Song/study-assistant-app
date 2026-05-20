@@ -11,7 +11,12 @@ async def explain_concept_executor(params: dict, user_id: int) -> ActionResult:
         from services.llm_service import LLMService
         from backend_config import get_config
 
-        concept = params.get("concept", "").strip()
+        concept = (
+            params.get("concept")
+            or params.get("original_text")
+            or params.get("supplement_text")
+            or ""
+        ).strip()
         if not concept:
             return ActionResult.fallback("explain_concept", "请告诉我你想了解的概念", "missing_params")
 

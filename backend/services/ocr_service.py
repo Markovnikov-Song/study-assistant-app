@@ -1,10 +1,19 @@
 """
-OCR 服务：优先使用 LLM 视觉能力识别图片文字，失败时降级到 pytesseract。
-支持直接识别图片文件，以及将 PDF 指定页转为图片后识别。
+OCR 服务：优先使用 PaddleOCR-VL-1.5（via LLMService）识别图片文字，
+失败时降级到通用 LLM 视觉能力，最终降级到 pytesseract。
+
+新增接口：
+  - extract_text_from_base64(image_b64: str) -> str   单张 Base64 图片 OCR
+  - extract_text_from_base64_list(images: list[str]) -> str  多张并发 OCR
+
+向后兼容接口（签名不变）：
+  - extract_text(image_path: str) -> str
+  - extract_text_from_pdf_page(pdf_path: str, page_num: int) -> str
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 from typing import TYPE_CHECKING
@@ -14,13 +23,144 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# OCR 提示词：要求严格 LaTeX 格式输出数学公式，禁止输出解答
+_OCR_PROMPT = (
+    "提取图片中所有文本内容。"
+    "若包含数学公式，严格使用标准 LaTeX 格式输出："
+    "行内公式用 $...$，独立公式用 $$...$$。"
+    "禁止输出任何解答、分析或额外说明，只输出原文。"
+)
+
 
 class OCRService:
-    """OCR 识别服务，优先 LLM 视觉，备选 pytesseract。"""
+    """
+    OCR 识别服务。
+
+    新增多模态解题路径：
+      PaddleOCR-VL-1.5 (LLM_VISION_MODEL)
+          ↓ 超时 / HTTP 错误
+      通用 LLM 视觉能力 (LLM_CHAT_MODEL)
+          ↓ 均失败
+      raise RuntimeError
+
+    原有路径（向后兼容）：
+      LLM 视觉 → pytesseract
+    """
+
+    # 并发限流：最多同时 2 个视觉 API 请求，防止触发 SiliconFlow 429 速率限制
+    _semaphore = asyncio.Semaphore(2)
 
     def __init__(self) -> None:
         from services.llm_service import LLMService
         self._llm_service = LLMService()
+
+    # ──────────────────────────────────────────────────────────────────
+    # 新增：Base64 接口（供 SolveProblemExecutor 调用）
+    # ──────────────────────────────────────────────────────────────────
+
+    async def extract_text_from_base64(self, image_b64: str) -> str:
+        """
+        单张 Base64 图片 OCR，返回识别文本（含 LaTeX 格式公式）。
+
+        优先调用 PaddleOCR-VL-1.5，超时/失败时降级到通用 LLM 视觉，
+        均失败则抛 RuntimeError。
+
+        当 SOLVE_IMAGE_PREPROCESS_ENABLED=True 时，在调用视觉 API 前
+        先对图片执行 OpenCV 五步预处理，提升识别率。
+
+        :param image_b64: Base64 编码的 JPEG/PNG 图片字符串
+        :raises RuntimeError: 所有 OCR 方式均失败时
+        :return: 识别出的文字内容（数学公式为 LaTeX 格式）
+        """
+        from backend_config import get_config
+        config = get_config()
+
+        # ── 图像预处理（可通过配置开关控制）────────────────────────────────
+        if getattr(config, "SOLVE_IMAGE_PREPROCESS_ENABLED", False):
+            try:
+                from services.image_preprocessor import ImagePreprocessor
+                preprocess_result = ImagePreprocessor().process(image_b64)
+                if not preprocess_result.degraded:
+                    image_b64 = preprocess_result.image_b64
+                else:
+                    logger.warning(
+                        "OCRService: 图像预处理降级，使用原始图片 preprocess_degraded=True"
+                    )
+            except Exception as e:
+                logger.warning(
+                    "OCRService: 图像预处理异常，使用原始图片 preprocess_degraded=True: %s", e
+                )
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_b64}",
+                            "detail": "high",
+                        },
+                    },
+                    {"type": "text", "text": _OCR_PROMPT},
+                ],
+            }
+        ]
+
+        # 并发限流：async with 保证同时最多 2 个视觉 API 请求
+        async with self._semaphore:
+            # 1. 优先：PaddleOCR-VL-1.5
+            try:
+                loop = asyncio.get_event_loop()
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        lambda: self._llm_service.chat(
+                            messages, model=config.LLM_VISION_MODEL
+                        ),
+                    ),
+                    timeout=config.SOLVE_OCR_TIMEOUT_SECONDS,
+                )
+                return result.strip()
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "OCRService: PaddleOCR-VL-1.5 超时（>%ds），降级到通用视觉",
+                    config.SOLVE_OCR_TIMEOUT_SECONDS,
+                )
+            except Exception as e:
+                logger.warning("OCRService: PaddleOCR-VL-1.5 失败（%s），降级到通用视觉", e)
+
+            # 2. 降级：专用视觉接口（禁止用 LLM_CHAT_MODEL，纯文本模型会 400）
+            try:
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: self._llm_service.chat_with_vision(
+                        [{"role": "user", "content": _OCR_PROMPT}],
+                        image_b64,
+                    ),
+                )
+                return result.strip()
+            except Exception as e:
+                raise RuntimeError(f"OCR 服务不可用（主模型和降级模型均失败）：{e}") from e
+
+    async def extract_text_from_base64_list(self, images: list[str]) -> str:
+        """
+        多张 Base64 图片并发 OCR，结果以 \\n---\\n 分隔拼接。
+
+        :param images: Base64 图片字符串列表
+        :return: 各图片识别文本，以 '\\n---\\n' 分隔
+        """
+        if not images:
+            return ""
+        results = await asyncio.gather(
+            *[self.extract_text_from_base64(img) for img in images]
+        )
+        return "\n---\n".join(results)
+
+    # ──────────────────────────────────────────────────────────────────
+    # 向后兼容：原有接口，签名不变
+    # ──────────────────────────────────────────────────────────────────
 
     def extract_text(self, image_path: str) -> str:
         """
@@ -71,9 +211,9 @@ class OCRService:
         except Exception as e:
             raise RuntimeError(f"PDF 第 {page_num} 页 OCR 失败：{e}") from e
 
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────
     # 私有辅助方法
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────
 
     def _llm_ocr(self, image_path: str) -> str:
         """读取图片为 base64，调用 LLM 视觉接口识别文字。"""

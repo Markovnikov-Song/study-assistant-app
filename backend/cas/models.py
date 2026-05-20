@@ -3,6 +3,8 @@ CAS Pydantic 模型定义
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+from datetime import date as date_type
 from enum import Enum
 from typing import Any, Optional
 
@@ -28,6 +30,7 @@ class RenderType(str, Enum):
     navigate   = "navigate"
     modal      = "modal"
     param_fill = "param_fill"   # 内部类型，触发前端参数补全卡片
+    stream     = "stream"       # 流式响应，executor 返回 StreamingResponse
 
 
 # ── 参数定义 ──────────────────────────────────────────────────────────────────
@@ -131,8 +134,10 @@ class IntentMapResult(BaseModel):
 # ── CAS Router 请求/响应模型 ──────────────────────────────────────────────────
 
 class DispatchIn(BaseModel):
-    text:       str
-    session_id: Optional[str] = None
+    text:             str = ""
+    session_id:       Optional[str] = None
+    images:           Optional[list[str]] = None   # Base64 图片列表，最多 SOLVE_MAX_IMAGES 张
+    supplement_text:  Optional[str] = None         # 用户补充说明（图文混排时使用）
 
 
 class ActionSummary(BaseModel):
@@ -144,3 +149,35 @@ class ActionSummary(BaseModel):
 class ActionsListOut(BaseModel):
     actions: list[ActionSummary]
     total:   int
+# ── 学习规划参数模型 ──────────────────────────────────────────────────────────
+
+@dataclass
+class PlanningParams:
+    """学习规划参数数据结构"""
+    subject_name: Optional[str] = None
+    subject_id: Optional[int] = None
+    exam_date: Optional[date_type] = None
+    exam_scope: Optional[str] = None
+    daily_hours: float = 2.0
+    target_score: Optional[int] = None
+    
+    # 状态
+    is_complete: bool = False
+    missing_params: list = field(default_factory=list)
+    
+    def __post_init__(self):
+        if self.missing_params is None:
+            self.missing_params = []
+    
+    def to_dict(self) -> dict:
+        """转换为字典格式"""
+        return {
+            'subject_name': self.subject_name,
+            'subject_id': self.subject_id,
+            'exam_date': self.exam_date.isoformat() if self.exam_date else None,
+            'exam_scope': self.exam_scope,
+            'daily_hours': self.daily_hours,
+            'target_score': self.target_score,
+            'is_complete': self.is_complete,
+            'missing_params': self.missing_params,
+        }

@@ -45,31 +45,36 @@ final chatServiceProvider = Provider<ChatService>((ref) => ChatService());
 // key.$1 是 chatKey（字符串），通用对话为 'general'，学科对话为 subjectId 字符串
 // key.$2 是会话类型名（如 'qa', 'solve'）
 // 类比 Python：key[0]
-final chatProvider = StateNotifierProviderFamily<ChatNotifier, AsyncValue<List<ChatMessage>>, (String, String)>(
-  (ref, key) {
-    ref.keepAlive(); // 防止切换 Tab 时被 dispose
-    final subjectId = int.tryParse(key.$1) ?? 0;
-    return ChatNotifier(
-      ref.watch(chatServiceProvider),
-      chatKey: key.$1,
-      subjectId: subjectId,
-      // 新会话创建后刷新历史列表：
-    // - sessionsProvider(subjectId)：助教页左上角历史记录
-    // - allSessionsProvider：「我的」历史记录页
-      onSessionCreated: () {
-        ref.invalidate(sessionsProvider(subjectId));
-        ref.invalidate(allSessionsProvider);
-      },
-    );
-  },
-);
+final chatProvider =
+    StateNotifierProviderFamily<
+      ChatNotifier,
+      AsyncValue<List<ChatMessage>>,
+      (String, String)
+    >((ref, key) {
+      ref.keepAlive(); // 防止切换 Tab 时被 dispose
+      final subjectId = int.tryParse(key.$1) ?? 0;
+      return ChatNotifier(
+        ref.watch(chatServiceProvider),
+        chatKey: key.$1,
+        subjectId: subjectId,
+        // 新会话创建后刷新历史列表：
+        // - sessionsProvider(subjectId)：助教页左上角历史记录
+        // - allSessionsProvider：「我的」历史记录页
+        onSessionCreated: () {
+          ref.invalidate(sessionsProvider(subjectId));
+          ref.invalidate(allSessionsProvider);
+        },
+      );
+    });
 
 // ─── Provider 3：发送中状态 ───────────────────────────────────
 // StateProviderFamily<bool, (String, String)>：
 //   每个 (chatKey, type) 组合有独立的 bool 状态
 // (ref, _) => false：初始值是 false（没在发送）
 // _ 表示参数不用（Dart 惯例，类似 Python 的 _）
-final chatSendingProvider = StateProviderFamily<bool, (String, String)>((ref, _) => false);
+final chatSendingProvider = StateProviderFamily<bool, (String, String)>(
+  (ref, _) => false,
+);
 
 // ─── Provider 4：会话列表 ─────────────────────────────────────
 // FutureProviderFamily：异步加载数据的 Provider
@@ -89,11 +94,11 @@ class DioCancel implements Exception {}
 // 继承语法：class A extends B — A 继承 B，类似 Python 的 class A(B)
 // super(...)：调用父类构造函数，类似 Python 的 super().__init__(...)
 class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
-  final ChatService _service;  // HTTP 服务，用于发请求
-  final String _chatKey;       // 对话 key：通用对话为 'general'，学科对话为 subjectId 字符串
-  final int _subjectId;        // 学科 ID（从 chatKey 解析，通用对话时为 0）
-  int? _currentSessionId;      // 当前会话 ID，null 表示还没开始对话
-  CancelToken? _cancelToken;   // Dio 的取消令牌，null 表示没有进行中的请求
+  final ChatService _service; // HTTP 服务，用于发请求
+  final String _chatKey; // 对话 key：通用对话为 'general'，学科对话为 subjectId 字符串
+  final int _subjectId; // 学科 ID（从 chatKey 解析，通用对话时为 0）
+  int? _currentSessionId; // 当前会话 ID，null 表示还没开始对话
+  CancelToken? _cancelToken; // Dio 的取消令牌，null 表示没有进行中的请求
 
   // 回调函数：发送状态变化时通知外部（UI 层注册这个回调来更新按钮状态）
   void Function(bool)? onSendingChanged;
@@ -107,10 +112,14 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   }
 
   // 构造函数
-  ChatNotifier(this._service, {required String chatKey, required int subjectId, this.onSessionCreated})
-      : _chatKey = chatKey,
-        _subjectId = subjectId,
-        super(const AsyncValue.data([]));
+  ChatNotifier(
+    this._service, {
+    required String chatKey,
+    required int subjectId,
+    this.onSessionCreated,
+  }) : _chatKey = chatKey,
+       _subjectId = subjectId,
+       super(const AsyncValue.data([]));
 
   int? get currentSessionId => _currentSessionId;
   String get chatKey => _chatKey;
@@ -131,7 +140,10 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
     onSendingChanged?.call(true);
 
     // 乐观更新：用户消息 + AI 占位消息
-    final placeholder = ChatMessage.local(role: MessageRole.assistant, content: '');
+    final placeholder = ChatMessage.local(
+      role: MessageRole.assistant,
+      content: '',
+    );
     state = AsyncValue.data([...current, userMsg, placeholder]);
 
     final buffer = StringBuffer();
@@ -139,7 +151,9 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
     bool cancelled = false;
 
     // 启动后台任务保活，防止切换应用时中断 AI 输出
-    await BackgroundTaskService.instance.startTask(BackgroundTaskType.aiStreaming);
+    await BackgroundTaskService.instance.startTask(
+      BackgroundTaskType.aiStreaming,
+    );
 
     try {
       final stream = _service.sendMessageStream(
@@ -156,7 +170,7 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
         (event) {
           // 过滤空数据帧（用于快速建立连接的心跳）
           if (event.isEmpty) return;
-          
+
           if (event == '[DONE]') {
             if (!completer.isCompleted) completer.complete();
             return;
@@ -164,7 +178,8 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
           if (event == '[NEEDS_CONFIRMATION]') {
             final hint = ChatMessage.local(
               role: MessageRole.assistant,
-              content: '在已上传资料中未找到相关内容。\n\n可以勾选「结合通用知识」后重新提问，AI 将优先检索知识库，检索不到时自动用通用知识回答。',
+              content:
+                  '在已上传资料中未找到相关内容。\n\n可以勾选「结合通用知识」后重新提问，AI 将优先检索知识库，检索不到时自动用通用知识回答。',
             );
             // 保留用户消息，只替换 AI 占位消息为提示消息
             state = AsyncValue.data([...current, userMsg, hint]);
@@ -194,12 +209,17 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
           // 普通 token：追加并更新最后一条 AI 消息（直接替换末尾，不重建整个列表）
           buffer.write(event);
           final msgs = state.value;
-          if (msgs != null && msgs.isNotEmpty && msgs.last.role == MessageRole.assistant) {
+          if (msgs != null &&
+              msgs.isNotEmpty &&
+              msgs.last.role == MessageRole.assistant) {
             final updated = ChatMessage.local(
               role: MessageRole.assistant,
               content: buffer.toString(),
             );
-            state = AsyncValue.data([...msgs.sublist(0, msgs.length - 1), updated]);
+            state = AsyncValue.data([
+              ...msgs.sublist(0, msgs.length - 1),
+              updated,
+            ]);
           }
         },
         onError: (e) {
@@ -219,8 +239,7 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       });
 
       await completer.future;
-
-    } catch (e, st) {
+    } catch (e) {
       if (buffer.isEmpty) {
         // 出错时保留用户消息，显示友好的错误消息
         final errorMessage = _formatErrorMessage(e);
@@ -234,32 +253,41 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
         // 有部分内容时保留已输出内容，追加错误提示
         final errorMessage = _formatErrorMessage(e);
         final msgs = state.value;
-        if (msgs != null && msgs.isNotEmpty && msgs.last.role == MessageRole.assistant) {
+        if (msgs != null &&
+            msgs.isNotEmpty &&
+            msgs.last.role == MessageRole.assistant) {
           final updated = ChatMessage.local(
             role: MessageRole.assistant,
             content: '${msgs.last.content}\n\n⚠️ $errorMessage',
           );
-          state = AsyncValue.data([...msgs.sublist(0, msgs.length - 1), updated]);
+          state = AsyncValue.data([
+            ...msgs.sublist(0, msgs.length - 1),
+            updated,
+          ]);
         }
       }
     } finally {
       sub?.cancel();
       _cancelToken = null;
       onSendingChanged?.call(false);
-      
+
       // 结束后台任务保活
-      await BackgroundTaskService.instance.endTask(BackgroundTaskType.aiStreaming);
+      await BackgroundTaskService.instance.endTask(
+        BackgroundTaskType.aiStreaming,
+      );
 
       // 取消时：保留用户消息，移除空的 AI 占位消息
       if (cancelled && buffer.isEmpty) {
         state = AsyncValue.data([...current, userMsg]);
-        return;
       }
 
       // AI 回复为空（如 422 错误、CAS 跳转后无回复）：移除空的 AI 占位消息
       if (!cancelled && buffer.isEmpty) {
         final msgs = state.value;
-        if (msgs != null && msgs.isNotEmpty && msgs.last.role == MessageRole.assistant && msgs.last.content.isEmpty) {
+        if (msgs != null &&
+            msgs.isNotEmpty &&
+            msgs.last.role == MessageRole.assistant &&
+            msgs.last.content.isEmpty) {
           state = AsyncValue.data(msgs.sublist(0, msgs.length - 1));
         }
       }
@@ -284,7 +312,10 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
         docId: docId,
       );
       // 思维导图内容用一条 assistant 消息存储（Markdown 格式）
-      final msg = ChatMessage.local(role: MessageRole.assistant, content: content);
+      final msg = ChatMessage.local(
+        role: MessageRole.assistant,
+        content: content,
+      );
       state = AsyncValue.data([msg]);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -323,7 +354,7 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
 
   // ─── 新建对话（清空当前消息，重置会话 ID）─────────────────
   void newSession() {
-    _currentSessionId = null;           // 下次发消息时服务器会创建新会话
+    _currentSessionId = null; // 下次发消息时服务器会创建新会话
     state = const AsyncValue.data([]); // 清空消息列表
   }
 
@@ -331,6 +362,34 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   void appendMessage(ChatMessage message) {
     final current = state.value ?? [];
     state = AsyncValue.data([...current, message]);
+  }
+
+  // ─── 追加文本到最后一条 AI 消息（用于流式解题气泡）────────
+  void appendToLastMessage(String text) {
+    final msgs = state.value;
+    if (msgs == null || msgs.isEmpty) return;
+    final last = msgs.last;
+    if (last.role != MessageRole.assistant) return;
+    final updated = ChatMessage.local(
+      role: MessageRole.assistant,
+      content: last.content + text,
+      type: last.type,
+    );
+    state = AsyncValue.data([...msgs.sublist(0, msgs.length - 1), updated]);
+  }
+
+  /// 将最后一条 AI 消息替换为友好错误提示（用于拍照解题失败）
+  void replaceLastAssistantWithError(String message) {
+    final msgs = state.value;
+    if (msgs == null || msgs.isEmpty) return;
+    final last = msgs.last;
+    if (last.role != MessageRole.assistant) return;
+    final updated = ChatMessage.local(
+      role: MessageRole.assistant,
+      content: message,
+      type: MessageType.error,
+    );
+    state = AsyncValue.data([...msgs.sublist(0, msgs.length - 1), updated]);
   }
 
   // ─── 刷新状态（触发 UI 重建，用于本地字段变更后同步）──────
@@ -342,28 +401,30 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   // ─── 格式化错误消息，提供友好的用户提示 ───────────────────
   String _formatErrorMessage(Object e) {
     final errorStr = e.toString();
-    
+
     // 检查是否是已知的错误类型
     if (errorStr.contains("API 配置错误") || errorStr.contains("API Key")) {
       return "API 配置错误\n\n请进入「我的」→「AI 模型配置」检查您的 API 配置。";
     }
-    
+
     if (errorStr.contains("余额不足") || errorStr.contains("insufficient")) {
       return "账户余额不足\n\n请检查您的 API 账户余额或切换其他配置。";
     }
-    
+
     if (errorStr.contains("请求过于频繁") || errorStr.contains("RateLimit")) {
       return "请求过于频繁\n\n请稍等片刻再试。";
     }
-    
-    if (errorStr.contains("网络") || errorStr.contains("连接") || errorStr.contains("timeout")) {
+
+    if (errorStr.contains("网络") ||
+        errorStr.contains("连接") ||
+        errorStr.contains("timeout")) {
       return "网络连接异常\n\n请检查网络连接后重试。";
     }
-    
+
     if (errorStr.contains("AI 服务")) {
       return "AI 服务暂时不可用\n\n请稍后重试。";
     }
-    
+
     // 其他未知错误，提供通用提示
     return "服务暂时不可用\n\n请稍后重试或联系客服。";
   }

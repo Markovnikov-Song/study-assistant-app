@@ -4,12 +4,13 @@ CAS Router — 受控动作空间 API
 
 端点：
   GET  /api/cas/actions   — 返回所有已注册 Action 摘要列表
-  POST /api/cas/dispatch  — 接收用户输入，执行 DispatchPipeline，返回 ActionResult
+  POST /api/cas/dispatch  — 接收用户输入，执行 DispatchPipeline，返回 ActionResult 或 SSE 流
   GET  /api/cas/logs      — 返回最近执行日志（仅管理员）
 """
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 
 from cas.action_registry import get_action_registry
 from cas.dispatch_pipeline import get_dispatch_logs, get_pipeline
@@ -23,7 +24,6 @@ router = APIRouter()
 def list_actions(user=Depends(get_current_user)):
     """
     返回所有已注册 Action 的摘要列表，供前端同步。
-    需求 1.7
     """
     registry = get_action_registry()
     actions = registry.list_actions()
@@ -38,25 +38,42 @@ def list_actions(user=Depends(get_current_user)):
     return ActionsListOut(actions=summaries, total=len(summaries))
 
 
-@router.post("/dispatch", response_model=ActionResult)
+@router.post("/dispatch")
 async def dispatch(body: DispatchIn, user=Depends(get_current_user)):
     """
-    接收用户自然语言输入，执行完整 DispatchPipeline，返回 ActionResult。
+    接收用户自然语言输入（含可选图片），执行完整 DispatchPipeline。
 
-    - text 为空时返回 HTTP 400
+    - 纯文字请求：text 不能为空
+    - 多模态请求：images 非空时允许 text 为空（补充说明可选）
+    - 普通 action 返回 ActionResult（JSON）
+    - 解题等流式 action 返回 StreamingResponse（text/event-stream SSE）
     - 任何其他情况均返回 HTTP 200，错误通过 ActionResult.success=False 传递
-    需求 3.6、3.7、6.8
     """
-    text = body.text.strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="输入不能为空")
+    text = (body.text or "").strip()
+    supplement = (body.supplement_text or "").strip()
+    if not text and supplement:
+        text = supplement
+
+    # 过滤空 Base64，避免前端压缩失败时传入 [""] 被误判为「有图」
+    images = [img.strip() for img in (body.images or []) if img and img.strip()]
+    has_images = len(images) > 0
+
+    # 纯文字请求时 text 不能为空；有有效图片时允许 text 为空
+    if not text and not has_images:
+        raise HTTPException(
+            status_code=400,
+            detail="请上传题目图片或输入文字说明",
+        )
 
     pipeline = get_pipeline()
     result = await pipeline.run(
         text=text,
         session_id=body.session_id,
         user_id=int(user["id"]),
+        images=images if has_images else None,
+        supplement_text=supplement or None,
     )
+    # StreamingResponse 直接返回，FastAPI 自动处理流式响应
     return result
 
 
@@ -64,6 +81,5 @@ async def dispatch(body: DispatchIn, user=Depends(get_current_user)):
 def get_logs(user=Depends(get_current_user)):
     """
     返回最近 1000 条 Dispatch 执行日志（调试用）。
-    需求 9.6
     """
     return {"logs": get_dispatch_logs(), "total": len(get_dispatch_logs())}

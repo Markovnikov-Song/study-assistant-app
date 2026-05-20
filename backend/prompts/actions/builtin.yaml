@@ -122,6 +122,37 @@ actions:
     param_schema: []
     executor_ref: open_course_space
 
+  - action_id: create_mini_app
+    version: "1.0.0"
+    name: Create learning mini app
+    description: Start the document-driven workshop for assembling a subject learning mini app from templates, content, practice methods, and review algorithms
+    fallback_text: Cannot open the mini app workshop right now. Please open Workshop manually.
+    param_schema: []
+    executor_ref: create_mini_app
+
+  # ── 概念解释 ─────────────────────────────────────────────────────────────────
+  - action_id: explain_concept
+    version: "1.0.0"
+    name: 解释概念
+    description: 用通俗语言解释用户提到的概念或术语
+    fallback_text: 概念解释服务暂时不可用，请稍后再试
+    param_schema:
+      - name: concept
+        type: text
+        label: 想了解的概念
+        required: true
+        max_length: 200
+    executor_ref: explain_concept
+
+  # ── 拍照解题（多模态 SSE）────────────────────────────────────────────────────
+  - action_id: solve_problem
+    version: "1.0.0"
+    name: 拍照解题
+    description: 识别题目图片并流式输出解题过程；images / supplement_text 由 dispatch 注入
+    fallback_text: 解题服务暂时不可用，请检查 OCR 与 AI 配置后重试
+    param_schema: []
+    executor_ref: solve_problem
+
   # ── 未知意图（兜底）─────────────────────────────────────────────────────────
   - action_id: unknown_intent
     version: "1.0.0"
