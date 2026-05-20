@@ -13,7 +13,9 @@ ExecutorRegistry — @register_executor 装饰器 + 统一执行入口。
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Union
+
+from fastapi.responses import StreamingResponse
 
 from .models import ActionResult, RenderType
 
@@ -60,12 +62,13 @@ class ExecutorRegistry:
         params: dict[str, Any],
         user_id: int,
         fallback_text: str = "操作暂时不可用，请稍后再试",
-    ) -> ActionResult:
+    ) -> Union[ActionResult, StreamingResponse]:
         """
         执行指定 action_id 的 Executor。
 
-        - Executor 不存在时返回 fallback
-        - Executor 内部抛出任意异常时捕获并返回 fallback
+        - Executor 不存在时返回 fallback ActionResult
+        - Executor 返回 StreamingResponse 时直接透传（流式解题等场景）
+        - Executor 内部抛出任意异常时捕获并返回 fallback ActionResult
         - 永远不向调用方传播异常
         """
         executor = get_executor(action_id)
@@ -80,10 +83,13 @@ class ExecutorRegistry:
 
         try:
             result = await executor(params, user_id)
+            # StreamingResponse 直接透传，不做类型检查
+            if isinstance(result, StreamingResponse):
+                return result
             # 确保返回值是 ActionResult
             if not isinstance(result, ActionResult):
                 logger.error(
-                    "ExecutorRegistry: Executor '%s' 返回了非 ActionResult 类型：%s",
+                    "ExecutorRegistry: Executor '%s' 返回了非 ActionResult/StreamingResponse 类型：%s",
                     action_id, type(result),
                 )
                 return ActionResult.fallback(action_id=action_id, fallback_text=fallback_text)
