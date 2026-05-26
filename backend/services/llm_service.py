@@ -188,17 +188,19 @@ class LLMService:
         try:
             client = self._get_client(user_id)
             kwargs.setdefault("timeout", get_config().LECTURE_GENERATION_TIMEOUT_SECONDS)
-            kwargs.pop("heavy", None)  # heavy 仅用于内部调度，不传给 OpenAI
+            heavy = bool(kwargs.pop("heavy", False))  # heavy 仅用于内部调度，不传给 OpenAI
             
             # 记录请求ID
             request_id = str(uuid.uuid4())
             
-            # 优先使用调用方传入的 model，其次用户自定义模型名，最后用系统默认
+            # 优先使用调用方传入的 model，其次用户自定义模型名，再按场景选择系统模型
             model = kwargs.pop("model", None)
             if not model and user_id:
                 _ucfg = self._get_user_api_config(user_id)
                 if _ucfg:
                     model = _ucfg.get("llm_model") or None
+            if not model and heavy:
+                model = self.get_model_for_scene("heavy")
             if not model:
                 model = self._get_model()
 
@@ -337,10 +339,18 @@ class LLMService:
             request_id = str(uuid.uuid4())
             
             # 移除内部调度参数，不传给 OpenAI
-            kwargs.pop("heavy", None)
+            heavy = bool(kwargs.pop("heavy", False))
             
-            # 优先使用调用方传入的 model，否则使用默认模型
-            model = kwargs.pop("model", None) or self._get_model()
+            # 优先使用调用方传入的 model，其次用户自定义模型名，再按场景选择系统模型
+            model = kwargs.pop("model", None)
+            if not model and user_id:
+                _ucfg = self._get_user_api_config(user_id)
+                if _ucfg:
+                    model = _ucfg.get("llm_model") or None
+            if not model and heavy:
+                model = self.get_model_for_scene("heavy")
+            if not model:
+                model = self._get_model()
 
             stream = client.chat.completions.create(
                 model=model,

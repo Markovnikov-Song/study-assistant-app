@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>伴学 · 反馈收件箱</title>
+  <style>
+    :root { --bg: #0f1419; --card: #1a2332; --text: #e7ecf3; --muted: #8b9cb3; --accent: #5b9fd4; --new: #f59e0b; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 24px; max-width: 960px; margin-inline: auto; }
+    h1 { font-size: 1.35rem; font-weight: 600; }
+    .muted { color: var(--muted); font-size: 0.875rem; }
+    .card { background: var(--card); border-radius: 12px; padding: 16px; margin: 16px 0; }
+    input, button { font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: var(--text); }
+    button { cursor: pointer; background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.secondary { background: transparent; border-color: #475569; color: var(--text); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .item { border-bottom: 1px solid #334155; padding: 12px 0; }
+    .item:last-child { border: none; }
+    .badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; background: var(--new); color: #111; }
+    .badge.read { background: #475569; color: #e2e8f0; }
+    .badge.resolved { background: #166534; color: #dcfce7; }
+    a.zip { color: var(--accent); text-decoration: none; font-weight: 500; }
+    #loginForm label { display: block; margin: 8px 0 4px; font-size: 0.875rem; color: var(--muted); }
+    .hidden { display: none; }
+    .tip { background: #172554; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+  <h1>反馈收件箱</h1>
+  <p class="muted">结构化问题反馈 · 下载 ZIP 拖入 Cursor 即可修</p>
+
+  <div id="loginSection" class="card">
+    <p class="tip">需使用在服务器 <code>OPS_INBOX_USERNAMES</code> 中配置的账号登录。Token 仅存本浏览器。</p>
+    <form id="loginForm">
+      <label>用户名</label>
+      <input type="text" id="username" required autocomplete="username" />
+      <label>密码</label>
+      <input type="password" id="password" required autocomplete="current-password" />
+      <div class="row" style="margin-top:12px">
+        <button type="submit">登录</button>
+      </div>
+    </form>
+    <p id="loginError" class="muted" style="color:#f87171"></p>
+  </div>
+
+  <div id="inboxSection" class="hidden">
+    <div class="row card">
+      <span>未读 <strong id="unreadCount">0</strong></span>
+      <button type="button" class="secondary" id="refreshBtn">刷新</button>
+      <button type="button" class="secondary" id="logoutBtn">退出</button>
+    </div>
+    <div id="list" class="card"></div>
+  </div>
+
+  <script>
+    const API = window.location.origin;
+    const TOKEN_KEY = 'ops_inbox_token';
+
+    function token() { return localStorage.getItem(TOKEN_KEY); }
+    function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+    function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+
+    async function api(path, opts = {}) {
+      const headers = { ...(opts.headers || {}) };
+      const t = token();
+      if (t) headers['Authorization'] = 'Bearer ' + t;
+      const res = await fetch(API + path, { ...opts, headers });
+      if (res.status === 401) { clearToken(); showLogin(); throw new Error('请重新登录'); }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || res.statusText);
+      }
+      if (res.headers.get('content-type')?.includes('application/json')) return res.json();
+      return res.blob();
+    }
+
+    function showLogin() {
+      document.getElementById('loginSection').classList.remove('hidden');
+      document.getElementById('inboxSection').classList.add('hidden');
+    }
+    function showInbox() {
+      document.getElementById('loginSection').classList.add('hidden');
+      document.getElementById('inboxSection').classList.remove('hidden');
+    }
+
+    document.getElementById('loginForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('loginError');
+      errEl.textContent = '';
+      try {
+        const res = await fetch(API + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || '登录失败');
+        setToken(data.access_token || data.token);
+        showInbox();
+        loadList();
+      } catch (ex) {
+        errEl.textContent = ex.message;
+      }
+    };
+
+    document.getElementById('logoutBtn').onclick = () => { clearToken(); showLogin(); };
+    document.getElementById('refreshBtn').onclick = loadList;
+
+    async function loadList() {
+      const data = await api('/api/ops/inbox/incidents?limit=50');
+      document.getElementById('unreadCount').textContent = data.unread;
+      const el = document.getElementById('list');
+      if (!data.items.length) {
+        el.innerHTML = '<p class="muted">暂无反馈</p>';
+        return;
+      }
+      el.innerHTML = data.items.map(it => `
+        <div class="item">
+          <div class="row">
+            <span class="badge ${it.status}">${it.status}</span>
+            <strong>#${it.id}</strong>
+            <span class="muted">${it.created_at || ''}</span>
+          </div>
+          <div>${escapeHtml(it.route)} · ${escapeHtml(it.username)} · v${escapeHtml(it.app_version || '')}</div>
+          <div class="muted">${escapeHtml(it.description_preview || '')}</div>
+          <div class="row" style="margin-top:8px">
+            <a class="zip" href="#" data-id="${it.id}" data-action="bundle">下载 Cursor 修复包 (.zip)</a>
+            ${it.status === 'new' ? `<button type="button" class="secondary" data-id="${it.id}" data-action="read">标为已读</button>` : ''}
+            ${it.status !== 'resolved' ? `<button type="button" class="secondary" data-id="${it.id}" data-action="resolve">已解决</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+
+      el.querySelectorAll('[data-action]').forEach(node => {
+        node.onclick = async (ev) => {
+          ev.preventDefault();
+          const id = node.dataset.id;
+          const action = node.dataset.action;
+          if (action === 'bundle') {
+            const blob = await api(`/api/ops/inbox/incidents/${id}/bundle`);
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `incident-${id}-cursor.zip`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+          } else if (action === 'read') {
+            await api(`/api/ops/inbox/incidents/${id}/read`, { method: 'POST' });
+            loadList();
+          } else if (action === 'resolve') {
+            await api(`/api/ops/inbox/incidents/${id}/resolve`, { method: 'POST' });
+            loadList();
+          }
+        };
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    if (token()) { showInbox(); loadList().catch(showLogin); }
+    else showLogin();
+  </script>
+</body>
+</html>

@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from routers import auth, subjects, sessions, chat, documents, past_exams, exam_gen, ocr, notebooks, notes, users, hints, library, agent, mcp, marketplace, council, calendar, review, feedback, quiz, api_config, token
+from routers import auth, subjects, sessions, chat, documents, past_exams, exam_gen, ocr, notebooks, notes, users, hints, library, agent, mcp, marketplace, council, calendar, review, feedback, quiz, api_config, token, ops
 from routers import cas
 from routers import study_planner
 from routers import spec_chat
@@ -92,6 +92,7 @@ app.include_router(token.router,      prefix="/api/token",       tags=["token"])
 app.include_router(cas.router,       prefix="/api/cas",         tags=["cas"])
 app.include_router(study_planner.router, prefix="/api/study-planner", tags=["study-planner"])
 app.include_router(spec_chat.router,   prefix="/api/spec",      tags=["spec"])
+app.include_router(ops.router, prefix="/api/ops", tags=["ops"])
 
 @app.get("/api/health")
 def health():

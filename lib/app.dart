@@ -8,6 +8,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'routes/app_router.dart';
 import 'providers/background_style_provider.dart';
+import 'widgets/incident_feedback_fab.dart';
 
 /// App 根组件，支持多风格切换
 /// 
@@ -56,11 +57,20 @@ class App extends ConsumerWidget {
       themeMode: ThemeMode.system,
 
       builder: (context, child) {
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.noScaling,
+        return RepaintBoundary(
+          key: IncidentCapture.boundaryKey,
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.noScaling,
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                child ?? const SizedBox(),
+                const IncidentFeedbackFab(),
+              ],
+            ),
           ),
-          child: child ?? const SizedBox(),
         );
       },
     );

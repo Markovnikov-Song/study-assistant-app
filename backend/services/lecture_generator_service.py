@@ -65,7 +65,7 @@ def _markdown_to_blocks(markdown: str) -> list[dict]:
 
 
 def _retrieve_context(
-    node_title: str,
+    query: str,
     subject_id: int,
     top_k: int,
     threshold: float,
@@ -76,7 +76,7 @@ def _retrieve_context(
         from services.rag_pipeline import RAGPipeline
         pipeline = RAGPipeline()
         vector_store = pipeline.get_vector_store(subject_id, user_id=user_id)
-        docs_with_scores = vector_store.similarity_search_with_score(node_title, k=top_k)
+        docs_with_scores = vector_store.similarity_search_with_score(query, k=top_k)
         chunks = [
             doc.page_content
             for doc, score in docs_with_scores
@@ -86,6 +86,58 @@ def _retrieve_context(
     except Exception:
         # 检索失败时降级为无上下文生成
         return ""
+
+
+def _build_retrieval_query(node_title: str, mindmap_context: Optional[dict]) -> str:
+    """Build a retrieval query that includes the node path, not only its title."""
+    if not mindmap_context:
+        return node_title
+    path = mindmap_context.get("path") or []
+    if isinstance(path, list):
+        path_text = " > ".join(str(item) for item in path if str(item).strip())
+    else:
+        path_text = str(path)
+    parent_text = str(mindmap_context.get("parent_text") or "")
+    child_texts = mindmap_context.get("child_texts") or []
+    if isinstance(child_texts, list):
+        child_text = " ".join(str(item) for item in child_texts[:6])
+    else:
+        child_text = str(child_texts)
+    parts = [node_title, path_text, parent_text, child_text]
+    return "\n".join(part for part in parts if part.strip())
+
+
+def _format_mindmap_context(mindmap_context: Optional[dict]) -> str:
+    """Format mind-map context for the lecture prompt."""
+    if not mindmap_context:
+        return ""
+
+    def _join(value, limit: int = 8) -> str:
+        if isinstance(value, list):
+            return ", ".join(str(item) for item in value[:limit] if str(item).strip())
+        return str(value or "")
+
+    lines = ["## Mind-map context"]
+    path = _join(mindmap_context.get("path"))
+    if path:
+        lines.append(f"- Node path: {path}")
+    parent = str(mindmap_context.get("parent_text") or "").strip()
+    if parent:
+        lines.append(f"- Parent node: {parent}")
+    siblings = _join(mindmap_context.get("sibling_texts"), limit=10)
+    if siblings:
+        lines.append(f"- Sibling nodes: {siblings}")
+    children = _join(mindmap_context.get("child_texts"), limit=10)
+    if children:
+        lines.append(f"- Child nodes: {children}")
+    depth = mindmap_context.get("depth")
+    if depth:
+        lines.append(f"- Node depth: {depth}")
+    lines.append(
+        "Use this structure to keep the lecture aligned with the course map. "
+        "Do not invent previous or next nodes that conflict with it."
+    )
+    return "\n".join(lines)
 
 
 class LectureGeneratorService:
@@ -100,21 +152,32 @@ class LectureGeneratorService:
         session_id: int,
         user_id: int,
         resource_scope: Optional[dict] = None,
+        node_depth: int = 4,
+        mindmap_context: Optional[dict] = None,
     ) -> dict:
         """同步生成节点讲义，保存到数据库，返回 {"id": lecture_id}。"""
         from services.llm_service import LLMService
         from database import NodeLecture, get_session as db_session
 
         cfg = self._cfg
+        retrieval_query = _build_retrieval_query(node_title, mindmap_context)
         context = _retrieve_context(
-            node_title, subject_id,
+            retrieval_query, subject_id,
             top_k=cfg.TOP_K,
             threshold=cfg.SIMILARITY_THRESHOLD,
             user_id=user_id,
         )
-        prompt = self._build_prompt(node_title, context)
+        prompt = self._build_prompt(
+            node_title,
+            context,
+            node_depth=node_depth,
+            mindmap_context=mindmap_context,
+        )
         content_text = LLMService().chat(
             messages=[{"role": "user", "content": prompt}],
+            user_id=user_id,
+            session_id=session_id,
+            endpoint="lecture",
             temperature=cfg.LLM_LECTURE_TEMPERATURE,
             max_tokens=cfg.LLM_LECTURE_MAX_TOKENS,
             heavy=True,
@@ -152,21 +215,32 @@ class LectureGeneratorService:
         session_id: int,
         user_id: Optional[int] = None,
         resource_scope: Optional[dict] = None,
+        node_depth: int = 4,
+        mindmap_context: Optional[dict] = None,
     ) -> Generator[str, None, None]:
         """流式生成节点讲义（只 yield token，保存由调用方负责）。"""
         from services.llm_service import LLMService
 
         cfg = self._cfg
+        retrieval_query = _build_retrieval_query(node_title, mindmap_context)
         context = _retrieve_context(
-            node_title, subject_id,
+            retrieval_query, subject_id,
             top_k=cfg.TOP_K,
             threshold=cfg.SIMILARITY_THRESHOLD,
             user_id=user_id,
         )
-        prompt = self._build_prompt(node_title, context)
+        prompt = self._build_prompt(
+            node_title,
+            context,
+            node_depth=node_depth,
+            mindmap_context=mindmap_context,
+        )
 
         yield from LLMService().chat_stream(
             messages=[{"role": "user", "content": prompt}],
+            user_id=user_id,
+            session_id=session_id,
+            endpoint="lecture",
             temperature=cfg.LLM_LECTURE_TEMPERATURE,
             max_tokens=cfg.LLM_LECTURE_MAX_TOKENS,
             heavy=True,
@@ -207,7 +281,13 @@ class LectureGeneratorService:
                 db.flush()
                 return lecture.id
 
-    def _build_prompt(self, node_title: str, context: str, node_depth: int = 4) -> str:
+    def _build_prompt(
+        self,
+        node_title: str,
+        context: str,
+        node_depth: int = 4,
+        mindmap_context: Optional[dict] = None,
+    ) -> str:
         """
         根据节点层级生成对应深度的讲义 prompt。
         node_depth: 1=根/全书概览, 2=部分/模块, 3=章, 4=节/知识点(默认), 5=细节要点
@@ -262,6 +342,15 @@ class LectureGeneratorService:
             "## 本节小结\n"
             "## 💡 推荐继续探索\n\n"
         )
+        map_context_text = _format_mindmap_context(mindmap_context)
+        if map_context_text:
+            base += (
+                "\n\n"
+                f"{map_context_text}\n\n"
+                "Write the lecture in Chinese. Adapt the depth: root nodes need a roadmap, "
+                "middle nodes need a chapter/module guide, and leaf nodes need detailed explanation. "
+                "Use the listed parent, sibling, and child nodes for real transitions.\n\n"
+            )
         if context:
             base += f"## 参考资料\n\n{context}\n\n"
         base += f"请生成「{node_title}」的讲义（严格按照上述六大要求和输出格式）："

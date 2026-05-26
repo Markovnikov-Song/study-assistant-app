@@ -570,6 +570,31 @@ class TokenUsageLog(Base):
     user = relationship("User")
 
 
+class ClientIncident(Base):
+    """客户端问题反馈：结构化收件箱条目（截图与日志存磁盘，元数据在库）。"""
+    __tablename__ = "client_incidents"
+    __table_args__ = (
+        Index("idx_client_incidents_user_created", "user_id", "created_at"),
+        Index("idx_client_incidents_status", "status"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    username = Column(String(64), nullable=False, default="")
+    route = Column(String(512), nullable=False, default="")
+    description = Column(Text, nullable=True)
+    contact = Column(String(256), nullable=True)
+    app_version = Column(String(32), nullable=False, default="")
+    device_info = Column(JSONB, nullable=False, default=dict)
+    client_logs = Column(JSONB, nullable=False, default=list)
+    has_screenshot = Column(Boolean, nullable=False, default=False)
+    storage_dir = Column(String(512), nullable=False, default="")
+    status = Column(String(16), nullable=False, default="new")  # new | read | resolved
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    read_at = Column(DateTime(timezone=True), nullable=True)
+
+    user = relationship("User")
+
 class MindmapKnowledgeLink(Base):
     """知识关联图：存储 LLM 从思维导图中提取的跨节点关联关系。"""
     __tablename__ = "mindmap_knowledge_links"
