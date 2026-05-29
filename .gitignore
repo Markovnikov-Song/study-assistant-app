@@ -35,6 +35,8 @@ migrate_working_dir/
 /playwright-report/
 /test-results/
 node_modules/
+.venv/
+backend/.venv/
 android/build/
 android/.kotlin/
 backend/.hypothesis/
