@@ -7,8 +7,8 @@
 // 消息角色：用户 or AI 助手
 enum MessageRole { user, assistant }
 
-// 消息类型：普通文本 or 场景识别卡片
-enum MessageType { text, sceneCard, error }
+// 消息类型：普通文本 or 场景识别卡片 or 解题气泡
+enum MessageType { text, sceneCard, error, solve }
 
 // 场景类型：学科 / 规划 / 工具 / Spec / 日历
 enum SceneType { subject, planning, tool, spec, calendar }
@@ -47,6 +47,8 @@ class ChatMessage {
   final MessageRole role;    // 谁发的：user 或 assistant
   final String content;      // 消息文本内容
   final List<MessageSource>? sources; // RAG 参考来源列表，? 表示可以为 null
+  /// 用户附带的图片（Base64，无 data: 前缀），仅本地/历史 sources 反序列化
+  final List<String>? images;
   final DateTime createdAt;  // 创建时间
   final MessageType type;    // 消息类型，默认 text
   SceneCardData? sceneCardData; // type == sceneCard 时非空（可变，dismissed 需要修改）
@@ -58,6 +60,7 @@ class ChatMessage {
     required this.role,
     required this.content,
     this.sources,       // 没有 required，所以可以不传（默认 null）
+    this.images,
     required this.createdAt,
     this.type = MessageType.text,  // 新增，默认 text
     this.sceneCardData,            // 新增，默认 null
@@ -70,6 +73,17 @@ class ChatMessage {
 
   // factory 构造函数：从 JSON 数据创建对象，类似 Python 的 @classmethod
   // Map<String, dynamic>：键是 String，值是任意类型，等价于 Python 的 dict
+  static List<String>? _imagesFromJson(Map<String, dynamic> json) {
+    final raw = json['sources'];
+    if (raw is Map<String, dynamic>) {
+      final imgs = raw['images'];
+      if (imgs is List) {
+        return imgs.map((e) => '$e').where((s) => s.isNotEmpty).toList();
+      }
+    }
+    return null;
+  }
+
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
         // as num? 表示把值转成数字类型（可为 null）
         // ?. 是空安全调用，如果左边是 null 就不执行右边，直接返回 null
@@ -88,6 +102,8 @@ class ChatMessage {
             ?.map((e) => MessageSource.fromJson(e))
             .toList(), // .toList() 把 Iterable 转成 List
 
+        images: _imagesFromJson(json),
+
         // 解析 ISO 8601 时间字符串，如 "2024-01-01T12:00:00"
         createdAt: json['created_at'] != null && (json['created_at'] as String).isNotEmpty
             ? DateTime.parse(json['created_at'] as String)
@@ -99,6 +115,7 @@ class ChatMessage {
   factory ChatMessage.local({
     required MessageRole role,
     required String content,
+    List<String>? images,
     MessageType type = MessageType.text,
     SceneCardData? sceneCardData,
   }) =>
@@ -107,6 +124,7 @@ class ChatMessage {
         id: DateTime.now().millisecondsSinceEpoch,
         role: role,
         content: content,
+        images: images,
         createdAt: DateTime.now(),
         type: type,
         sceneCardData: sceneCardData,

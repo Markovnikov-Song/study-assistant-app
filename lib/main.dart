@@ -3,6 +3,8 @@
 // ─────────────────────────────────────────────────────────────
 
 // Flutter UI 框架的核心库，提供 Widget、Material 组件等
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 // Riverpod：Flutter 的状态管理库，类似 Python 里的全局变量管理器
@@ -13,15 +15,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
+import 'core/error/global_error_handler.dart';
 import 'core/network/dio_client.dart';
 import 'core/storage/storage_service.dart';
 import 'providers/shared_preferences_provider.dart';
+import 'services/error_service.dart';
 import 'services/notification_service.dart';
 import 'services/level3_monitor.dart';
 import 'services/update_service.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+Future<void> _bootstrap() async {
+  await ErrorService.instance.init();
+  GlobalErrorHandler.setupFlutterErrorHandler();
 
   await StorageService.instance.init();
   DioClient.instance.init();
@@ -50,10 +55,27 @@ void main() async {
     debugPrint('[main] Level3Monitor start failed: $e');
   });
 
-  runApp(ProviderScope(
-    overrides: [
-      sharedPreferencesProvider.overrideWithValue(prefs),
-    ],
-    child: const App(),
-  ));
+  runApp(
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+      child: const App(),
+    ),
+  );
+}
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runZonedGuarded(
+    () async {
+      try {
+        await _bootstrap();
+      } catch (e, st) {
+        ErrorService.instance.recordException(e, st);
+        rethrow;
+      }
+    },
+    GlobalErrorHandler.handleZoneError,
+  );
 }

@@ -42,7 +42,8 @@ class ErrorToast extends StatefulWidget {
     Widget? customIcon,
   }) {
     final overlay = Overlay.of(context);
-    final entry = OverlayEntry(
+    late OverlayEntry entry;
+    entry = OverlayEntry(
       builder: (context) => ErrorToast(
         message: message,
         type: type,
@@ -144,7 +145,7 @@ class _ErrorToastState extends State<ErrorToast>
       case ErrorType.info:
         return Colors.blue[100] ?? Colors.blue.shade100;
       case ErrorType.success:
-        return theme.colorScheme.successContainer;
+        return Colors.green[100] ?? Colors.green.shade100;
     }
   }
 
@@ -158,7 +159,7 @@ class _ErrorToastState extends State<ErrorToast>
       case ErrorType.info:
         return Colors.blue[900] ?? Colors.blue.shade900;
       case ErrorType.success:
-        return theme.colorScheme.onSuccessContainer;
+        return Colors.green[900] ?? Colors.green.shade900;
     }
   }
 

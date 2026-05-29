@@ -8,7 +8,7 @@ import 'package:study_assistant_app/models/mindmap_library.dart';
 /// Build a simple tree:
 ///   root (depth 1)
 ///     ├── child1 (depth 2)
-///     �?    └── grandchild (depth 3)
+///     �?    └── grandchild (depth 3)
 ///     └── child2 (depth 2)
 NodeTreeEditor _buildEditor() {
   final grandchild = TreeNode(
@@ -71,7 +71,7 @@ void main() {
     });
 
     test('throws MaxDepthExceeded when parent is at depth 6', () {
-      // Build a chain: depth 1 �?2 �?3 �?4 �?5 �?6
+      // Build a chain: depth 1 �?2 �?3 �?4 �?5 �?6
       TreeNode buildChain(int depth, String id) {
         if (depth == 6) {
           return TreeNode(nodeId: id, text: 'D$depth', depth: depth);

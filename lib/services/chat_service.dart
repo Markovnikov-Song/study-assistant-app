@@ -112,8 +112,23 @@ class ChatService {
         cancelToken: cancelToken, // 传入取消令牌，用户点停止时可以中断请求
       );
 
-      // 解析响应 JSON
-      final data = res.data as Map<String, dynamic>;
+      // 解析响应 JSON（类型安全：防止 FastAPI 422 返回 List 导致强转崩溃）
+      final rawData = res.data;
+      final Map<String, dynamic> data;
+      if (rawData is Map<String, dynamic>) {
+        data = rawData;
+      } else if (rawData is Map) {
+        data = Map<String, dynamic>.from(rawData);
+      } else if (rawData is List) {
+        // FastAPI 422 Validation Error：detail 字段是列表，格式化为可读错误
+        final msgs = rawData
+            .whereType<Map>()
+            .map((e) => e['msg']?.toString() ?? e.toString())
+            .join('; ');
+        throw ApiException(message: '请求参数错误：$msgs', statusCode: 422);
+      } else {
+        throw ApiException(message: rawData?.toString() ?? '响应格式错误');
+      }
 
       // 检查是否需要用户确认（strict 模式找不到相关资料时后端返回 true）
       final needsConfirm = data['needs_confirmation'] as bool? ?? false;

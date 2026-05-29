@@ -393,3 +393,124 @@ class KnowledgeLink {
         rationale: json['rationale'] as String? ?? '',
       );
 }
+// ── NodeState ─────────────────────────────────────────────────────────────────
+
+/// 节点学习状态枚举
+enum NodeState {
+  /// 未解锁 - 灰色 + 锁图标
+  locked,
+  /// 已解锁 - 白色边框
+  unlocked,
+  /// 进行中 - 蓝色脉冲
+  inProgress,
+  /// 已掌握 - 绿色 + 对勾
+  mastered,
+}
+
+// ── LearningPath ─────────────────────────────────────────────────────────────
+
+/// 学习路径数据模型
+class LearningPath {
+  final int id;
+  final int subjectId;
+  final String name;
+  final List<String> nodeIds; // 有序节点ID列表
+  final Map<String, List<String>> prerequisites; // 节点ID → 前置节点ID列表
+  final bool isDefault;
+
+  const LearningPath({
+    required this.id,
+    required this.subjectId,
+    required this.name,
+    required this.nodeIds,
+    required this.prerequisites,
+    this.isDefault = false,
+  });
+
+  factory LearningPath.fromJson(Map<String, dynamic> json) {
+    return LearningPath(
+      id: _toInt(json['id']),
+      subjectId: _toInt(json['subject_id']),
+      name: json['name'] as String? ?? '',
+      nodeIds: (json['node_ids'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      prerequisites: (json['prerequisites'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(
+              key,
+              (value as List<dynamic>?)
+                      ?.map((e) => e as String)
+                      .toList() ??
+                  [],
+            ),
+          ) ??
+          {},
+      isDefault: json['is_default'] == true || json['is_default'] == 1,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'subject_id': subjectId,
+        'name': name,
+        'node_ids': nodeIds,
+        'prerequisites': prerequisites,
+        'is_default': isDefault,
+      };
+}
+
+// ── NodeMastery ─────────────────────────────────────────────────────────────
+
+/// 节点掌握度数据模型
+class NodeMastery {
+  final int id;
+  final int userId;
+  final int sessionId;
+  final String nodeId;
+  final double masteryLevel; // 0-100
+  final DateTime? lastPracticedAt;
+  final int correctCount;
+  final int wrongCount;
+  final int lectureReadDuration; // 秒
+
+  const NodeMastery({
+    required this.id,
+    required this.userId,
+    required this.sessionId,
+    required this.nodeId,
+    required this.masteryLevel,
+    this.lastPracticedAt,
+    required this.correctCount,
+    required this.wrongCount,
+    required this.lectureReadDuration,
+  });
+
+  factory NodeMastery.fromJson(Map<String, dynamic> json) {
+    return NodeMastery(
+      id: _toInt(json['id']),
+      userId: _toInt(json['user_id']),
+      sessionId: _toInt(json['session_id']),
+      nodeId: json['node_id'] as String? ?? '',
+      masteryLevel: (json['mastery_level'] as num?)?.toDouble() ?? 0.0,
+      lastPracticedAt: json['last_practiced_at'] != null
+          ? DateTime.tryParse(json['last_practiced_at'] as String)
+          : null,
+      correctCount: _toInt(json['correct_count']),
+      wrongCount: _toInt(json['wrong_count']),
+      lectureReadDuration: _toInt(json['lecture_read_duration']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'user_id': userId,
+        'session_id': sessionId,
+        'node_id': nodeId,
+        'mastery_level': masteryLevel,
+        'last_practiced_at': lastPracticedAt?.toIso8601String(),
+        'correct_count': correctCount,
+        'wrong_count': wrongCount,
+        'lecture_read_duration': lectureReadDuration,
+      };
+}

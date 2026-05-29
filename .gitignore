@@ -32,6 +32,26 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/playwright-report/
+/test-results/
+node_modules/
+android/build/
+android/.kotlin/
+backend/.hypothesis/
+backend/data/
+release-miniapp-v*/
+release-miniapp-v*.zip
+
+# Client incident attachments (screenshots)
+backend/data/incidents/
+
+# Local secrets
+.env
+*.env
+backend/.env
+backend/*.env
+!*.env.example
+!backend/*.env.example
 
 # Symbolication related
 app.*.symbols

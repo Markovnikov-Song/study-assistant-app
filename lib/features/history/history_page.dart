@@ -63,6 +63,12 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
         context.push(AppRoutes.toolkitSolve);
       case SessionType.exam:
         context.push(AppRoutes.toolkitQuiz);
+      case SessionType.mindmap:
+        if (s.subjectId != null) {
+          context.push(AppRoutes.mindmap(s.subjectId!, s.id));
+        } else {
+          context.push(AppRoutes.mindmapEntry);
+        }
       default:
         context.go(AppRoutes.chat);
     }
@@ -145,9 +151,9 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                           value: _filterSubjectId,
                           isDense: true,
                           isExpanded: true,
-                          hint: const Text('全部学科', style: TextStyle(fontSize: 13)),
+                          hint: const Text('全部科目', style: TextStyle(fontSize: 13)),
                           items: [
-                            const DropdownMenuItem<int?>(value: null, child: Text('全部学科', style: TextStyle(fontSize: 13))),
+                            const DropdownMenuItem<int?>(value: null, child: Text('全部科目', style: TextStyle(fontSize: 13))),
                             ...active.map((s) => DropdownMenuItem<int?>(
                               value: s.id,
                               child: Text(s.name, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),

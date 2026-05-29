@@ -101,7 +101,7 @@ class PhaseProgressView extends ConsumerWidget {
                 ? (errorMsg != null ? '失败原因：$errorMsg' : '请检查网络后重试')
                 : isDone
                     ? '即将跳转到计划表'
-                    : '助教正在分析各学科知识点，请稍候',
+                    : '助教正在分析各科目知识点，请稍候',
             style: TextStyle(color: cs.outline, fontSize: 14),
           ),
           const SizedBox(height: 32),

@@ -1,4 +1,4 @@
-// Feature: lecture-book-export, Property 10: 导出文件名格�?
+// Feature: lecture-book-export, Property 10: 导出文件名格式
 //
 // Validates: Requirements 8.2
 //
@@ -27,7 +27,7 @@ const _sampleTitles = [
   '高等数学',
   'Linear Algebra',
   'Chapter 1: Introduction',
-  '第三�?热力�?,
+  '第三章 热力学',
   'CS101',
   'Advanced Topics in ML',
   '概率论与数理统计',
@@ -64,7 +64,7 @@ List<(String, ExportFormat)> _generateCombinations() {
 // ── Property tests ────────────────────────────────────────────────────────────
 
 void main() {
-  group('Property 10: 导出文件名格�?, () {
+  group('Property 10: 导出文件名格式', () {
     final combinations = _generateCombinations();
 
     // Ensure we have at least 20 combinations as required

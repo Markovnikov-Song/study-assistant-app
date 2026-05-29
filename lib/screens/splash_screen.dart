@@ -3,11 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-// 导入三个核心组件
-import '../widgets/splash/ink_bleed_painter.dart';
-import '../widgets/splash/dust_painter.dart';
-import '../widgets/splash/animated_text.dart';
-
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
@@ -15,293 +10,403 @@ class SplashScreen extends ConsumerStatefulWidget {
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends ConsumerState<SplashScreen> with TickerProviderStateMixin {
-  late AnimationController _mainController;
-  late AnimationController _particleController; 
-  
-  bool _hasVibrated = false; 
+class _SplashScreenState extends ConsumerState<SplashScreen>
+    with TickerProviderStateMixin {
+  late final AnimationController _mainController;
+  late final AnimationController _pulseController;
+  late final Animation<double> _fade;
+  late final Animation<double> _slide;
+  late final Animation<double> _scale;
 
-  late Animation<double> _minorOpacityAnim;
-  late Animation<double> _moveAnim;
-  late Animation<double> _scaleAnim;
-  late Animation<double> _shadowAnim;
-  late Animation<double> _mistAnim;
-  late Animation<double> _inkBleedAnim;
-  late Animation<double> _colorProgressAnim; 
-
-  final double _finalScale = 1.35; 
+  bool _hasVibrated = false;
 
   @override
   void initState() {
     super.initState();
-    
     _mainController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 5500),
+      duration: const Duration(milliseconds: 2400),
     );
-
-    _particleController = AnimationController(
+    _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 20),
-    )..repeat();
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
 
-    const curve = Curves.easeInOutQuad;
-
-    _mistAnim = Tween<double>(begin: 0.8, end: 1.1).animate(
-      CurvedAnimation(parent: _mainController, curve: const Interval(0.0, 1.0, curve: curve)),
+    _fade = CurvedAnimation(
+      parent: _mainController,
+      curve: const Interval(0, 0.6, curve: Curves.easeOutCubic),
     );
-    _minorOpacityAnim = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(parent: _mainController, curve: const Interval(0.1, 0.4, curve: curve)),
+    _slide = CurvedAnimation(
+      parent: _mainController,
+      curve: const Interval(0.12, 0.82, curve: Curves.easeOutCubic),
     );
-    _moveAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _mainController, curve: const Interval(0.4, 0.9, curve: curve)),
-    );
-    _scaleAnim = Tween<double>(begin: 1.0, end: _finalScale).animate(
-      CurvedAnimation(parent: _mainController, curve: const Interval(0.7, 0.95, curve: curve)),
-    );
-    _shadowAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _mainController, curve: const Interval(0.85, 1.0, curve: Curves.easeOutSine)),
-    );
-    _inkBleedAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _mainController, curve: const Interval(0.5, 1.0, curve: Curves.easeOutQuart)),
-    );
-    
-    _colorProgressAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _mainController, curve: const Interval(0.9, 1.0, curve: curve)),
+    _scale = Tween<double>(begin: 0.96, end: 1).animate(
+      CurvedAnimation(
+        parent: _mainController,
+        curve: const Interval(0, 0.76, curve: Curves.easeOutCubic),
+      ),
     );
 
-    // 监听动画完成状态
-    _mainController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        _navigateToHome();
-      }
-    });
-
-    _mainController.addListener(() {
-      if (_mainController.value >= 0.9 && !_hasVibrated) {
-        _hasVibrated = true;
-        HapticFeedback.lightImpact(); 
-      }
-    });
-
-    _mainController.forward();
+    _mainController
+      ..addListener(() {
+        if (_mainController.value >= 0.72 && !_hasVibrated) {
+          _hasVibrated = true;
+          HapticFeedback.lightImpact();
+        }
+      })
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) _navigateToHome();
+      })
+      ..forward();
   }
 
-  // 丝滑渐变转场到主页
   void _navigateToHome() {
-    // 使用 go_router 导航到主页
+    if (!mounted) return;
     context.go('/');
   }
 
   @override
   void dispose() {
     _mainController.dispose();
-    _particleController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final Size size = MediaQuery.of(context).size;
-    
-    // 动态暗黑模式检测
-    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    // 白天：清秀宣纸 / 黑夜：幽深墨砚
-    final Color bgStart = isDarkMode ? const Color(0xFF1A1D1A) : const Color(0xFFF7F9F7);
-    final Color bgEnd = isDarkMode ? const Color(0xFF101211) : const Color(0xFFE2EBE5);
-    final Color mistColor = isDarkMode ? const Color(0xFF26362D) : const Color(0xFFCDE0D5);
-    
-    // 白天：灰绿 / 黑夜：暗幽绿
-    final Color minorTextColor = isDarkMode ? const Color(0xFF5C7A6A) : const Color(0xFF9EBAAB);
-    
-    // 核心文字初始颜色
-    final Color coreInitColor = isDarkMode ? const Color(0xFF4A6B59) : const Color(0xFF759A87);
-    // 核心文字最终定格颜色 (白天深竹青，夜晚化作发光的透亮玉色)
-    final Color coreFinalColor = isDarkMode ? const Color(0xFF9CC9B0) : const Color(0xFF32654D);
+    final size = MediaQuery.sizeOf(context);
+    final variant = _SplashVariant.fromWidth(size.width);
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = Theme.of(context).scaffoldBackgroundColor;
 
     return Scaffold(
-      backgroundColor: bgEnd,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [bgStart, bgEnd],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: AnimatedBuilder(
-          animation: _mainController,
-          builder: (context, child) {
-            // 动态计算当前的文字颜色
-            final Color? currentColor = Color.lerp(
-              coreInitColor, 
-              coreFinalColor, 
-              _colorProgressAnim.value
-            );
-
-            return Stack(
-              children: [
-                _buildMistLayer(mistColor),
-                _buildInkLayer(coreFinalColor),
-                _buildDustLayer(coreFinalColor),
-                _buildTextLayer(size, minorTextColor, currentColor!),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMistLayer(Color mistColor) {
-    return Positioned.fill(
-      child: Align(
-        alignment: Alignment.center,
-        child: Transform.scale(
-          scale: _mistAnim.value,
-          child: Container(
+      backgroundColor: bg,
+      body: AnimatedBuilder(
+        animation: Listenable.merge([_mainController, _pulseController]),
+        builder: (context, _) {
+          return DecoratedBox(
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
+              color: bg,
+              gradient: LinearGradient(
                 colors: [
-                  mistColor.withValues(alpha: 0.4), 
-                  mistColor.withValues(alpha: 0.0), 
+                  bg,
+                  cs.primary.withValues(alpha: isDark ? 0.09 : 0.055),
+                  cs.secondary.withValues(alpha: isDark ? 0.07 : 0.045),
                 ],
-                radius: 0.8,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInkLayer(Color inkColor) {
-    return Positioned.fill(
-      child: CustomPaint(
-        painter: InkBleedPainter(
-          progress: _inkBleedAnim.value, 
-          color: inkColor,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDustLayer(Color dustColor) {
-    return Positioned.fill(
-      child: AnimatedBuilder(
-        animation: _particleController,
-        builder: (context, child) {
-          return CustomPaint(
-            painter: DustParticlePainter(
-              progress: _particleController.value, 
-              color: dustColor,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _WorkbenchGridPainter(
+                      color: cs.outlineVariant.withValues(
+                        alpha: isDark ? 0.16 : 0.30,
+                      ),
+                      progress: _pulseController.value,
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: variant.horizontalPadding,
+                      vertical: 32,
+                    ),
+                    child: Transform.scale(
+                      scale: _scale.value,
+                      child: Opacity(
+                        opacity: _fade.value,
+                        child: Transform.translate(
+                          offset: Offset(0, 18 * (1 - _slide.value)),
+                          child: _SplashContent(
+                            variant: variant,
+                            pulse: _pulseController.value,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: MediaQuery.paddingOf(context).top + 12,
+                  right: 16,
+                  child: TextButton(
+                    onPressed: _navigateToHome,
+                    child: const Text('跳过'),
+                  ),
+                ),
+              ],
             ),
           );
         },
       ),
     );
   }
+}
 
-  Widget _buildTextLayer(Size size, Color minorTextColor, Color coreColor) {
-    final double w = size.width;
-    final double h = size.height;
+enum _SplashVariant {
+  mobile,
+  tablet,
+  desktop;
 
-    final double unit = w * 0.1;
-    final double yOffset = h * 0.11; 
-    final double lineSpacing = unit * 0.6;
-    final double moveProgress = _moveAnim.value;
+  static _SplashVariant fromWidth(double width) {
+    if (width >= 1100) return _SplashVariant.desktop;
+    if (width >= 700) return _SplashVariant.tablet;
+    return _SplashVariant.mobile;
+  }
 
-    final xXue = -(unit * 2.5) * (1.0 - moveProgress); 
-    final yXue = -lineSpacing + ((yOffset + lineSpacing) * moveProgress); 
+  double get horizontalPadding {
+    switch (this) {
+      case _SplashVariant.desktop:
+        return 96;
+      case _SplashVariant.tablet:
+        return 56;
+      case _SplashVariant.mobile:
+        return 28;
+    }
+  }
+}
 
-    final xBan = -(unit * 0.5) * (1.0 - moveProgress);
-    final yBan = lineSpacing - ((yOffset + lineSpacing) * moveProgress); 
+class _SplashContent extends StatelessWidget {
+  final _SplashVariant variant;
+  final double pulse;
 
-    final xHaiWuYa = xXue + (unit * 2.0); 
-    final yHaiWuYa = -lineSpacing;
-            
-    final xYiWeiZhou = xBan + (unit * 2.0); 
-    final yYiWeiZhou = lineSpacing;
+  const _SplashContent({required this.variant, required this.pulse});
 
-    return Stack(
+  @override
+  Widget build(BuildContext context) {
+    switch (variant) {
+      case _SplashVariant.desktop:
+        return const _DesktopSplashCard();
+      case _SplashVariant.tablet:
+        return const _TabletSplashCard();
+      case _SplashVariant.mobile:
+        return const _MobileSplashCard();
+    }
+  }
+}
+
+class _DesktopSplashCard extends StatelessWidget {
+  const _DesktopSplashCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 1040),
+      child: Row(
+        children: [
+          Expanded(
+            child: _BrandLockup(
+              titleSize: 64,
+              subtitle: '把问题、资料、复盘和计划放在同一个学习工作台，少切换，多推进。',
+            ),
+          ),
+          const SizedBox(width: 52),
+          Container(
+            width: 340,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: cs.surface.withValues(alpha: 0.86),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: cs.outlineVariant),
+            ),
+            child: const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _StatusRow(
+                  icon: Icons.chat_rounded,
+                  title: '答疑',
+                  value: '随问随解',
+                ),
+                _StatusRow(
+                  icon: Icons.menu_book_rounded,
+                  title: '资料',
+                  value: '沉淀成库',
+                ),
+                _StatusRow(
+                  icon: Icons.event_note_rounded,
+                  title: '计划',
+                  value: '下一步清晰',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TabletSplashCard extends StatelessWidget {
+  const _TabletSplashCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 620),
+      child: const _BrandLockup(
+        titleSize: 56,
+        subtitle: '一个更清晰的学习工作台，连接答疑、资料、计划和复盘。',
+        centered: true,
+      ),
+    );
+  }
+}
+
+class _MobileSplashCard extends StatelessWidget {
+  const _MobileSplashCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 380),
+      child: const _BrandLockup(
+        titleSize: 44,
+        subtitle: '答疑、资料、计划和复盘，放进同一个现场。',
+        centered: true,
+      ),
+    );
+  }
+}
+
+class _BrandLockup extends StatelessWidget {
+  final double titleSize;
+  final String subtitle;
+  final bool centered;
+
+  const _BrandLockup({
+    required this.titleSize,
+    required this.subtitle,
+    this.centered = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final align = centered
+        ? CrossAxisAlignment.center
+        : CrossAxisAlignment.start;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: align,
       children: [
-        Positioned.fill(
-          child: Align(
-            alignment: Alignment.center,
-            child: Transform.translate(
-              offset: Offset(xHaiWuYa, yHaiWuYa),
-              child: Opacity(
-                opacity: _minorOpacityAnim.value,
-                child: AnimatedSplashText(
-                  text: "如微光", 
-                  width: unit * 3.0, 
-                  fontSize: unit, 
-                  color: minorTextColor,
-                  shadowProgress: _shadowAnim.value,
-                ),
-              ),
-            ),
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: cs.primary,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(Icons.school_rounded, color: cs.onPrimary, size: 32),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          '伴学',
+          textAlign: centered ? TextAlign.center : TextAlign.start,
+          style: TextStyle(
+            color: cs.onSurface,
+            fontSize: titleSize,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
+            height: 1,
           ),
         ),
-        Positioned.fill(
-          child: Align(
-            alignment: Alignment.center,
-            child: Transform.translate(
-              offset: Offset(xYiWeiZhou, yYiWeiZhou),
-              child: Opacity(
-                opacity: _minorOpacityAnim.value,
-                child: AnimatedSplashText(
-                  text: "以清风", 
-                  width: unit * 3.0, 
-                  fontSize: unit, 
-                  color: minorTextColor,
-                  shadowProgress: _shadowAnim.value,
-                ),
-              ),
-            ),
+        const SizedBox(height: 16),
+        Text(
+          subtitle,
+          textAlign: centered ? TextAlign.center : TextAlign.start,
+          style: TextStyle(
+            color: cs.onSurfaceVariant,
+            fontSize: centered ? 16 : 18,
+            height: 1.55,
           ),
         ),
-        Positioned.fill(
-          child: Align(
-            alignment: Alignment.center,
-            child: Transform.translate(
-              offset: Offset(xXue, yXue),
-              child: Transform.scale(
-                scale: _scaleAnim.value,
-                child: AnimatedSplashText(
-                  text: "学", 
-                  width: unit, 
-                  fontSize: unit * 1.25, 
-                  color: coreColor,
-                  isCore: true,
-                  shadowProgress: _shadowAnim.value,
-                ),
-              ),
-            ),
-          ),
-        ),
-        Positioned.fill(
-          child: Align(
-            alignment: Alignment.center,
-            child: Transform.translate(
-              offset: Offset(xBan, yBan),
-              child: Transform.scale(
-                scale: _scaleAnim.value,
-                child: AnimatedSplashText(
-                  text: "伴", 
-                  width: unit, 
-                  fontSize: unit * 1.25, 
-                  color: coreColor,
-                  isCore: true,
-                  shadowProgress: _shadowAnim.value,
-                ),
-              ),
-            ),
-          ),
+        const SizedBox(height: 26),
+        LinearProgressIndicator(
+          minHeight: 3,
+          borderRadius: BorderRadius.circular(999),
         ),
       ],
     );
+  }
+}
+
+class _StatusRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String value;
+
+  const _StatusRow({
+    required this.icon,
+    required this.title,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: cs.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: cs.primary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: cs.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          Text(value, style: TextStyle(color: cs.onSurfaceVariant)),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkbenchGridPainter extends CustomPainter {
+  final Color color;
+  final double progress;
+
+  const _WorkbenchGridPainter({required this.color, required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    const gap = 42.0;
+    final drift = progress * gap;
+
+    for (double x = -gap + drift; x < size.width + gap; x += gap) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = -gap + drift; y < size.height + gap; y += gap) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WorkbenchGridPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.progress != progress;
   }
 }

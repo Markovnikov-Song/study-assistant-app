@@ -3,7 +3,6 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:image_picker/image_picker.dart';
 
 /// 图片压缩与 Base64 转换服务。
 ///
@@ -20,8 +19,8 @@ class ImageCompressService {
   /// Web 平台跳过压缩，直接返回原始 Base64。
   static Future<List<String>> compressToBase64List(
     List<XFile> images, {
-    int maxLongEdge = 1920,
-    int quality = 75,
+    int maxLongEdge = 1280,
+    int quality = 70,
   }) async {
     final results = <String>[];
     for (final image in images) {
@@ -70,8 +69,8 @@ class ImageCompressService {
   /// 压缩单张图片并返回 Base64 字符串。
   static Future<String> compressToBase64(
     XFile image, {
-    int maxLongEdge = 1920,
-    int quality = 75,
+    int maxLongEdge = 1280,
+    int quality = 70,
   }) async {
     final list = await compressToBase64List(
       [image],

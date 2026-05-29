@@ -117,10 +117,10 @@ class _EmptyState extends StatelessWidget {
           children: [
             Icon(Icons.account_tree_outlined, size: 64, color: Colors.grey.shade300),
             const SizedBox(height: 16),
-            Text('还没有学科', style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
+            Text('还没有科目', style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
             const SizedBox(height: 8),
             Text(
-              '先去「图书馆」添加学科，\n再回来创建思维导图',
+              '先去「图书馆」添加科目，\n再回来创建思维导图',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
             ),

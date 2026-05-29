@@ -16,6 +16,7 @@ SSE 格式（所有推送均为 JSON）：
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 import time
@@ -33,6 +34,11 @@ _STREAM_END = object()
 
 async def _async_iter_sync_stream(sync_gen):
     """将 LLMService.stream_chat 的同步生成器适配为 async for（避免阻塞事件循环）。"""
+    if inspect.isasyncgen(sync_gen):
+        async for item in sync_gen:
+            yield item
+        return
+
     loop = asyncio.get_event_loop()
     it = iter(sync_gen)
 

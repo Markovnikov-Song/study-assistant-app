@@ -21,7 +21,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from database import PlanItem, StudyPlan, Subject, get_session as db_session
 from deps import get_current_user
@@ -58,6 +58,10 @@ class PlanItemOut(BaseModel):
     priority: str
     dependency_node_ids: List[str]
     planned_date: Optional[str]
+    capability_id: Optional[str] = None
+    capability_params: dict[str, Any] = Field(default_factory=dict)
+    completion_contract: dict[str, Any] = Field(default_factory=dict)
+    completion_result: dict[str, Any] = Field(default_factory=dict)
     status: str
     completed_at: Optional[str]
 
@@ -75,6 +79,7 @@ class StudyPlanOut(BaseModel):
 
 class ItemStatusIn(BaseModel):
     status: str   # done | skipped
+    completion_result: dict[str, Any] = Field(default_factory=dict)
 
 
 class PlanStatusIn(BaseModel):
@@ -107,6 +112,10 @@ def _item_to_out(item: PlanItem) -> PlanItemOut:
         priority=item.priority,
         dependency_node_ids=item.dependency_node_ids or [],
         planned_date=item.planned_date.date().isoformat() if item.planned_date else None,
+        capability_id=item.capability_id,
+        capability_params=item.capability_params or {},
+        completion_contract=item.completion_contract or {},
+        completion_result=item.completion_result or {},
         status=item.status,
         completed_at=item.completed_at.isoformat() if item.completed_at else None,
     )
@@ -302,6 +311,8 @@ def update_item_status(
             raise HTTPException(404, "计划条目不存在")
 
         item.status = body.status
+        if body.completion_result:
+            item.completion_result = body.completion_result
         if body.status == 'done':
             item.completed_at = datetime.now(timezone.utc)
 

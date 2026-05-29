@@ -104,7 +104,7 @@ class _NotebookDetailPageState extends ConsumerState<NotebookDetailPage>
                 isScrollable: true,
                 tabs: allIds.map((id) {
                   if (id == null) return const Tab(text: '通用');
-                  return Tab(text: subjectMap[id] ?? '未知学科');
+                  return Tab(text: subjectMap[id] ?? '未知科目');
                 }).toList(),
               ),
               Expanded(

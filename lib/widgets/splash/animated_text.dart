@@ -20,39 +20,39 @@ class AnimatedSplashText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 视觉补偿：专门针对书法字体的"下沉感"进行向上提拉
-    final double visualCorrectionY = isCore ? -fontSize * 0.12 : 0.0;
+    final visualCorrectionY = isCore ? -fontSize * 0.08 : 0.0;
 
-    return Container(
+    return SizedBox(
       width: width,
-      height: fontSize * 1.5,
-      alignment: Alignment.center,
-      child: Transform.translate(
-        offset: Offset(0, visualCorrectionY), 
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          softWrap: false,
-          overflow: TextOverflow.visible,
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: FontWeight.w400,
-            height: 1.0, 
-            color: color,
-            // 核心字使用小楷，次要字使用文楷
-            fontFamily: isCore ? 'YanshiYouran' : 'LXGWWenKai',
-            decoration: TextDecoration.none,
-            letterSpacing: isCore ? 0.0 : 2.0,
-            shadows: isCore ? [
-              Shadow(
-                color: const Color(0xFF759A87).withValues(alpha: 0.2 * shadowProgress),
-                offset: Offset(0, 2 * shadowProgress), 
-                blurRadius: 15.0 * shadowProgress,     
-              )
-            ] : null,
-          ),
-          textHeightBehavior: const TextHeightBehavior(
-            leadingDistribution: TextLeadingDistribution.even,
+      height: fontSize * 1.35,
+      child: Center(
+        child: Transform.translate(
+          offset: Offset(0, visualCorrectionY),
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: isCore ? FontWeight.w800 : FontWeight.w500,
+              height: 1.0,
+              color: color,
+              decoration: TextDecoration.none,
+              letterSpacing: 0,
+              shadows: isCore
+                  ? [
+                      Shadow(
+                        color: color.withValues(alpha: 0.20 * shadowProgress),
+                        offset: Offset(0, 8 * shadowProgress),
+                        blurRadius: 28 * shadowProgress,
+                      ),
+                    ]
+                  : null,
+            ),
+            textHeightBehavior: const TextHeightBehavior(
+              leadingDistribution: TextLeadingDistribution.even,
+            ),
           ),
         ),
       ),

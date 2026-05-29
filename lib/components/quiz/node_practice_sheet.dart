@@ -1,3 +1,5 @@
+// ignore_for_file: curly_braces_in_flow_control_structures
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,13 +12,17 @@ class QuizOption {
   final String content;
   final bool isCorrect;
 
-  const QuizOption({required this.key, required this.content, required this.isCorrect});
+  const QuizOption({
+    required this.key,
+    required this.content,
+    required this.isCorrect,
+  });
 
   factory QuizOption.fromJson(Map<String, dynamic> j) => QuizOption(
-        key: j['key'] as String? ?? '',
-        content: j['content'] as String? ?? '',
-        isCorrect: j['is_correct'] as bool? ?? false,
-      );
+    key: j['key'] as String? ?? '',
+    content: j['content'] as String? ?? '',
+    isCorrect: j['is_correct'] as bool? ?? false,
+  );
 }
 
 class QuizQuestion {
@@ -47,21 +53,22 @@ class QuizQuestion {
   });
 
   factory QuizQuestion.fromJson(Map<String, dynamic> j) => QuizQuestion(
-        id: j['id'] as String? ?? '',
-        type: j['type'] as String? ?? 'choice',
-        difficulty: j['difficulty'] as String? ?? 'L1',
-        difficultyLabel: j['difficulty_label'] as String? ?? '基础',
-        question: j['question'] as String? ?? '',
-        options: (j['options'] as List?)
-                ?.map((e) => QuizOption.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [],
-        correctAnswer: j['correct_answer'] as String? ?? '',
-        explanation: j['explanation'] as String? ?? '',
-        sourceNodeId: j['source_node_id'] as String? ?? '',
-        sourceNodeTitle: j['source_node_title'] as String? ?? '',
-        knowledgeZone: j['knowledge_zone'] as String? ?? 'current',
-      );
+    id: j['id'] as String? ?? '',
+    type: j['type'] as String? ?? 'choice',
+    difficulty: j['difficulty'] as String? ?? 'L1',
+    difficultyLabel: j['difficulty_label'] as String? ?? '基础',
+    question: j['question'] as String? ?? '',
+    options:
+        (j['options'] as List?)
+            ?.map((e) => QuizOption.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [],
+    correctAnswer: j['correct_answer'] as String? ?? '',
+    explanation: j['explanation'] as String? ?? '',
+    sourceNodeId: j['source_node_id'] as String? ?? '',
+    sourceNodeTitle: j['source_node_title'] as String? ?? '',
+    knowledgeZone: j['knowledge_zone'] as String? ?? 'current',
+  );
 }
 
 // ── QuizService ───────────────────────────────────────────────────────────────
@@ -75,14 +82,17 @@ class QuizService {
     String? nodeContent,
     int count = 3,
   }) async {
-    final res = await _dio.post('/api/quiz/generate', data: {
-      'node_id': nodeId,
-      'node_title': nodeTitle,
-      if (nodeContent != null) 'node_content': nodeContent,
-      'question_count': count,
-      'question_types': ['choice', 'judge'],
-      'difficulty': 'mixed',
-    });
+    final res = await _dio.post(
+      '/api/quiz/generate',
+      data: {
+        'node_id': nodeId,
+        'node_title': nodeTitle,
+        'node_content': ?nodeContent,
+        'question_count': count,
+        'question_types': ['choice', 'judge'],
+        'difficulty': 'mixed',
+      },
+    );
     final data = res.data as Map<String, dynamic>;
     return (data['questions'] as List?)
             ?.map((e) => QuizQuestion.fromJson(e as Map<String, dynamic>))
@@ -100,16 +110,19 @@ class QuizService {
     required String questionType,
     int? subjectId,
   }) async {
-    final res = await _dio.post('/api/quiz/submit-answer', data: {
-      'question_id': questionId,
-      'user_answer': userAnswer,
-      'node_id': nodeId,
-      'node_title': nodeTitle,
-      'question_text': questionText,
-      'correct_answer': correctAnswer,
-      'question_type': questionType,
-      if (subjectId != null) 'subject_id': subjectId,
-    });
+    final res = await _dio.post(
+      '/api/quiz/submit-answer',
+      data: {
+        'question_id': questionId,
+        'user_answer': userAnswer,
+        'node_id': nodeId,
+        'node_title': nodeTitle,
+        'question_text': questionText,
+        'correct_answer': correctAnswer,
+        'question_type': questionType,
+        'subject_id': ?subjectId,
+      },
+    );
     return res.data as Map<String, dynamic>;
   }
 }
@@ -141,7 +154,7 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
   bool _loading = true;
   String? _error;
   String? _selectedAnswer; // 当前题目用户选择
-  bool _submitted = false;  // 当前题目是否已提交
+  bool _submitted = false; // 当前题目是否已提交
   Map<String, dynamic>? _result; // 提交结果
   final _fillCtrl = TextEditingController();
 
@@ -163,14 +176,26 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
 
   Future<void> _loadQuestions() async {
     try {
-      final questions = await ref.read(quizServiceProvider).generateForNode(
+      final questions = await ref
+          .read(quizServiceProvider)
+          .generateForNode(
             nodeId: widget.nodeId,
             nodeTitle: widget.nodeText,
             count: 3,
           );
-      if (mounted) setState(() { _questions = questions; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _questions = questions;
+          _loading = false;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -181,16 +206,18 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
         : _fillCtrl.text.trim();
 
     if (answer.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先作答')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请先作答')));
       return;
     }
 
     setState(() => _submitted = true);
 
     try {
-      final result = await ref.read(quizServiceProvider).submitAnswer(
+      final result = await ref
+          .read(quizServiceProvider)
+          .submitAnswer(
             questionId: q.id,
             userAnswer: answer,
             nodeId: widget.nodeId,
@@ -203,10 +230,15 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
       if (mounted) {
         setState(() => _result = result);
         final correct = result['correct'] as bool? ?? false;
-        if (correct) _correctCount++; else _mistakeCount++;
+        if (correct) {
+          _correctCount++;
+        } else {
+          _mistakeCount++;
+        }
       }
     } catch (e) {
-      if (mounted) setState(() => _result = {'correct': false, 'message': '提交失败：$e'});
+      if (mounted)
+        setState(() => _result = {'correct': false, 'message': '提交失败：$e'});
     }
   }
 
@@ -236,7 +268,11 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
           children: [
             Text(
               '$_correctCount / ${_questions.length} 题正确',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: cs.primary),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: cs.primary,
+              ),
             ),
             const SizedBox(height: 8),
             if (_mistakeCount > 0)
@@ -278,7 +314,8 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
             // 拖动条
             Container(
               margin: const EdgeInsets.only(top: 12),
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: cs.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
@@ -292,7 +329,10 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
                   Expanded(
                     child: Text(
                       '练习：${widget.nodeText}',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -308,33 +348,41 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
             // 内容
             Expanded(
               child: _loading
-                  ? const Center(child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('AI 正在出题…', style: TextStyle(fontSize: 13)),
-                      ],
-                    ))
+                  ? const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('AI 正在出题…', style: TextStyle(fontSize: 13)),
+                        ],
+                      ),
+                    )
                   : _error != null
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.error_outline, size: 48, color: cs.error),
-                              const SizedBox(height: 12),
-                              Text('出题失败：$_error'),
-                              const SizedBox(height: 16),
-                              FilledButton(onPressed: () {
-                                setState(() { _loading = true; _error = null; });
-                                _loadQuestions();
-                              }, child: const Text('重试')),
-                            ],
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.error_outline, size: 48, color: cs.error),
+                          const SizedBox(height: 12),
+                          Text('出题失败：$_error'),
+                          const SizedBox(height: 16),
+                          FilledButton(
+                            onPressed: () {
+                              setState(() {
+                                _loading = true;
+                                _error = null;
+                              });
+                              _loadQuestions();
+                            },
+                            child: const Text('重试'),
                           ),
-                        )
-                      : _questions.isEmpty
-                          ? const Center(child: Text('暂无题目'))
-                          : _buildQuestion(scrollCtrl, cs),
+                        ],
+                      ),
+                    )
+                  : _questions.isEmpty
+                  ? const Center(child: Text('暂无题目'))
+                  : _buildQuestion(scrollCtrl, cs),
             ),
           ],
         ),
@@ -371,7 +419,10 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
               ),
             ),
             const SizedBox(width: 8),
-            _DifficultyBadge(label: q.difficultyLabel, difficulty: q.difficulty),
+            _DifficultyBadge(
+              label: q.difficultyLabel,
+              difficulty: q.difficulty,
+            ),
           ],
         ),
         const SizedBox(height: 20),
@@ -382,12 +433,16 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
 
         // 选项 / 输入框
         if (isChoice)
-          ...q.options.map((opt) => _ChoiceOption(
-                option: opt,
-                selected: _selectedAnswer == opt.key,
-                submitted: _submitted,
-                onTap: _submitted ? null : () => setState(() => _selectedAnswer = opt.key),
-              ))
+          ...q.options.map(
+            (opt) => _ChoiceOption(
+              option: opt,
+              selected: _selectedAnswer == opt.key,
+              submitted: _submitted,
+              onTap: _submitted
+                  ? null
+                  : () => setState(() => _selectedAnswer = opt.key),
+            ),
+          )
         else if (isJudge)
           Row(
             children: ['正确', '错误'].map((label) {
@@ -397,7 +452,9 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
                 child: Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: OutlinedButton(
-                    onPressed: _submitted ? null : () => setState(() => _selectedAnswer = key),
+                    onPressed: _submitted
+                        ? null
+                        : () => setState(() => _selectedAnswer = key),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: selected ? cs.primaryContainer : null,
                       side: BorderSide(
@@ -417,7 +474,9 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
             enabled: !_submitted,
             decoration: InputDecoration(
               hintText: '输入你的答案',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             maxLines: 3,
           ),
@@ -459,14 +518,19 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
                       isCorrect ? '回答正确！' : '答错了',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: isCorrect ? Colors.green.shade700 : Colors.red.shade700,
+                        color: isCorrect
+                            ? Colors.green.shade700
+                            : Colors.red.shade700,
                       ),
                     ),
                     if (!isCorrect) ...[
                       const Spacer(),
                       Text(
                         '已加入错题本',
-                        style: TextStyle(fontSize: 11, color: Colors.red.shade400),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.red.shade400,
+                        ),
                       ),
                     ],
                   ],
@@ -482,7 +546,10 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
                   const SizedBox(height: 8),
                   Text(
                     '解析：${q.explanation}',
-                    style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.7)),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: cs.onSurface.withValues(alpha: 0.7),
+                    ),
                   ),
                 ],
               ],
@@ -493,7 +560,9 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
             width: double.infinity,
             child: FilledButton(
               onPressed: _nextQuestion,
-              child: Text(_currentIndex < _questions.length - 1 ? '下一题' : '查看结果'),
+              child: Text(
+                _currentIndex < _questions.length - 1 ? '下一题' : '查看结果',
+              ),
             ),
           ),
         ],
@@ -549,7 +618,8 @@ class _ChoiceOption extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 28, height: 28,
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: selected ? cs.primary : cs.surfaceContainerHigh,
@@ -604,7 +674,11 @@ class _DifficultyBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 11, color: color.shade700, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          fontSize: 11,
+          color: color.shade700,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

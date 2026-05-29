@@ -341,7 +341,44 @@ class ExamService:
     # 14.1-14.2 预测试卷生成
     # ------------------------------------------------------------------
 
-    def generate_predicted_paper(self, subject_id: int) -> str:
+    def _retrieve_subject_context(
+        self,
+        subject_id: int,
+        query: str,
+        *,
+        limit: int | None = None,
+    ) -> str:
+        """按考点/主题检索学科资料片段，用于「根据资料出题」。"""
+        from backend_config import get_config
+
+        cfg = get_config()
+        top_k = limit or cfg.EXAM_CUSTOM_CHUNK_LIMIT
+        try:
+            from services.rag_pipeline import RAGPipeline
+
+            pipeline = RAGPipeline()
+            vector_store = pipeline.get_vector_store(subject_id, user_id=self._user_id)
+            docs_with_scores = vector_store.similarity_search_with_score(query, k=top_k)
+            chunks = [doc.page_content for doc, _score in docs_with_scores if doc.page_content]
+            if chunks:
+                return "\n\n".join(chunks)
+        except Exception as exc:
+            logger.warning("exam RAG retrieve failed: %s", exc)
+
+        from database import get_session, Chunk
+
+        with get_session() as session:
+            rows = (
+                session.query(Chunk.content)
+                .filter(Chunk.subject_id == subject_id)
+                .order_by(Chunk.chunk_index)
+                .limit(top_k)
+                .all()
+            )
+        fallback = [row[0] for row in rows if row[0]]
+        return "\n\n".join(fallback)
+
+    def generate_predicted_paper(self, subject_id: int, *, use_broad: bool = False) -> str:
         """
         生成预测试卷。有历年题时结合历年题分析考点，无历年题时基于学科资料出题。
         """
@@ -397,6 +434,11 @@ class ExamService:
         if not has_past_exams and not chunks_text:
             return ""
 
+        broad_hint = (
+            "\n6. 资料不足时可结合通用学科知识补充，但须标注「补充」"
+            if use_broad
+            else "\n6. 仅依据提供的历年题与学科资料，不得引入未给出资料外的具体事实"
+        )
         if has_past_exams:
             system_prompt = (
                 "你是一个专业的考试出题助手。请根据提供的历年题目和学科资料，"
@@ -407,6 +449,7 @@ class ExamService:
                 "3. 生成模拟试卷，题型参考历年规律\n"
                 "4. 每道题附参考答案\n"
                 "5. 使用 Markdown 格式，结构清晰"
+                + broad_hint
             )
             user_content = f"历年题目（仅供分析规律，不得复制）：\n{questions_text}\n\n学科资料（仅供参考，不得复制）：\n{chunks_text[:3000]}"
         else:
@@ -419,6 +462,7 @@ class ExamService:
                 "3. 每道题附参考答案\n"
                 "4. 使用 Markdown 格式，结构清晰\n"
                 "5. 题目要考察对知识点的理解和应用，不是背诵原文"
+                + broad_hint
             )
             user_content = f"学科资料（仅供参考，不得复制）：\n{chunks_text[:4000]}"
 
@@ -446,32 +490,43 @@ class ExamService:
         topic: str,
         type_counts: dict = None,
         type_scores: dict = None,
+        *,
+        source_mode: str = "material",
+        use_broad: bool = False,
     ) -> str:
         """
         按参数生成自定义题目和参考答案（Markdown 格式）。
 
-        :param subject_id: 学科 ID
-        :param user_id: 用户 ID
-        :param question_types: 题型列表，如 ["选择题", "简答题"]
-        :param count: 题目总数量（type_counts 为空时使用）
-        :param difficulty: 难度，如 "简单"/"中等"/"困难"
-        :param topic: 指定考点/主题
-        :param type_counts: 各题型数量 dict，如 {"选择题": 5, "简答题": 3}，优先于 count
-        :return: Markdown 格式题目与答案
+        source_mode:
+          - material: 根据资料出题（检索学科资料片段）
+          - topic_only: 自定义出题（仅考点/主题与组卷参数，不注入资料库）
         """
-        from database import get_session, Chunk
-
-        with get_session() as session:
-            chunk_rows = (
-                session.query(Chunk)
-                .filter(Chunk.subject_id == subject_id)
-                .order_by(Chunk.chunk_index)
-                .limit(20)
-                .all()
+        topic = (topic or "").strip() or "综合练习"
+        if source_mode == "topic_only":
+            context = "（本模式不绑定学科资料库，请仅根据下方考点/主题与组卷要求出题）"
+            system_tail = (
+                "4. 不要引用或假设用户上传的讲义/PDF 内容\n"
+                "5. 题目应围绕用户指定的考点/主题展开"
             )
-            chunks = [row.content for row in chunk_rows]
-
-        context = "\n\n".join(chunks) if chunks else "（暂无学科资料，请根据题目要求出题）"
+            if use_broad:
+                system_tail += "\n6. 可结合通用学科知识，但不得捏造具体文献或数据出处"
+            else:
+                system_tail += "\n6. 仅围绕指定考点/主题，不要扩展到无关章节"
+        else:
+            context = self._retrieve_subject_context(
+                subject_id,
+                query=topic,
+            )
+            if not context.strip():
+                context = "（暂无学科资料，请根据题目要求出题）"
+            system_tail = (
+                "4. 题目必须能在参考资料中找到依据，不得编造资料中不存在的事实\n"
+                "5. 不得大段复制资料原文"
+            )
+            if use_broad:
+                system_tail += "\n6. 资料不足时可少量补充通用知识，并标注「补充」"
+            else:
+                system_tail += "\n6. 严格依据参考资料，资料未覆盖的内容不要考"
 
         # 构建题型+数量+分值描述
         if type_counts:
@@ -495,16 +550,18 @@ class ExamService:
             f"\n5. 试卷末尾注明总分：{total_score} 分"
         ) if total_score else ""
 
+        mode_label = "根据资料出题" if source_mode == "material" else "自定义出题（仅主题）"
         messages = [
             {
                 "role": "system",
                 "content": (
-                    "你是一个专业的出题助手。请根据提供的学科资料和要求，"
-                    "生成高质量的题目和参考答案。\n\n"
+                    f"你是一个专业的出题助手。当前模式：{mode_label}。\n"
+                    "请生成高质量的题目和参考答案。\n\n"
                     "要求：\n"
                     "1. 严格按照指定题型、数量、难度和考点出题\n"
                     "2. 每道题附上详细的参考答案\n"
-                    "3. 使用 Markdown 格式输出，题目和答案分开展示"
+                    "3. 使用 Markdown 格式输出，题目和答案分开展示\n"
+                    + system_tail
                     + score_instruction
                 ),
             },
@@ -515,7 +572,7 @@ class ExamService:
                     f"总题数：{total} 道\n"
                     f"难度：{difficulty}\n"
                     f"考点/主题：{topic}\n\n"
-                    f"参考资料：\n{context}"
+                    f"{'参考资料' if source_mode == 'material' else '出题说明'}：\n{context}"
                 ),
             },
         ]

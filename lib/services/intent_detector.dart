@@ -18,6 +18,20 @@ abstract class IntentDetector {
 /// 规则匹配意图识别（本地同步，无网络延迟）
 /// 优先级：spec > planning > calendar > subject > tool > none
 class RuleBasedIntentDetector implements IntentDetector {
+  static const _miniAppKeywords = [
+    '学习小程序',
+    '学习软件',
+    '学习app',
+    '学习应用',
+    '背单词小程序',
+    '百词斩',
+    '多邻国',
+    '拼装',
+    '积木',
+    'mini app',
+    'mini-app',
+    'workshop',
+  ];
   static const _specKeywords = ['系统学习', '完整计划', '从零开始', '全面掌握', '系统掌握', '完整课程'];
   static const _planningKeywords = ['备考', '复习计划', '考试', '学习目标', '期末', '期中', '冲刺', '学习计划'];
   static const _calendarKeywords = ['加到日历', '添加计划', '安排学习', '记到日历', '下周', '明天', '提醒我'];
@@ -26,6 +40,18 @@ class RuleBasedIntentDetector implements IntentDetector {
   @override
   Future<DetectedIntent> detect(String userInput, {List<Subject>? subjects}) async {
     final input = userInput.toLowerCase();
+
+    if (_containsAny(input, _miniAppKeywords)) {
+      return DetectedIntent(
+        type: IntentType.tool,
+        params: {
+          'actionId': 'create_mini_app',
+          'render_type': 'navigate',
+          'route':
+              '/workshop/builder?request=${Uri.encodeQueryComponent(userInput)}',
+        },
+      );
+    }
 
     // 优先级 1：Spec 模式
     if (_containsAny(input, _specKeywords)) {

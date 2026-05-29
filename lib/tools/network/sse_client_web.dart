@@ -29,9 +29,10 @@ Stream<String> ssePost(String url, Map<String, dynamic> body, String? token) {
 
   xhr.onLoad.listen((_) {
     // 检查 HTTP 状态码，非 2xx 直接抛出错误
-    if (xhr.status < 200 || xhr.status >= 300) {
+    final status = xhr.status;
+    if (status == null || status < 200 || status >= 300) {
       final errorBody = xhr.responseText ?? '';
-      ctrl.addError(Exception('HTTP ${xhr.status}: ${errorBody.isNotEmpty ? errorBody : 'Request failed'}'));
+      ctrl.addError(Exception('HTTP ${status ?? 'unknown'}: ${errorBody.isNotEmpty ? errorBody : 'Request failed'}'));
       ctrl.close();
       return;
     }

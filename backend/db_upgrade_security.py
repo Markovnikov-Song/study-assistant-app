@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """数据库升级脚本 - 添加用户角色支持"""
 
+import os
+
 import psycopg2
 
 def main():
     # Neon 连接字符串
-    db_url = 'postgresql://neondb_owner:npg_lu5C1dFvpHeN@ep-still-sunset-a1v42bky-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require'
+    db_url = os.environ["DATABASE_URL"]
 
     print('Connecting to Neon...')
     conn = psycopg2.connect(db_url)

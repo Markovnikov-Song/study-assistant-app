@@ -108,6 +108,17 @@
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
             android:exported="false"/>
         
+        <!-- 应用内更新：APK 安装 FileProvider -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.apkInstallProvider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/apk_install_paths"/>
+        </provider>
+
         <!-- 后台下载服务 -->
         <provider
             android:name="vn.hunghd.flutterdownloader.DownloadedFileProvider"

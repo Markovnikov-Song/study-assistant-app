@@ -203,6 +203,7 @@ class _AiGenerationTabState extends ConsumerState<_AiGenerationTab> {
   String? _lastContent;
   String? _currentHtml;
   bool _customGenerating = false;
+  bool _awaitingDocResult = false;
   dynamic _webViewController;
 
   String _buildHtml(String markdown) {
@@ -250,6 +251,11 @@ class _AiGenerationTabState extends ConsumerState<_AiGenerationTab> {
   Future<void> _generateFromDocs() async {
     final docId =
         _selectedDocIds.length == 1 ? _selectedDocIds.first : null;
+    setState(() {
+      _awaitingDocResult = true;
+      _currentHtml = null;
+      _lastContent = null;
+    });
     await ref
         .read(chatProvider((widget.subjectId.toString(), 'mindmap')).notifier)
         .generateMindMap(docId: docId);
@@ -299,6 +305,7 @@ class _AiGenerationTabState extends ConsumerState<_AiGenerationTab> {
                         Navigator.pop(ctx);
                         setState(() {
                           _customGenerating = true;
+                          _awaitingDocResult = false;
                           _currentHtml = null;
                           _lastContent = null;
                         });
@@ -434,10 +441,16 @@ class _AiGenerationTabState extends ConsumerState<_AiGenerationTab> {
       orElse: () => null,
     );
 
-    if (content != null && content != _lastContent) {
+    if (_awaitingDocResult &&
+        content != null &&
+        content != _lastContent) {
       _lastContent = content;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _currentHtml = _buildHtml(content));
+        if (!mounted) return;
+        setState(() {
+          _currentHtml = _buildHtml(content);
+          _awaitingDocResult = false;
+        });
       });
     }
 

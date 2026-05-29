@@ -115,9 +115,9 @@ class _ChatSidebar extends ConsumerWidget {
       title = subjectsAsync.valueOrNull
               ?.firstWhere(
                 (s) => s.id == subjectId,
-                orElse: () => Subject(id: 0, name: '学科对话', createdAt: DateTime.now()),
+                orElse: () => Subject(id: 0, name: '科目对话', createdAt: DateTime.now()),
               )
-              .name ?? '学科对话';
+              .name ?? '科目对话';
     }
 
     return Column(

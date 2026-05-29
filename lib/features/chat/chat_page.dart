@@ -21,6 +21,7 @@ import '../../widgets/markdown_latex_view.dart';
 import '../../widgets/mcp_status_indicator.dart';
 import '../../widgets/multimodal_input_bar.dart';
 import '../../widgets/solve_result_action_bar.dart';
+import '../../widgets/chat_message_images.dart';
 import '../../components/notebook/widgets/notebook_picker_sheet.dart';
 import '../calendar/calendar_page.dart';
 import '../../core/event_bus/app_event_bus.dart';
@@ -633,7 +634,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             .appendMessage(
               ChatMessage.local(
                 role: MessageRole.user,
-                content: '📷 图片识别：$text',
+                content: text,
+                images: [b64],
               ),
             );
         _scrollToBottom();
@@ -713,14 +715,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     Level2Monitor.recordActivity();
 
-    // 追加用户消息气泡（含图片标记）
-    final userContent = text.isNotEmpty
-        ? '📷 图片 × ${validImages.length}  $text'
-        : '📷 图片 × ${validImages.length}';
+    // 追加用户消息气泡（展示原图缩略图 + 可选补充文字）
     ref
         .read(chatProvider(_key).notifier)
         .appendMessage(
-          ChatMessage.local(role: MessageRole.user, content: userContent),
+          ChatMessage.local(
+            role: MessageRole.user,
+            content: text,
+            images: validImages,
+          ),
         );
 
     // 追加空 AI 气泡（流式填充），标记为解题类型
@@ -1554,15 +1557,24 @@ class _Bubble extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (isUser &&
+                  message.images != null &&
+                  message.images!.isNotEmpty) ...[
+                ChatMessageImages(images: message.images!),
+                if (message.content.trim().isNotEmpty)
+                  const SizedBox(height: 8),
+              ],
               isUser
-                  ? Text(
-                      message.content,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        height: 1.5,
-                        fontSize: 15,
-                      ),
-                    )
+                  ? (message.content.trim().isEmpty
+                      ? const SizedBox.shrink()
+                      : Text(
+                          message.content,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            height: 1.5,
+                            fontSize: 15,
+                          ),
+                        ))
                   : forceRawText
                   ? Text(
                       message.content,

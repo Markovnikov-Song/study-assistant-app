@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../../models/mindmap_library.dart';
+import '../../../models/mindmap_library.dart' show NodeState, TreeNode;
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 
@@ -325,6 +325,60 @@ class NodeIntensity {
   });
 }
 
+// ── HeatmapColors ────────────────────────────────────────────────────────────
+
+class HeatmapColors {
+  final Color background;
+  final Color text;
+  final Color border;
+
+  const HeatmapColors({
+    required this.background,
+    required this.text,
+    required this.border,
+  });
+}
+
+HeatmapColors _getHeatmapColor(double mastery) {
+  // 0-20%: 深红 (#D32F2F) - 严重薄弱
+  // 21-40%: 橙色 (#F57C00) - 需要加强
+  // 41-60%: 黄色 (#FBC02D) - 初步了解
+  // 61-80%: 浅绿 (#8BC34A) - 基本掌握
+  // 81-100%: 深绿 (#388E3C) - 完全掌握
+
+  if (mastery <= 20) {
+    return const HeatmapColors(
+      background: Color(0xFFFFCDD2),
+      text: Color(0xFFD32F2F),
+      border: Color(0xFFEF9A9A),
+    );
+  } else if (mastery <= 40) {
+    return const HeatmapColors(
+      background: Color(0xFFFFE0B2),
+      text: Color(0xFFF57C00),
+      border: Color(0xFFFFCC80),
+    );
+  } else if (mastery <= 60) {
+    return const HeatmapColors(
+      background: Color(0xFFFFF9C4),
+      text: Color(0xFFFBC02D),
+      border: Color(0xFFFFF59D),
+    );
+  } else if (mastery <= 80) {
+    return const HeatmapColors(
+      background: Color(0xFFDCEDC8),
+      text: Color(0xFF558B2F),
+      border: Color(0xFFC5E1A5),
+    );
+  } else {
+    return const HeatmapColors(
+      background: Color(0xFFC8E6C9),
+      text: Color(0xFF388E3C),
+      border: Color(0xFFA5D6A7),
+    );
+  }
+}
+
 NodeDisplayState resolveNodeState({
   required TreeNode node,
   required Map<String, bool> states,
@@ -368,12 +422,32 @@ class MindMapPainter extends CustomPainter {
   final Set<String> generatingNodeIds;
   final double pulseValue; // 0.0~1.0，用于生成中节点的脉冲动画
 
+  // 新增：节点学习状态 (locked/unlocked/inProgress/mastered)
+  final Map<String, NodeState>? learningNodeStates;
+
+  // 新增：节点掌握度 (0-100)，用于热力图
+  final Map<String, double>? masteryLevels;
+
+  // 新增：是否为热力图模式
+  final bool heatmapMode;
+
+  // 新增：是否为路径模式（显示预设路径）
+  final bool pathMode;
+
+  // 新增：预设路径节点ID列表
+  final List<String>? pathNodeIds;
+
   MindMapPainter({
     required this.layouts,
     required this.nodeStates,
     required this.colorScheme,
     this.generatingNodeIds = const {},
     this.pulseValue = 0.0,
+    this.learningNodeStates,
+    this.masteryLevels,
+    this.heatmapMode = false,
+    this.pathMode = false,
+    this.pathNodeIds,
   });
 
   @override
@@ -391,7 +465,10 @@ class MindMapPainter extends CustomPainter {
       if (layout.node.parentId != null) {
         final parentLayout = layoutMap[layout.node.parentId];
         if (parentLayout != null) {
-          _drawBezier(canvas, linePaint, parentLayout.rect, layout.rect);
+          // 如果是路径模式且节点在路径中，连线用实线；否则用虚线
+          final isPathNode = pathNodeIds?.contains(layout.node.nodeId) ?? false;
+          final isPath = pathMode && isPathNode;
+          _drawBezier(canvas, linePaint, parentLayout.rect, layout.rect, isPath: isPath);
         }
       }
     }
@@ -402,7 +479,7 @@ class MindMapPainter extends CustomPainter {
     }
   }
 
-  void _drawBezier(Canvas canvas, Paint paint, Rect parent, Rect child) {
+  void _drawBezier(Canvas canvas, Paint paint, Rect parent, Rect child, {bool isPath = true}) {
     // Determine if child is to the left or right of parent
     final parentCX = parent.center.dx;
     final childCX = child.center.dx;
@@ -424,7 +501,14 @@ class MindMapPainter extends CustomPainter {
     final path = Path()
       ..moveTo(start.dx, start.dy)
       ..cubicTo(midX, start.dy, midX, end.dy, end.dx, end.dy);
-    canvas.drawPath(path, paint);
+
+    // 如果不是路径节点，使用虚线
+    if (!isPath) {
+      final dashedPath = _createDashedPath(path, dashLength: 6, gapLength: 4);
+      canvas.drawPath(dashedPath, paint);
+    } else {
+      canvas.drawPath(path, paint);
+    }
   }
 
   void _drawNode(Canvas canvas, NodeLayout layout) {
@@ -435,6 +519,10 @@ class MindMapPainter extends CustomPainter {
     final isRoot = node.parentId == null;
     final isGenerating = generatingNodeIds.contains(node.nodeId);
 
+    // 获取学习状态
+    final learningState = learningNodeStates?[node.nodeId];
+    final mastery = masteryLevels?[node.nodeId];
+
     // Colors
     Color bgColor;
     Color textColor;
@@ -442,7 +530,46 @@ class MindMapPainter extends CustomPainter {
     bool dashedBorder = false;
     double borderWidth = 1.5;
 
-    if (isGenerating) {
+    // 热力图模式优先
+    if (heatmapMode && mastery != null) {
+      // 热力图：根据掌握度计算颜色
+      final colors = _getHeatmapColor(mastery);
+      bgColor = colors.background;
+      textColor = colors.text;
+      borderColor = colors.border;
+      borderWidth = 2.0;
+    } else if (learningState != null) {
+      // 学习状态模式
+      switch (learningState) {
+        case NodeState.locked:
+          // 灰色背景 + 锁图标
+          bgColor = const Color(0xFF9E9E9E).withValues(alpha: 0.3);
+          textColor = const Color(0xFF757575);
+          borderColor = const Color(0xFFBDBDBD);
+        case NodeState.unlocked:
+          // 白色边框（默认）
+          bgColor = colorScheme.surfaceContainerHigh;
+          textColor = colorScheme.onSurface;
+          borderColor = colorScheme.outlineVariant;
+        case NodeState.inProgress:
+          // 蓝色脉冲动画
+          final pulse = (math.sin(pulseValue * math.pi * 2) + 1) / 2;
+          bgColor = Color.lerp(
+            colorScheme.primaryContainer,
+            const Color(0xFF1976D2).withValues(alpha: 0.2),
+            pulse,
+          )!;
+          textColor = const Color(0xFF1976D2);
+          borderColor = const Color(0xFF1976D2);
+          borderWidth = 1.5 + pulse * 1.0;
+        case NodeState.mastered:
+          // 绿色背景 + 对勾
+          bgColor = const Color(0xFFE8F5E9);
+          textColor = const Color(0xFF2E7D32);
+          borderColor = const Color(0xFF4CAF50);
+          borderWidth = 2.0;
+      }
+    } else if (isGenerating) {
       // 生成中：橙色脉冲边框
       final pulse = (math.sin(pulseValue * math.pi * 2) + 1) / 2;
       bgColor = Color.lerp(colorScheme.surfaceContainerHigh,
@@ -609,7 +736,12 @@ class MindMapPainter extends CustomPainter {
       oldDelegate.nodeStates != nodeStates ||
       oldDelegate.colorScheme != colorScheme ||
       oldDelegate.generatingNodeIds != generatingNodeIds ||
-      oldDelegate.pulseValue != pulseValue;
+      oldDelegate.pulseValue != pulseValue ||
+      oldDelegate.learningNodeStates != learningNodeStates ||
+      oldDelegate.masteryLevels != masteryLevels ||
+      oldDelegate.heatmapMode != heatmapMode ||
+      oldDelegate.pathMode != pathMode ||
+      oldDelegate.pathNodeIds != pathNodeIds;
 
   /// Hit-test: returns the NodeLayout at [position], or null.
   static NodeLayout? nodeAt(List<NodeLayout> layouts, Offset position) {

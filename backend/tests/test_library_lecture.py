@@ -18,7 +18,7 @@ from urllib.parse import unquote_plus, quote_plus
 
 # ── 节点树构建算法测试 ─────────────────────────────────────────────────────────
 
-from routers.library import _build_node_tree
+from routers.library import _build_node_tree, _node_context_from_mindmap
 
 
 class TestBuildNodeTree:
@@ -76,6 +76,30 @@ class TestBuildNodeTree:
 
 
 # ── node_id URL 解码测试 ───────────────────────────────────────────────────────
+
+class TestNodeContextFromMindmap:
+    def test_includes_path_and_neighbors(self):
+        md = "\n".join([
+            "# Course",
+            "## Chapter 1",
+            "### Limit",
+            "### Derivative",
+            "#### Definition",
+            "#### Rules",
+            "## Chapter 2",
+        ])
+        nodes = _build_node_tree(md)
+        target = next(node for node in nodes if node["text"] == "Derivative")
+
+        context = _node_context_from_mindmap(md, target["node_id"])
+
+        assert context["title"] == "Derivative"
+        assert context["depth"] == 3
+        assert context["path"] == ["Course", "Chapter 1", "Derivative"]
+        assert context["parent_text"] == "Chapter 1"
+        assert context["sibling_texts"] == ["Limit"]
+        assert context["child_texts"] == ["Definition", "Rules"]
+
 
 class TestNodeIdDecoding:
     """验证 + 号空格 bug 修复：unquote_plus 正确解码 node_id。"""

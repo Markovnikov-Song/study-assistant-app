@@ -1,6 +1,7 @@
 /// ============================================================
 /// 主题风格系统导出
 /// ============================================================
+library;
 
 // 基础接口
 export 'style_base.dart';
@@ -15,3 +16,5 @@ export 'style_switch_provider.dart';
 export 'style_default/export.dart';
 export 'style_clay/export.dart';
 export 'style_minimal/export.dart';
+
+// ignore_for_file: dangling_library_doc_comments

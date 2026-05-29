@@ -1765,7 +1765,7 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
                                 padding: const EdgeInsets.fromLTRB(32, 0, 16, 8),
                                 child: Row(
                                   children: [
-                                    const Text('学科：'),
+                                    const Text('科目：'),
                                     const SizedBox(width: 8),
                                     DropdownButton<int?>(
                                       value: _selectedSubjectId,

@@ -592,7 +592,7 @@ class _ReviewSessionPageState extends ConsumerState<ReviewSessionPage> {
           Icon(Icons.schedule, size: 48, color: Colors.green.shade700),
           const SizedBox(height: 16),
           Text(
-            nextReviewDays == 1 ? '明天继续复习' : '${nextReviewDays}天后复习',
+            nextReviewDays == 1 ? '明天继续复习' : '$nextReviewDays天后复习',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,

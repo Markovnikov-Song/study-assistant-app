@@ -1,3 +1,5 @@
+// ignore_for_file: unintended_html_in_doc_comment
+
 import 'package:dio/dio.dart';
 import '../core/network/api_exception.dart';
 import '../core/network/dio_client.dart';
@@ -21,10 +23,7 @@ class ApiConfigService {
       );
     }
     if (data is List) {
-      throw ApiException(
-        message: '$apiName 失败：服务器返回了列表而非对象',
-        statusCode: null,
-      );
+      throw ApiException(message: '$apiName 失败：服务器返回了列表而非对象', statusCode: null);
     }
     throw ApiException(
       message: '$apiName 失败：无法识别的响应格式（${data.runtimeType}）',
@@ -49,8 +48,16 @@ class ApiConfigService {
   Future<Map<String, dynamic>> saveCustomConfig({
     String? llmBaseUrl,
     String? llmApiKey,
+    String? llmModel,
     String? visionBaseUrl,
     String? visionApiKey,
+    String? visionModel,
+    String? embeddingBaseUrl,
+    String? embeddingApiKey,
+    String? embeddingModel,
+    String? rerankerBaseUrl,
+    String? rerankerApiKey,
+    String? rerankerModel,
   }) async {
     try {
       final res = await _dio.post(
@@ -58,8 +65,16 @@ class ApiConfigService {
         data: {
           'llm_base_url': llmBaseUrl,
           'llm_api_key': llmApiKey,
+          'llm_model': llmModel,
           'vision_base_url': visionBaseUrl,
           'vision_api_key': visionApiKey,
+          'vision_model': visionModel,
+          'embedding_base_url': embeddingBaseUrl,
+          'embedding_api_key': embeddingApiKey,
+          'embedding_model': embeddingModel,
+          'reranker_base_url': rerankerBaseUrl,
+          'reranker_api_key': rerankerApiKey,
+          'reranker_model': rerankerModel,
         },
       );
       return _parseResponse(res.data, '保存配置');

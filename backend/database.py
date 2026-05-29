@@ -595,6 +595,7 @@ class ClientIncident(Base):
 
     user = relationship("User")
 
+
 class MindmapKnowledgeLink(Base):
     """知识关联图：存储 LLM 从思维导图中提取的跨节点关联关系。"""
     __tablename__ = "mindmap_knowledge_links"
@@ -612,6 +613,49 @@ class MindmapKnowledgeLink(Base):
     link_type = Column(String(16), nullable=False)  # causal / dependency / contrast / evolution
     rationale = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+
+    user = relationship("User")
+    session = relationship("ConversationSession")
+
+
+class LearningPath(Base):
+    """学习路径：预设的学科节点学习顺序和依赖关系。"""
+    __tablename__ = "learning_paths"
+    __table_args__ = (
+        Index("idx_learning_paths_subject", "subject_id"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(128), nullable=False)
+    node_ids = Column(JSONB, nullable=False, default=list)  # 有序节点ID列表
+    prerequisites = Column(JSONB, nullable=False, default=dict)  # 节点ID → 前置节点ID列表
+    is_default = Column(Integer, default=0, nullable=False)  # 1=默认路径 0=自定义路径
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+
+    subject = relationship("Subject")
+
+
+class NodeMastery(Base):
+    """节点掌握度：记录用户对每个节点的掌握程度和练习数据。"""
+    __tablename__ = "node_masteries"
+    __table_args__ = (
+        UniqueConstraint("user_id", "session_id", "node_id", name="uq_node_mastery"),
+        Index("idx_node_masteries_user_session", "user_id", "session_id"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    session_id = Column(Integer, ForeignKey("conversation_sessions.id", ondelete="CASCADE"), nullable=False)
+    node_id = Column(String(512), nullable=False)
+    mastery_level = Column(Integer, default=0, nullable=False)  # 0-100
+    last_practiced_at = Column(DateTime(timezone=True), nullable=True)
+    correct_count = Column(Integer, default=0, nullable=False)
+    wrong_count = Column(Integer, default=0, nullable=False)
+    lecture_read_duration = Column(Integer, default=0, nullable=False)  # 秒
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
 
     user = relationship("User")
     session = relationship("ConversationSession")

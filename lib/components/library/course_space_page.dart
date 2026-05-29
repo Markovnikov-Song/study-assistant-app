@@ -41,8 +41,8 @@ class CourseSpacePage extends ConsumerWidget {
                   .firstOrNull
                   ?.subject
                   .name ??
-              '学科详情',
-          orElse: () => '学科详情',
+              '科目详情',
+          orElse: () => '科目详情',
         );
 
     return Scaffold(

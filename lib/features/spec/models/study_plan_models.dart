@@ -15,6 +15,14 @@ int? _toIntOrNull(dynamic v) {
   return null;
 }
 
+Map<String, dynamic> _toMap(dynamic v) {
+  if (v is Map<String, dynamic>) return v;
+  if (v is Map) {
+    return v.map((key, value) => MapEntry(key.toString(), value));
+  }
+  return const {};
+}
+
 class TargetSubject {
   final int id;
   final String name;
@@ -40,6 +48,10 @@ class PlanItem {
   final String priority; // high / medium / low
   final List<String> dependencyNodeIds;
   final DateTime? plannedDate;
+  final String? capabilityId;
+  final Map<String, dynamic> capabilityParams;
+  final Map<String, dynamic> completionContract;
+  final Map<String, dynamic> completionResult;
   final String status; // pending / done / skipped
   final DateTime? completedAt;
 
@@ -54,6 +66,10 @@ class PlanItem {
     required this.priority,
     required this.dependencyNodeIds,
     this.plannedDate,
+    this.capabilityId,
+    this.capabilityParams = const {},
+    this.completionContract = const {},
+    this.completionResult = const {},
     required this.status,
     this.completedAt,
   });
@@ -74,6 +90,10 @@ class PlanItem {
         plannedDate: json['planned_date'] != null
             ? DateTime.tryParse(json['planned_date'] as String)
             : null,
+        capabilityId: json['capability_id'] as String?,
+        capabilityParams: _toMap(json['capability_params']),
+        completionContract: _toMap(json['completion_contract']),
+        completionResult: _toMap(json['completion_result']),
         status: json['status'] as String? ?? 'pending',
         completedAt: json['completed_at'] != null
             ? DateTime.tryParse(json['completed_at'] as String)

@@ -135,6 +135,7 @@ class CustomQuizNotifier extends StateNotifier<GenerationState> {
     required Map<String, int> typeScores,
     required String difficulty,
     String? topic,
+    String sourceMode = 'material',
     bool useBroad = false,
   }) async {
     state = const GenerationState(isLoading: true);
@@ -146,6 +147,7 @@ class CustomQuizNotifier extends StateNotifier<GenerationState> {
         typeScores: typeScores,
         difficulty: difficulty,
         topic: topic,
+        sourceMode: sourceMode,
         useBroad: useBroad,
       );
       state = GenerationState(result: result);
@@ -155,7 +157,12 @@ class CustomQuizNotifier extends StateNotifier<GenerationState> {
   }
 }
 
+typedef CustomQuizKey = ({int subjectId, String sourceMode});
+
 final customQuizProvider =
-    StateNotifierProviderFamily<CustomQuizNotifier, GenerationState, int>(
-  (ref, subjectId) => CustomQuizNotifier(ref.watch(examServiceProvider), subjectId),
+    StateNotifierProviderFamily<CustomQuizNotifier, GenerationState, CustomQuizKey>(
+  (ref, key) => CustomQuizNotifier(
+    ref.watch(examServiceProvider),
+    key.subjectId,
+  ),
 );

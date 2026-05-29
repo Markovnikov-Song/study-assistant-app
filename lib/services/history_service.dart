@@ -22,9 +22,13 @@ class HistorySessionItem extends ConversationSession {
     final base = ConversationSession.fromJson(json);
     final rawSubjectId = json['subject_id'];
     int? subjectId;
-    if (rawSubjectId is int) subjectId = rawSubjectId;
-    else if (rawSubjectId is num) subjectId = rawSubjectId.toInt();
-    else if (rawSubjectId is String) subjectId = int.tryParse(rawSubjectId);
+    if (rawSubjectId is int) {
+      subjectId = rawSubjectId;
+    } else if (rawSubjectId is num) {
+      subjectId = rawSubjectId.toInt();
+    } else if (rawSubjectId is String) {
+      subjectId = int.tryParse(rawSubjectId);
+    }
     return HistorySessionItem(
       id: base.id,
       sessionType: base.sessionType,
@@ -68,14 +72,14 @@ class MessageSearchResult {
       orElse: () => SessionType.qa,
     );
 
-    int _toInt(dynamic v) {
+    int toInt(dynamic v) {
       if (v is int) return v;
       if (v is num) return v.toInt();
       if (v is String) return int.tryParse(v) ?? 0;
       return 0;
     }
 
-    int? _toIntOrNull(dynamic v) {
+    int? toIntOrNull(dynamic v) {
       if (v == null) return null;
       if (v is int) return v;
       if (v is num) return v.toInt();
@@ -84,12 +88,12 @@ class MessageSearchResult {
     }
 
     return MessageSearchResult(
-      messageId: _toInt(json['message_id']),
-      sessionId: _toInt(json['session_id']),
+      messageId: toInt(json['message_id']),
+      sessionId: toInt(json['session_id']),
       sessionTitle: json['session_title'] as String?,
       sessionType: type,
       typeLabel: json['type_label'] as String,
-      subjectId: _toIntOrNull(json['subject_id']),
+      subjectId: toIntOrNull(json['subject_id']),
       subjectName: json['subject_name'] as String?,
       role: json['role'] as String,
       snippet: json['snippet'] as String,
@@ -104,19 +108,26 @@ class HistoryService {
   Future<List<HistorySessionItem>> getAllSessions() async {
     try {
       final res = await _dio.get(ApiConstants.sessions);
-      return (res.data as List).map((e) => HistorySessionItem.fromJson(e)).toList();
+      return (res.data as List)
+          .map((e) => HistorySessionItem.fromJson(e))
+          .toList();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
   }
 
-  Future<List<MessageSearchResult>> searchMessages(String q, {String? sessionType}) async {
+  Future<List<MessageSearchResult>> searchMessages(
+    String q, {
+    String? sessionType,
+  }) async {
     try {
-      final res = await _dio.get(ApiConstants.sessionsSearch, queryParameters: {
-        'q': q,
-        'session_type': ?sessionType,
-      });
-      return (res.data as List).map((e) => MessageSearchResult.fromJson(e)).toList();
+      final res = await _dio.get(
+        ApiConstants.sessionsSearch,
+        queryParameters: {'q': q, 'session_type': ?sessionType},
+      );
+      return (res.data as List)
+          .map((e) => MessageSearchResult.fromJson(e))
+          .toList();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

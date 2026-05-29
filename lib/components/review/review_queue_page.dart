@@ -94,7 +94,7 @@ class ReviewQueuePage extends ConsumerWidget {
                 child: _StatCard(
                   title: '总卡片数',
                   value: '${queue.totalCount}',
-                  subtitle: '分布在各学科',
+                  subtitle: '分布在各科目',
                   color: Colors.purple,
                 ),
               ),

@@ -3,13 +3,11 @@
   - 009: notes 表添加 mastery_score / review_count / last_reviewed_at / mistake_category / mastery_history
   - 010: notes 表添加 review_card_id / node_id / question_text / user_answer / correct_answer
 """
+import os
+
 import psycopg2
 
-DATABASE_URL = (
-    "postgresql://neondb_owner:npg_lu5C1dFvpHeN"
-    "@ep-still-sunset-a1v42bky-pooler.ap-southeast-1.aws.neon.tech"
-    "/neondb?sslmode=require"
-)
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 SQLS = [
     # ── migration 009 ─────────────────────────────────────────────────────────

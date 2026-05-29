@@ -3,13 +3,11 @@
   - notes 表补充 note_type / mistake_status 字段（原 migration 遗漏）
   - migration 007: calendar_routines / calendar_events / study_sessions 表
 """
+import os
+
 import psycopg2
 
-DATABASE_URL = (
-    "postgresql://neondb_owner:npg_lu5C1dFvpHeN"
-    "@ep-still-sunset-a1v42bky-pooler.ap-southeast-1.aws.neon.tech"
-    "/neondb?sslmode=require"
-)
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 SQLS = [
     # ── notes 表补字段 ────────────────────────────────────────────────────────

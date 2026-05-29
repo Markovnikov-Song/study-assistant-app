@@ -1,0 +1,13 @@
+{
+  "name": "study-assistant-app-smoke",
+  "private": true,
+  "scripts": {
+    "web:build": "flutter build web --release",
+    "test:web-smoke": "playwright test",
+    "test:web-smoke:build": "npm run web:build && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "serve": "^14.2.5"
+  }
+}

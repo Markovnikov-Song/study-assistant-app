@@ -131,12 +131,12 @@ class EmptyLibraryState extends StatelessWidget {
     return EmptyState(
       icon: const Icon(Icons.menu_book_outlined),
       title: '图书馆空空的',
-      subtitle: '去「我的」→「学科管理」创建学科\n再生成思维导图，课程就会出现',
+      subtitle: '去「我的」→「科目管理」创建科目\n再生成思维导图，课程就会出现',
       action: onAction != null
           ? FilledButton.icon(
               onPressed: onAction,
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('创建学科'),
+              label: const Text('创建科目'),
             )
           : null,
     );
@@ -191,7 +191,7 @@ class EmptyToolkitState extends StatelessWidget {
       case 'notebook':
         return '在对话中长按消息收藏\n或拍照识别题目';
       case 'quiz':
-        return '在学科导图中点击节点\n生成专属测验';
+        return '在科目导图中点击节点\n生成专属测验';
       case 'solve':
         return '拍题或输入题目来练习\nAI会帮你分析解答';
       default:

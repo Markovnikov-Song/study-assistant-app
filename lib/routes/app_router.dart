@@ -23,6 +23,9 @@ import '../features/history/history_page.dart';
 import '../features/subject_detail/subject_detail_page.dart';
 import '../features/skill_marketplace/marketplace_page.dart';
 import '../features/skill_creation/dialog_creation_page.dart';
+import '../features/workshop/workshop_builder_page.dart';
+import '../features/workshop/workshop_page.dart';
+import '../features/workshop/mini_app_run_page.dart';
 import '../components/library/library_page.dart';
 import '../components/library/course_space_page.dart';
 import '../components/library/editable_mindmap_page.dart';
@@ -35,99 +38,20 @@ import '../components/solve/solve_page.dart';
 import '../components/quiz/quiz_page.dart';
 import '../components/review/review_page.dart';
 import '../components/mindmap_entry/mindmap_entry_page.dart';
+import '../core/capability/capability_execution_contract.dart';
+import '../features/memory_drill/memory_drill_page.dart';
 import '../features/skill_runner/my_skills_page.dart';
 import '../features/calendar/calendar_page.dart';
 import '../features/calendar/widgets/countdown_list_page.dart';
 import '../features/calendar/widgets/stats_panel.dart';
 import '../features/profile/notification_settings_page.dart';
+import '../features/profile/settings_page.dart';
 import '../providers/auth_provider.dart';
-import '../providers/library_provider.dart';
+import 'app_routes.dart';
+import 'mindmap_subject_picker_page.dart';
+export 'app_routes.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 所有路由路径常量，集中定义，全项目唯一来源
-// ─────────────────────────────────────────────────────────────────────────────
-class R {
-  R._();
-
-  // Auth
-  static const login    = '/login';
-  static const register = '/register';
-
-  // Shell Tabs
-  static const chat        = '/';
-  static const courseSpace = '/course-space';
-  static const toolkit     = '/toolkit';
-  static const profile     = '/profile';
-
-  // Chat 子路由
-  static String chatSession(String chatId)                        => '/chat/$chatId';
-  static String chatSubject(String chatId, int subjectId)         => '/chat/$chatId/subject/$subjectId';
-  static String chatTask(String chatId, String taskId)            => '/chat/$chatId/task/$taskId';
-  static const spec = '/spec';
-
-  // 课程空间
-  static String courseSpaceSubject(int subjectId)                 => '/course-space/$subjectId';
-  static String mindmap(int subjectId, int sessionId)             => '/course-space/$subjectId/mindmap/$sessionId';
-  static String lecture(int subjectId, int sessionId, String nodeId)
-      => '/course-space/$subjectId/mindmap/$sessionId/lecture?node_id=${Uri.encodeQueryComponent(nodeId)}';
-
-  // 工具箱
-  static const toolkitMistakeBook = '/toolkit/mistake-book';
-  static const toolkitNotebooks   = '/toolkit/notebooks';
-  static String notebookDetail(int id)                            => '/toolkit/notebooks/$id';
-  static String noteDetail(int nbId, int noteId)                  => '/toolkit/notebooks/$nbId/notes/$noteId';
-  static const toolkitSolve = '/toolkit/solve';
-  static const toolkitQuiz  = '/toolkit/quiz';
-  static const toolkitSettings = '/toolkit/settings';
-
-  // 我的
-  static const profileEdit     = '/profile/edit';
-  static const profileMemory   = '/profile/memory';
-  static const profileSubjects = '/profile/subjects';
-  static const profileResources = '/profile/resources';
-  static const profileHistory  = '/profile/history';
-  static const profileTokenUsage = '/profile/token-usage';
-  static const profileTokenDetail = '/profile/token-usage/detail';
-  static const profileNotifications = '/profile/notifications';
-  static const profileApiConfig = '/profile/api-config';
-  static const profileLogs = '/profile/logs';
-  static String subjectDetail(int id)                             => '/profile/resources/$id';
-
-  // 其他独立页面
-  static const skillMarketplace  = '/skill-marketplace';
-  static const skillDialogCreate = '/skill-create-dialog';
-  static const mindmapEntry      = '/mindmap-entry';
-  static String mindmapEntryForSubject(int subjectId) => '/mindmap-entry?subject=$subjectId';
-
-  // Calendar Planner
-  static const toolkitCalendar          = '/toolkit/calendar';
-  static String toolkitCalendarTask(String id) => '/toolkit/calendar/task/$id';
-  static const toolkitCalendarCountdown = '/toolkit/calendar/countdown';
-  static const toolkitCalendarStats     = '/toolkit/calendar/stats';
-
-  // ── 向后兼容旧路由（其他文件仍引用，映射到新路由）──────────────────────────
-  // 旧的 /library/:subjectId/mindmap/:sessionId/lecture 仍可用
-  static String legacyMindmap(int subjectId, int sessionId)       => '/course-space/$subjectId/mindmap/$sessionId';
-  static String legacyLecture(int subjectId, int sessionId, String nodeId)
-      => lecture(subjectId, sessionId, nodeId);
-
-  // 旧方法别名（保持向后兼容）
-  static String subjectDetailPath(int id)  => subjectDetail(id);
-  static String courseSpacePath(int id)    => courseSpaceSubject(id);
-  static String courseSpaceById(int id)    => courseSpaceSubject(id);
-  static String editableMindMap(int subjectId, int sessionId) => mindmap(subjectId, sessionId);
-  static String lecturePage(int subjectId, int sessionId, String nodeId)
-      => lecture(subjectId, sessionId, nodeId);
-  static String notebookDetail_(int id)    => notebookDetail(id);
-  static String noteDetail_(int nbId, int noteId) => noteDetail(nbId, noteId);
-}
-
-// 旧名称别名，让其他文件的 AppRoutes.xxx 不报错
-typedef AppRoutes = R;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Router Provider
-// ─────────────────────────────────────────────────────────────────────────────
+// Router provider.
 final routerProvider = Provider<GoRouter>((ref) {
   final notifier = _RouterNotifier(ref);
   return GoRouter(
@@ -145,43 +69,81 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (loggedIn && isAuth) return R.chat;
       return null;
     },
-    errorBuilder: (context, state) => Scaffold(
-      body: Center(child: Text('页面不存在: ${state.uri}')),
-    ),
+    errorBuilder: (context, state) =>
+        Scaffold(body: Center(child: Text('页面不存在: ${state.uri}'))),
     routes: [
       // ── Splash（开屏动画）──────────────────────────────────────────────────
       GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
 
       // ── Auth ──────────────────────────────────────────────────────────────
-      GoRoute(path: R.login,    builder: (_, _) => const LoginPage()),
+      GoRoute(path: R.login, builder: (_, _) => const LoginPage()),
       GoRoute(path: R.register, builder: (_, _) => const RegisterPage()),
 
       // ── 独立全屏页面（push 覆盖 shell）────────────────────────────────────
-      GoRoute(path: R.spec,              builder: (_, state) => SpecPage(
-        prefilledSubjectIds: (state.uri.queryParameters['subjects'] ?? '')
-            .split(',')
-            .where((s) => s.isNotEmpty)
-            .map(int.tryParse)
-            .whereType<int>()
-            .toList(),
-        prefilledContext: state.uri.queryParameters['context'],
-      )),
-      GoRoute(path: R.profileEdit,       builder: (_, _) => const EditProfilePage()),
-      GoRoute(path: R.profileMemory,     builder: (_, _) => const MemoryPage()),
-      GoRoute(path: R.profileSubjects,   builder: (_, _) => const SubjectsPage()),
-      GoRoute(path: R.profileTokenUsage, builder: (_, _) => const TokenUsagePage()),
-      GoRoute(path: R.profileTokenDetail, builder: (_, _) => const TokenDetailPage()),
-      GoRoute(path: R.profileNotifications, builder: (_, _) => const NotificationSettingsPage()),
-      GoRoute(path: R.profileApiConfig, builder: (_, _) => const ApiConfigPage()),
-      GoRoute(path: R.profileLogs,     builder: (_, _) => const LogsPage()),
-      GoRoute(path: R.profileResources,  builder: (_, _) => const ResourcesPage()),
-      GoRoute(path: R.profileHistory,    builder: (_, _) => const HistoryPage()),
-      GoRoute(path: R.skillMarketplace,  builder: (_, _) => const MarketplacePage()),
-      GoRoute(path: R.skillDialogCreate, builder: (_, _) => const DialogCreationPage()),
+      GoRoute(
+        path: R.spec,
+        builder: (_, state) => SpecPage(
+          prefilledSubjectIds: (state.uri.queryParameters['subjects'] ?? '')
+              .split(',')
+              .where((s) => s.isNotEmpty)
+              .map(int.tryParse)
+              .whereType<int>()
+              .toList(),
+          prefilledContext: state.uri.queryParameters['context'],
+        ),
+      ),
+      GoRoute(path: R.profileEdit, builder: (_, _) => const EditProfilePage()),
+      GoRoute(path: R.profileMemory, builder: (_, _) => const MemoryPage()),
+      GoRoute(path: R.profileSubjects, builder: (_, _) => const SubjectsPage()),
+      GoRoute(
+        path: R.profileTokenUsage,
+        builder: (_, _) => const TokenUsagePage(),
+      ),
+      GoRoute(
+        path: R.profileTokenDetail,
+        builder: (_, _) => const TokenDetailPage(),
+      ),
+      GoRoute(
+        path: R.profileNotifications,
+        builder: (_, _) => const NotificationSettingsPage(),
+      ),
+      GoRoute(
+        path: R.profileApiConfig,
+        builder: (_, _) => const ApiConfigPage(),
+      ),
+      GoRoute(path: R.profileLogs, builder: (_, _) => const LogsPage()),
+      GoRoute(path: R.profileSettings, builder: (_, _) => const SettingsPage()),
+      GoRoute(
+        path: R.profileResources,
+        builder: (_, _) => const ResourcesPage(),
+      ),
+      GoRoute(path: R.profileHistory, builder: (_, _) => const HistoryPage()),
+      GoRoute(
+        path: R.skillMarketplace,
+        builder: (_, _) => const MarketplacePage(),
+      ),
+      GoRoute(
+        path: R.skillDialogCreate,
+        builder: (_, _) => const DialogCreationPage(),
+      ),
+      GoRoute(path: R.workshop, builder: (_, _) => const WorkshopPage()),
+      GoRoute(
+        path: R.workshopBuilder,
+        builder: (_, state) => WorkshopBuilderPage(
+          initialRequest: state.uri.queryParameters['request'],
+        ),
+      ),
+      GoRoute(
+        path: '/workshop/apps/:appId',
+        builder: (_, state) =>
+            MiniAppRunPage(appId: state.pathParameters['appId']!),
+      ),
       GoRoute(
         path: R.mindmapEntry,
         builder: (_, state) => MindmapEntryPage(
-          initialSubjectId: int.tryParse(state.uri.queryParameters['subject'] ?? ''),
+          initialSubjectId: int.tryParse(
+            state.uri.queryParameters['subject'] ?? '',
+          ),
         ),
       ),
       GoRoute(
@@ -218,17 +180,42 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => ChatPage(
           chatId: 'feynman_${DateTime.now().millisecondsSinceEpoch}',
           feynmanTopic: state.uri.queryParameters['topic'],
-          subjectId: int.tryParse(state.uri.queryParameters['subject_id'] ?? ''),
+          subjectId: int.tryParse(
+            state.uri.queryParameters['subject_id'] ?? '',
+          ),
         ),
       ),
 
       // 工具箱子路由
-      GoRoute(path: R.toolkitMistakeBook, builder: (_, _) => const MistakeBookPage()),
-      GoRoute(path: '/toolkit/review',    builder: (_, _) => const ReviewPage()),
-      GoRoute(path: R.toolkitSolve,       builder: (_, _) => const SolvePage()),
-      GoRoute(path: R.toolkitQuiz,        builder: (_, _) => const QuizPage()),
-      GoRoute(path: R.toolkitSettings,    builder: (_, _) => const ToolkitSettingsPage()),
-      GoRoute(path: '/my-skills',         builder: (_, _) => const MySkillsPage()),
+      GoRoute(
+        path: R.toolkitMistakeBook,
+        builder: (_, _) => const MistakeBookPage(),
+      ),
+      GoRoute(path: '/toolkit/review', builder: (_, _) => const ReviewPage()),
+      GoRoute(path: R.toolkitSolve, builder: (_, _) => const SolvePage()),
+      GoRoute(
+        path: R.toolkitQuiz,
+        builder: (_, state) => QuizPage(
+          execution: CapabilityExecutionContext.fromQuery(
+            state.uri.queryParameters,
+            capabilityId: 'quiz.generate',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: R.toolkitMemoryDrill,
+        builder: (_, state) => MemoryDrillPage(
+          execution: CapabilityExecutionContext.fromQuery(
+            state.uri.queryParameters,
+            capabilityId: 'memory.drill',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: R.toolkitSettings,
+        builder: (_, _) => const ToolkitSettingsPage(),
+      ),
+      GoRoute(path: '/my-skills', builder: (_, _) => const MySkillsPage()),
       GoRoute(
         path: R.toolkitCalendar,
         builder: (_, state) => CalendarPage(
@@ -242,30 +229,28 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: 'task/:taskId',
-            builder: (_, state) => CalendarPage(
-              taskId: state.pathParameters['taskId'],
-            ),
+            builder: (_, state) =>
+                CalendarPage(taskId: state.pathParameters['taskId']),
           ),
           GoRoute(
             path: 'countdown',
             builder: (_, _) => const CountdownListPage(),
           ),
-          GoRoute(
-            path: 'stats',
-            builder: (_, _) => const StatsPanel(),
-          ),
+          GoRoute(path: 'stats', builder: (_, _) => const StatsPanel()),
         ],
       ),
       GoRoute(
         path: '/toolkit/mindmap-workshop',
         builder: (_, state) {
-          final subjectId = int.tryParse(state.uri.queryParameters['subject'] ?? '');
+          final subjectId = int.tryParse(
+            state.uri.queryParameters['subject'] ?? '',
+          );
           if (subjectId != null) {
             // 直接进指定学科的详情页
             return CourseSpacePage(subjectId: subjectId);
           }
           // 没有指定学科，显示学科选择页
-          return const _MindmapSubjectPickerPage();
+          return const MindmapSubjectPickerPage();
         },
       ),
       GoRoute(
@@ -320,17 +305,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Shell（底部 4 Tab / 桌面侧边栏）────────────────────────────────
       ShellRoute(
         builder: (context, state, child) {
-          final location = state.matchedLocation;
-          return ResponsiveShell(
-            location: location,
-            child: child,
-          );
+          final location = state.uri.path.isEmpty ? '/' : state.uri.path;
+          return ResponsiveShell(location: location, child: child);
         },
         routes: [
-          GoRoute(path: '/',               builder: (_, _) => const ChatPage()),
-          GoRoute(path: R.courseSpace,     builder: (_, _) => const LibraryPage()),
-          GoRoute(path: R.toolkit,         builder: (_, _) => const ToolkitPage()),
-          GoRoute(path: R.profile,         builder: (_, _) => const ProfilePage()),
+          GoRoute(path: '/', builder: (_, _) => const ChatPage()),
+          GoRoute(path: R.courseSpace, builder: (_, _) => const LibraryPage()),
+          GoRoute(path: R.toolkit, builder: (_, _) => const ToolkitPage()),
+          GoRoute(path: R.profile, builder: (_, _) => const ProfilePage()),
         ],
       ),
     ],
@@ -349,109 +331,5 @@ class _RouterNotifier extends ChangeNotifier {
     });
     isLoggedIn = ref.read(authProvider).isAuthenticated;
     isRestoring = ref.read(authProvider).isRestoring;
-  }
-}
-
-// ── 脑图工坊学科选择页（无 subjectId 时显示）────────────────────────────────
-
-class _MindmapSubjectPickerPage extends ConsumerWidget {
-  const _MindmapSubjectPickerPage();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final subjectsAsync = ref.watch(schoolSubjectsProvider);
-    final cs = Theme.of(context).colorScheme;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('脑图工坊'),
-        centerTitle: false,
-      ),
-      body: subjectsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('加载失败：$e')),
-        data: (subjects) {
-          if (subjects.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(40),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.school_outlined, size: 64, color: cs.outlineVariant),
-                    const SizedBox(height: 16),
-                    Text('还没有学科', style: TextStyle(color: cs.outline, fontSize: 15)),
-                    const SizedBox(height: 8),
-                    Text('去「我的 → 学科管理」创建学科',
-                        style: TextStyle(color: cs.outline, fontSize: 13)),
-                  ],
-                ),
-              ),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: subjects.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
-            itemBuilder: (_, i) {
-              final item = subjects[i];
-              final pct = item.totalNodes == 0
-                  ? 0
-                  : (item.litNodes / item.totalNodes * 100).floor();
-              return Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: cs.outlineVariant),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => context.push(
-                    AppRoutes.courseSpaceById(item.subject.id),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: cs.primaryContainer,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(Icons.account_tree_outlined,
-                              color: cs.onPrimaryContainer),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(item.subject.name,
-                                  style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600)),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${item.sessionCount} 份导图  ·  进度 $pct%',
-                                style: TextStyle(
-                                    fontSize: 12, color: cs.outline),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(Icons.chevron_right, color: cs.outline),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
   }
 }

@@ -17,7 +17,7 @@ class NoSubjectHint extends ConsumerWidget {
             Icon(Icons.menu_book_outlined, size: 96, color: cs.outlineVariant),
             const SizedBox(height: 24),
             Text(
-              '选择或新建学科',
+              '选择或新建科目',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -25,7 +25,7 @@ class NoSubjectHint extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              '选择一个学科后即可开始问答、解题、生成导图等功能',
+              '选择一个科目后即可使用当前功能',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: cs.onSurfaceVariant,
                   ),
@@ -39,7 +39,7 @@ class NoSubjectHint extends ConsumerWidget {
                 builder: (_) => const SubjectPickerSheet(),
               ),
               icon: const Icon(Icons.book_outlined),
-              label: const Text('选择学科'),
+              label: const Text('选择科目'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size(200, 52),
                 textStyle: const TextStyle(fontSize: 16),
@@ -53,7 +53,7 @@ class NoSubjectHint extends ConsumerWidget {
                 builder: (_) => const CreateSubjectSheet(),
               ),
               icon: const Icon(Icons.add),
-              label: const Text('新建学科'),
+              label: const Text('新建科目'),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(200, 52),
                 textStyle: const TextStyle(fontSize: 16),

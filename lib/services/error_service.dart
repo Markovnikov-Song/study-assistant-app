@@ -4,13 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 错误级别
-enum ErrorLevel {
-  debug,
-  info,
-  warning,
-  error,
-  critical,
-}
+enum ErrorLevel { debug, info, warning, error, critical }
 
 /// 错误日志条目
 @immutable
@@ -36,32 +30,33 @@ class ErrorLog {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'timestamp': timestamp.toIso8601String(),
-        'level': level.name,
-        'message': message,
-        'stackTrace': stackTrace,
-        'context': context,
-        'endpoint': endpoint,
-        'statusCode': statusCode,
-      };
+    'id': id,
+    'timestamp': timestamp.toIso8601String(),
+    'level': level.name,
+    'message': message,
+    'stackTrace': stackTrace,
+    'context': context,
+    'endpoint': endpoint,
+    'statusCode': statusCode,
+  };
 
   factory ErrorLog.fromJson(Map<String, dynamic> json) => ErrorLog(
-        id: json['id'] as String,
-        timestamp: DateTime.parse(json['timestamp'] as String),
-        level: ErrorLevel.values.byName(json['level'] as String),
-        message: json['message'] as String,
-        stackTrace: json['stackTrace'] as String?,
-        context: json['context'] as String?,
-        endpoint: json['endpoint'] as String?,
-        statusCode: json['statusCode'] as int?,
-      );
+    id: json['id'] as String,
+    timestamp: DateTime.parse(json['timestamp'] as String),
+    level: ErrorLevel.values.byName(json['level'] as String),
+    message: json['message'] as String,
+    stackTrace: json['stackTrace'] as String?,
+    context: json['context'] as String?,
+    endpoint: json['endpoint'] as String?,
+    statusCode: json['statusCode'] as int?,
+  );
 }
 
 /// 全局错误处理服务
 class ErrorService {
   static const _storageKey = 'app_error_logs';
-  static const _maxLogs = 100;
+  /// 本地环形缓冲：仅用于提交反馈时附带上下文，云端收件箱单独保留。
+  static const _maxLogs = 300;
 
   final List<ErrorLog> _logs = [];
   final StreamController<ErrorLog> _errorStreamController =
@@ -81,7 +76,9 @@ class ErrorService {
       final jsonStr = prefs.getString(_storageKey);
       if (jsonStr != null) {
         final List<dynamic> list = jsonDecode(jsonStr);
-        _logs.addAll(list.map((e) => ErrorLog.fromJson(e as Map<String, dynamic>)));
+        _logs.addAll(
+          list.map((e) => ErrorLog.fromJson(e as Map<String, dynamic>)),
+        );
       }
     } catch (e) {
       debugPrint('[ErrorService] Failed to load logs: $e');
@@ -127,10 +124,7 @@ class ErrorService {
     }
   }
 
-  void recordException(
-    Object exception, [
-    StackTrace? stackTrace,
-  ]) {
+  void recordException(Object exception, [StackTrace? stackTrace]) {
     record(
       message: exception.toString(),
       level: ErrorLevel.error,
@@ -174,7 +168,8 @@ class ErrorService {
   }
 
   /// 生成唯一ID
-  String _generateId() => '${DateTime.now().millisecondsSinceEpoch}_${_randomString(8)}';
+  String _generateId() =>
+      '${DateTime.now().millisecondsSinceEpoch}_${_randomString(8)}';
 
   String _randomString(int length) {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -194,9 +189,11 @@ class ErrorService {
     };
     final reset = '\x1B[0m';
 
-    print('$levelColor[${log.level.name.toUpperCase()}]${reset} ${log.message}');
+    debugPrint(
+      '$levelColor[${log.level.name.toUpperCase()}]$reset ${log.message}',
+    );
     if (log.stackTrace != null) {
-      print('$levelColor[STACK]${reset}\n${log.stackTrace}');
+      debugPrint('$levelColor[STACK]$reset\n${log.stackTrace}');
     }
   }
 }

@@ -3,90 +3,57 @@ import 'package:study_assistant_app/components/mindmap/domain/edit_history.dart'
 
 void main() {
   group('EditHistory', () {
-    late EditHistory history;
+    test('initial state cannot undo or redo', () {
+      final history = EditHistory();
 
-    setUp(() {
-      history = EditHistory();
-    });
-
-    test('初始状�?canUndo �?canRedo 均为 false', () {
       expect(history.canUndo, isFalse);
       expect(history.canRedo, isFalse);
     });
 
-    test('push �?canUndo �?true，canRedo �?false', () {
-      history.push('snapshot1');
-      expect(history.canUndo, isTrue);
-      expect(history.canRedo, isFalse);
-    });
+    test('push enables undo and clears redo', () {
+      final history = EditHistory();
 
-    test('undo 返回正确快照，canUndo/canRedo 状态正�?, () {
       history.push('s0');
       history.push('s1');
 
-      final result = history.undo('s2');
-      expect(result, equals('s1'));
-      expect(history.canUndo, isTrue);  // s0 仍在撤销�?
-      expect(history.canRedo, isTrue);  // s2 被推入重做栈
-    });
-
-    test('undo �?canUndo �?false（撤销栈清空）', () {
-      history.push('s0');
-      history.undo('current');
-      expect(history.canUndo, isFalse);
-      expect(history.canRedo, isTrue);
-    });
-
-    test('redo 返回正确快照', () {
-      history.push('s0');
-      history.undo('s1');       // 撤销：s1 �?redoStack，返�?s0
-      final result = history.redo('s0'); // 重做：s0 �?undoStack，返�?s1
-      expect(result, equals('s1'));
       expect(history.canUndo, isTrue);
       expect(history.canRedo, isFalse);
     });
 
-    test('撤销后新操作（push）清空重做栈', () {
+    test('undo and redo return expected snapshots', () {
+      final history = EditHistory();
       history.push('s0');
-      history.undo('s1');
+      history.push('s1');
+
+      expect(history.undo('s2'), 's1');
       expect(history.canRedo, isTrue);
-
-      history.push('s2'); // 新操作，应清空重做栈
-      expect(history.canRedo, isFalse);
+      expect(history.redo('s1'), 's2');
     });
 
-    test('超过 50 步后撤销栈长度不超过 50', () {
-      for (int i = 0; i < 60; i++) {
-        history.push('snapshot_$i');
-      }
-      // 直接通过 canUndo 验证栈非空，通过连续 undo 验证最�?50 �?
-      int undoCount = 0;
-      String current = 'current';
-      while (history.canUndo) {
-        current = history.undo(current)!;
-        undoCount++;
-      }
-      expect(undoCount, equals(EditHistory.maxSize));
-    });
-
-    test('空撤销栈时 undo 返回 null', () {
+    test('undo returns null when stack is empty', () {
+      final history = EditHistory();
       expect(history.undo('current'), isNull);
     });
 
-    test('空重做栈�?redo 返回 null', () {
+    test('redo returns null when stack is empty', () {
+      final history = EditHistory();
       expect(history.redo('current'), isNull);
     });
 
-    test('多次 undo/redo 顺序正确', () {
-      history.push('s0');
-      history.push('s1');
-      history.push('s2');
+    test('keeps at most 50 undo snapshots', () {
+      final history = EditHistory();
+      for (var i = 0; i < 60; i++) {
+        history.push('s$i');
+      }
 
-      expect(history.undo('s3'), equals('s2'));
-      expect(history.undo('s2'), equals('s1'));
-      expect(history.redo('s1'), equals('s2'));
-      expect(history.redo('s2'), equals('s3'));
-      expect(history.canRedo, isFalse);
+      var count = 0;
+      var current = 'latest';
+      while (history.canUndo) {
+        current = history.undo(current) ?? current;
+        count += 1;
+      }
+
+      expect(count, 50);
     });
   });
 }

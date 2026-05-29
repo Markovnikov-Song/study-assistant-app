@@ -22,6 +22,104 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
+def _fallback_mindmap_for_subject(subject_name: str) -> str:
+    """Build a default exam-prep outline when no uploaded material is available."""
+    normalized = subject_name.strip().lower()
+    if "材料力学" in subject_name or "material mechanics" in normalized:
+        return """# 材料力学备考地图
+## 轴向拉伸与压缩
+### 内力与轴力图
+### 正应力与强度条件
+### 拉压变形与胡克定律
+## 剪切与挤压
+### 剪切实用计算
+### 挤压强度条件
+## 扭转
+### 扭矩图
+### 圆轴扭转应力
+### 扭转变形与刚度条件
+## 弯曲内力
+### 剪力方程与弯矩方程
+### 剪力图与弯矩图
+## 弯曲应力
+### 正应力公式
+### 截面惯性矩
+### 弯曲强度条件
+## 弯曲变形
+### 挠曲线近似微分方程
+### 叠加法
+### 刚度条件
+## 应力状态与强度理论
+### 平面应力状态
+### 主应力与最大切应力
+### 常用强度理论
+## 组合变形
+### 拉弯组合
+### 弯扭组合
+### 偏心压缩
+## 压杆稳定
+### 欧拉公式
+### 临界应力
+### 稳定校核
+## 能量法
+### 应变能
+### 卡氏定理
+### 单位载荷法
+"""
+    return f"""# {subject_name}备考地图
+## 基础概念
+### 核心定义
+### 常见术语
+### 易混点辨析
+## 核心公式与方法
+### 公式记忆
+### 适用条件
+### 典型步骤
+## 重点题型
+### 基础题
+### 综合题
+### 易错题
+## 冲刺复盘
+### 高频考点
+### 错题回炉
+### 模拟练习
+"""
+
+
+def _store_mindmap_session(
+    *,
+    subject_id: int,
+    subject_name: str,
+    user_id: int,
+    db,
+    content: str,
+    fallback: bool = False,
+) -> int:
+    from database import ConversationHistory, ConversationSession
+
+    title_suffix = "兜底生成" if fallback else "自动生成"
+    session_obj = ConversationSession(
+        user_id=user_id,
+        subject_id=subject_id,
+        session_type="mindmap",
+        title=f"{subject_name} 知识导图（{title_suffix}）",
+    )
+    db.add(session_obj)
+    db.flush()
+    new_session_id = session_obj.id
+    db.add(ConversationHistory(
+        session_id=new_session_id,
+        role="user",
+        content="自动生成备考知识导图",
+    ))
+    db.add(ConversationHistory(
+        session_id=new_session_id,
+        role="assistant",
+        content=content,
+    ))
+    return new_session_id
+
+
 # ── 节点文本从 Markdown 内容中提取 ────────────────────────────────────────────
 
 def _extract_nodes_from_markdown(content: str) -> list[dict]:
@@ -204,7 +302,7 @@ def _auto_generate_mindmap(
     自动为学科生成 mindmap 并存入 ConversationSession + ConversationHistory。
     返回生成的 Markdown 内容，失败返回 None。
     """
-    from database import Chunk, ConversationHistory, ConversationSession, Document
+    from database import Chunk, Document
 
     # 检查学科下是否有已完成解析的文档
     completed_doc_ids = [
@@ -215,8 +313,21 @@ def _auto_generate_mindmap(
     ]
 
     if not completed_doc_ids:
-        logger.warning("_auto_generate_mindmap[%s]: 学科下无已完成解析的文档", subject_name)
-        return None
+        content = _fallback_mindmap_for_subject(subject_name)
+        new_session_id = _store_mindmap_session(
+            subject_id=subject_id,
+            subject_name=subject_name,
+            user_id=user_id,
+            db=db,
+            content=content,
+            fallback=True,
+        )
+        logger.info(
+            "_auto_generate_mindmap[%s]: no documents, stored fallback session_id=%s",
+            subject_name,
+            new_session_id,
+        )
+        return content
 
     # 获取 chunks
     chunk_rows = (
@@ -242,28 +353,13 @@ def _auto_generate_mindmap(
             logger.warning("_auto_generate_mindmap[%s]: 生成内容过短", subject_name)
             return None
 
-        # 创建 ConversationSession（mindmap 类型）
-        session_obj = ConversationSession(
-            user_id=user_id,
+        new_session_id = _store_mindmap_session(
             subject_id=subject_id,
-            session_type="mindmap",
-            title=f"{subject_name} 知识导图（自动生成）",
-        )
-        db.add(session_obj)
-        db.flush()
-        new_session_id = session_obj.id
-
-        # 存入 ConversationHistory
-        db.add(ConversationHistory(
-            session_id=new_session_id,
-            role="user",
-            content="自动生成思维导图（学习规划触发）",
-        ))
-        db.add(ConversationHistory(
-            session_id=new_session_id,
-            role="assistant",
+            subject_name=subject_name,
+            user_id=user_id,
+            db=db,
             content=content,
-        ))
+        )
 
         logger.info("_auto_generate_mindmap[%s]: 自动生成成功，session_id=%s", subject_name, new_session_id)
         return content
@@ -684,6 +780,12 @@ def _sync_plan_to_calendar(
         busy.sort()
 
         for item in items:
+            if not item.get("capability_id"):
+                capability_id, params, completion = _capability_binding_for_node(item)
+                item["capability_id"] = capability_id
+                item["capability_params"] = params
+                item["completion_contract"] = completion
+
             minutes = item.get("estimated_minutes", 20)
             # 在已有事件之间找空隙，从 8:00 开始
             slot = _find_next_slot(busy, minutes, 8, 22)
@@ -694,7 +796,7 @@ def _sync_plan_to_calendar(
                 continue
 
             start_time_str = f"{start_hour:02d}:00"
-            title = item.get("text", "学习任务")[:50]
+            title = _calendar_title_for_item(item)
 
             # 获取学科颜色
             subject_color = "#6366F1"
@@ -722,7 +824,11 @@ def _sync_plan_to_calendar(
                     "dur": minutes,
                     "subject_id": item.get("subject_id"),
                     "color": subject_color,
-                    "notes": f"plan_id={plan_id}",
+                    "notes": (
+                        f"plan_id={plan_id};"
+                        f"node_id={item.get('node_id') or ''};"
+                        f"capability_id={item.get('capability_id') or ''}"
+                    ),
                     "priority": item.get("priority", "medium"),
                     "plan_id": plan_id,
                 })
@@ -767,6 +873,105 @@ def _find_next_slot(
 
 
 # ── StudyPlannerService ───────────────────────────────────────────────────────
+
+def _capability_binding_for_node(item: dict) -> tuple[str, dict, dict]:
+    """Infer the default capability binding for a planned learning node."""
+    text = str(item.get("text") or "")
+    subject_name = str(item.get("subject_name") or "")
+    lower = f"{text} {subject_name}".lower()
+    minutes = int(item.get("estimated_minutes", 20))
+
+    if any(keyword in lower for keyword in ["单词", "词汇", "vocab", "word", "英语"]):
+        count = max(10, min(80, round(minutes / 0.8)))
+        return "memory.drill", {
+            "pattern": "pattern.recognition_choice",
+            "adapter": "adapter.vocabulary",
+            "content_type": "vocabulary",
+            "count": count,
+            "topic": text,
+            "tool": "memory-drill",
+        }, {
+            "metrics": ["attempted_count", "accuracy", "mastery_delta"],
+            "required": {"attempted_count": count, "accuracy": 0.8},
+        }
+
+    if any(keyword in lower for keyword in ["概念", "政治", "毛概", "史纲", "马原"]):
+        count = max(5, min(40, round(minutes / 1.2)))
+        return "memory.drill", {
+            "pattern": "pattern.recognition_choice",
+            "adapter": "adapter.political_concept",
+            "content_type": "political-concept",
+            "count": count,
+            "topic": text,
+            "tool": "memory-drill",
+        }, {
+            "metrics": ["attempted_count", "accuracy", "mastery_delta"],
+            "required": {"attempted_count": count, "accuracy": 0.8},
+        }
+
+    if any(keyword in lower for keyword in ["计算", "题型", "校核", "轴力图", "剪力图", "弯矩图", "扭矩图", "综合题"]):
+        count = max(3, min(16, round(minutes / 3)))
+        return "quiz.generate", {
+            "topic": text,
+            "count": count,
+            "question_types": ["choice", "fill", "calculation"],
+            "difficulty": "mixed",
+            "tool": "quiz",
+        }, {
+            "metrics": ["attempted_count", "accuracy"],
+            "required": {"attempted_count": count, "accuracy": 0.7},
+        }
+
+    if any(keyword in lower for keyword in ["公式", "定理", "方程", "函数", "应力", "强度", "刚度", "稳定", "变形"]):
+        count = max(3, min(20, round(minutes / 2)))
+        return "memory.drill", {
+            "pattern": "pattern.spaced_recall_card",
+            "adapter": "adapter.formula",
+            "content_type": "formula",
+            "count": count,
+            "topic": text,
+            "tool": "memory-drill",
+        }, {
+            "metrics": ["reviewed_count", "accuracy"],
+            "required": {"reviewed_count": count, "accuracy": 0.8},
+        }
+
+    return "lecture.view", {
+        "topic": text,
+        "content_type": "knowledge-node",
+        "count": 1,
+        "tool": "lecture-view",
+    }, {
+        "metrics": ["read_done", "self_marked_done"],
+        "required": {"read_done": True},
+    }
+
+
+def _content_type_label(content_type: str) -> str:
+    return {
+        "vocabulary": "词汇",
+        "political-concept": "政治概念",
+        "formula": "公式",
+        "knowledge-node": "知识点",
+        "memory-item": "记忆条目",
+    }.get(content_type, content_type)
+
+
+def _calendar_title_for_item(item: dict) -> str:
+    capability_id = item.get("capability_id")
+    params = item.get("capability_params") or {}
+    topic = params.get("topic") or item.get("text") or "学习任务"
+    if capability_id == "memory.drill":
+        count = params.get("count", 20)
+        content_type = _content_type_label(str(params.get("content_type") or "memory-item"))
+        return f"记忆训练：{count} 个{content_type}"[:50]
+    if capability_id == "quiz.generate":
+        count = params.get("count", 10)
+        return f"智能练习：{count} 题 {topic}"[:50]
+    if capability_id == "lecture.view":
+        return f"学习讲义：{topic}"[:50]
+    return str(item.get("text", "学习任务"))[:50]
+
 
 class StudyPlannerService:
 
@@ -831,6 +1036,11 @@ class StudyPlannerService:
         for item in scheduled:
             if not item.get("subject_name"):
                 item["subject_name"] = name_map.get(item.get("subject_id"), "")
+            if not item.get("capability_id"):
+                capability_id, params, completion = _capability_binding_for_node(item)
+                item["capability_id"] = capability_id
+                item["capability_params"] = params
+                item["completion_contract"] = completion
 
         if not scheduled:
             logger.warning("generate_plan: 无可排期节点，plan_id=%s，学科分析=%s",
@@ -858,6 +1068,10 @@ class StudyPlannerService:
                 priority=item.get('priority', 'medium'),
                 dependency_node_ids=item.get('parent_id') and [item['parent_id']] or [],
                 planned_date=planned_dt,
+                capability_id=item.get('capability_id'),
+                capability_params=item.get('capability_params') or {},
+                completion_contract=item.get('completion_contract') or {},
+                completion_result=item.get('completion_result') or {},
                 status='pending',
             ))
 

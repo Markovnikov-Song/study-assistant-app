@@ -21,7 +21,7 @@ class SubjectBarTitle extends ConsumerWidget {
         children: [
           const Icon(Icons.menu_book_rounded, size: 18),
           const SizedBox(width: 6),
-          Text(current?.name ?? '选择学科', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+          Text(current?.name ?? '选择科目', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
           const SizedBox(width: 2),
           const Icon(Icons.expand_more, size: 20),
         ],
@@ -54,7 +54,7 @@ class _SubjectPickerSheetState extends ConsumerState<SubjectPickerSheet> {
             padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
             child: Row(
               children: [
-                Text('切换学科', style: Theme.of(context).textTheme.titleMedium),
+                Text('切换科目', style: Theme.of(context).textTheme.titleMedium),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () {
@@ -103,7 +103,7 @@ class _SubjectPickerSheetState extends ConsumerState<SubjectPickerSheet> {
                         child: TextButton.icon(
                           onPressed: () => setState(() => _showArchived = !_showArchived),
                           icon: Icon(_showArchived ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 16),
-                          label: Text(_showArchived ? '隐藏已归档学科' : '显示已归档学科（${archived.length}）', style: const TextStyle(fontSize: 13)),
+                          label: Text(_showArchived ? '隐藏已归档科目' : '显示已归档科目（${archived.length}）', style: const TextStyle(fontSize: 13)),
                           style: TextButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh),
                         ),
                       ),
@@ -189,9 +189,9 @@ class _CreateSubjectSheetState extends ConsumerState<CreateSubjectSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('新建学科', style: Theme.of(context).textTheme.titleLarge),
+          Text('新建科目', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
-          TextField(controller: _nameCtrl, decoration: const InputDecoration(labelText: '学科名称 *', border: OutlineInputBorder()), autofocus: true),
+          TextField(controller: _nameCtrl, decoration: const InputDecoration(labelText: '科目名称 *', border: OutlineInputBorder()), autofocus: true),
           const SizedBox(height: 12),
           TextField(controller: _categoryCtrl, decoration: const InputDecoration(labelText: '分类（可选）', border: OutlineInputBorder())),
           const SizedBox(height: 16),

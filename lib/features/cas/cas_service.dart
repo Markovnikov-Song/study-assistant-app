@@ -12,10 +12,7 @@ class CasService {
       final res = await _dio
           .post(
             '/api/cas/dispatch',
-            data: {
-              'text': text,
-              if (sessionId != null) 'session_id': sessionId,
-            },
+            data: {'text': text, 'session_id': sessionId},
           )
           .timeout(const Duration(seconds: 10));
       return ActionResult.fromJson(res.data as Map<String, dynamic>);
@@ -28,6 +25,33 @@ class CasService {
       return ActionResult.localFallback();
     } catch (_) {
       return ActionResult.localFallback();
+    }
+  }
+
+  /// 提取学习规划参数
+  Future<Map<String, dynamic>> extractPlanningParams(String text) async {
+    try {
+      final res = await _dio
+          .post(
+            '/api/cas/extract-params',
+            data: {'text': text},
+          )
+          .timeout(const Duration(seconds: 10));
+      return res.data as Map<String, dynamic>;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// 获取参数选项（用于前端快捷输入）
+  Future<List<String>> getParamOptions(String paramName) async {
+    try {
+      final res = await _dio
+          .get('/api/cas/param-options', queryParameters: {'param': paramName})
+          .timeout(const Duration(seconds: 5));
+      return (res.data['options'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    } catch (_) {
+      return [];
     }
   }
 

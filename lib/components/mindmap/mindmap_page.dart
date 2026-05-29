@@ -575,13 +575,13 @@ class _NoSubjectPlaceholder extends ConsumerWidget {
           children: [
             Icon(Icons.school_outlined, size: 64, color: cs.outlineVariant),
             const SizedBox(height: 16),
-            Text('请先选择学科',
+            Text('请先选择科目',
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
                     ?.copyWith(color: cs.outline)),
             const SizedBox(height: 8),
-            Text('点击顶部学科名称切换或新建学科',
+            Text('点击顶部科目名称切换或新建科目',
                 style: TextStyle(fontSize: 13, color: cs.outline)),
             const SizedBox(height: 24),
             FilledButton.icon(
@@ -591,7 +591,7 @@ class _NoSubjectPlaceholder extends ConsumerWidget {
                 builder: (_) => const SubjectPickerSheet(),
               ),
               icon: const Icon(Icons.tune, size: 16),
-              label: const Text('选择学科'),
+              label: const Text('选择科目'),
             ),
           ],
         ),

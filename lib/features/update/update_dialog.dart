@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/update_service.dart';
 
@@ -35,6 +36,15 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   double _progress = 0;
   String? _errorMessage;
 
+  Future<void> _openInBrowser() async {
+    final uri = Uri.parse(widget.info.downloadUrl);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        setState(() => _errorMessage = '无法打开浏览器，请手动复制链接下载');
+      }
+    }
+  }
+
   Future<void> _startDownload() async {
     setState(() {
       _downloading = true;
@@ -54,7 +64,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       if (mounted) {
         setState(() {
           _downloading = false;
-          _errorMessage = '下载失败，请检查网络后重试';
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
         });
       }
     }
@@ -136,6 +146,10 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                     onPressed: () => Navigator.of(context).pop(),
                     child: const Text('稍后再说'),
                   ),
+                TextButton(
+                  onPressed: _openInBrowser,
+                  child: const Text('浏览器下载'),
+                ),
                 FilledButton(
                   onPressed: _startDownload,
                   child: Text(_errorMessage != null ? '重试' : '立即更新'),

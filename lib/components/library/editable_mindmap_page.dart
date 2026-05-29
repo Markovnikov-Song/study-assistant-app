@@ -7,6 +7,7 @@ import 'package:vector_math/vector_math_64.dart' show Vector3;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/mindmap_library.dart';
 import '../../providers/library_provider.dart';
+import '../../providers/learning_path_provider.dart';
 import '../../routes/app_router.dart';
 import '../quiz/node_practice_sheet.dart';
 import '../../../tools/mindmap/mindmap_painter.dart';
@@ -63,6 +64,8 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
   List<TreeNode> _roots = [];
   bool _initialized = false;
   bool _wasComplete = false;
+  bool _heatmapMode = false;  // 热力图模式
+  final bool _pathMode = true;      // 路径模式（显示预设路径）
   late final ConfettiController _confettiController;
   late final TabController _tabController;
 
@@ -85,7 +88,6 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
   @override
   Widget build(BuildContext context) {
     final nodesAsync = ref.watch(mindMapNodesProvider(widget.sessionId));
-    final nodeStates = ref.watch(nodeStatesProvider(widget.sessionId));
     final progress = ref.watch(fullMindMapProgressProvider(widget.sessionId));
 
     // Initialize roots from provider on first load
@@ -109,9 +111,38 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('思维导图'),
+        title: Row(
+          children: [
+            const Text('思维导图'),
+            const SizedBox(width: 8),
+            // 路径进度条
+            Consumer(
+              builder: (context, ref, child) {
+                final progressAsync = ref.watch(pathProgressProvider(widget.sessionId));
+                return progressAsync.when(
+                  data: (p) => Chip(
+                    label: Text(p, style: const TextStyle(fontSize: 12)),
+                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  ),
+                  loading: () => const SizedBox.shrink(),
+                  error: (error, stackTrace) => const SizedBox.shrink(),
+                );
+              },
+            ),
+          ],
+        ),
         centerTitle: false,
         actions: [
+          // 热力图/路径模式切换
+          IconButton(
+            icon: Icon(_heatmapMode ? Icons.map : Icons.local_fire_department_outlined),
+            tooltip: _heatmapMode ? '切换到路径模式' : '切换到热力图模式',
+            onPressed: () {
+              setState(() {
+                _heatmapMode = !_heatmapMode;
+              });
+            },
+          ),
           // 缩放和撤销只在知识树 Tab 显示
           AnimatedBuilder(
             animation: _tabController,
@@ -146,15 +177,28 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
                     child: nodesAsync.when(
                       loading: () => const Center(child: CircularProgressIndicator()),
                       error: (e, _) => Center(child: Text('加载失败：$e')),
-                      data: (_) => _MindMapCanvas(
-                        onZoomReady: (fn) => _zoomFn = fn,
-                        roots: _roots.isEmpty ? nodesAsync.value ?? [] : _roots,
-                        nodeStates: nodeStates,
-                        sessionId: widget.sessionId,
-                        subjectId: widget.subjectId,
-                        onNodeTap: _handleNodeTap,
-                        onNodeLongPress: _handleNodeLongPress,
-                      ),
+                      data: (_) {
+                        final nodeStates = ref.watch(nodeStatesProvider(widget.sessionId));
+                        final pathAsync = ref.watch(learningPathProvider(widget.subjectId));
+                        final pathNodeIds = pathAsync.maybeWhen(
+                          data: (path) => path?.nodeIds,
+                          orElse: () => null,
+                        );
+
+                        return _MindMapCanvas(
+                          onZoomReady: (fn) => _zoomFn = fn,
+                          roots: _roots.isEmpty ? nodesAsync.value ?? [] : _roots,
+                          nodeStates: nodeStates,
+                          sessionId: widget.sessionId,
+                          subjectId: widget.subjectId,
+                          onNodeTap: _handleNodeTap,
+                          onNodeLongPress: _handleNodeLongPress,
+                          // 学习路径是导图上的增强层，加载失败时不能阻塞基础导图。
+                          heatmapMode: _heatmapMode,
+                          pathMode: _pathMode,
+                          pathNodeIds: pathNodeIds,
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -663,6 +707,10 @@ class _MindMapCanvas extends ConsumerStatefulWidget {
   final void Function(TreeNode) onNodeTap;
   final void Function(TreeNode) onNodeLongPress;
   final void Function(void Function(double))? onZoomReady;
+  // 新增：热力图和路径模式参数
+  final bool heatmapMode;
+  final bool pathMode;
+  final List<String>? pathNodeIds;
 
   const _MindMapCanvas({
     required this.roots,
@@ -672,6 +720,9 @@ class _MindMapCanvas extends ConsumerStatefulWidget {
     required this.onNodeTap,
     required this.onNodeLongPress,
     this.onZoomReady,
+    this.heatmapMode = false,
+    this.pathMode = true,
+    this.pathNodeIds,
   });
 
   @override
@@ -830,16 +881,28 @@ class _MindMapCanvasState extends ConsumerState<_MindMapCanvas>
                 },
                 child: AnimatedBuilder(
                   animation: _pulseCtrl,
-                  builder: (_, _) => CustomPaint(
-                    size: canvasSize,
-                    painter: MindMapPainter(
-                      layouts: layouts,
-                      nodeStates: widget.nodeStates,
-                      colorScheme: cs,
-                      generatingNodeIds: _generatingNodeIds,
-                      pulseValue: _pulseValue,
-                    ),
-                  ),
+                  builder: (_, _) {
+                    // 获取节点学习状态和掌握度
+                    final learningStates = ref.watch(nodeStatesMapProvider(widget.sessionId)).valueOrNull;
+                    final masteryLevels = ref.watch(nodeMasteryProvider(widget.sessionId)).valueOrNull;
+                    
+                    return CustomPaint(
+                      size: canvasSize,
+                      painter: MindMapPainter(
+                        layouts: layouts,
+                        nodeStates: widget.nodeStates,
+                        colorScheme: cs,
+                        generatingNodeIds: _generatingNodeIds,
+                        pulseValue: _pulseValue,
+                        // 新增：学习状态和热力图参数
+                        learningNodeStates: learningStates,
+                        masteryLevels: masteryLevels?.map((k, v) => MapEntry(k, v.masteryLevel)),
+                        heatmapMode: widget.heatmapMode,
+                        pathMode: widget.pathMode,
+                        pathNodeIds: widget.pathNodeIds,
+                      ),
+                    );
+                  },
                 ),
               ),
             ),

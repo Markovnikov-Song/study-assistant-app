@@ -1,0 +1,28 @@
+{
+  "name": "knowledge-graph-evolution",
+  "displayName": "知识图谱进化",
+  "description": "将静态知识森林升级为动态学习引擎 - 解决好看不好用困境",
+  "version": "1.0.0",
+  "specType": "feature",
+  "priority": "high",
+  "tags": ["mindmap", "knowledge-graph", "learning-path", "gamification", "heatmap"],
+  "requirements": [
+    "预设学习路径",
+    "节点状态系统",
+    "游戏化激励",
+    "掌握度热力图",
+    "智能诊断推送",
+    "多维图谱",
+    "班级视图",
+    "专业级联"
+  ],
+  "dependencies": [
+    "existing-mindmap-system",
+    "calendar-service",
+    "notification-service",
+    "mistake-book",
+    "llm-service"
+  ],
+  "team": "frontend-backend-joint",
+  "estimatedWeeks": 8
+}

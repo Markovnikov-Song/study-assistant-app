@@ -71,7 +71,9 @@ class _SpecPageState extends ConsumerState<SpecPage> {
     if (!collection.isComplete) return;
 
     try {
-      final result = await ref.read(studyPlannerApiServiceProvider).createPlan(
+      final result = await ref
+          .read(studyPlannerApiServiceProvider)
+          .createPlan(
             subjectIds: collection.subjectIds,
             deadline: collection.deadline!,
             dailyMinutes: collection.dailyMinutes,
@@ -126,7 +128,9 @@ class _SpecPageState extends ConsumerState<SpecPage> {
               icon: const Icon(Icons.refresh_outlined),
               tooltip: '刷新计划',
               onPressed: () async {
-                final plan = await ref.read(studyPlannerApiServiceProvider).getActivePlan();
+                final plan = await ref
+                    .read(studyPlannerApiServiceProvider)
+                    .getActivePlan();
                 if (plan != null && mounted) setState(() => _activePlan = plan);
               },
             ),
@@ -137,16 +141,17 @@ class _SpecPageState extends ConsumerState<SpecPage> {
   }
 
   String _appBarTitle(SpecPhase phase) => switch (phase) {
-        SpecPhase.chat => '制定学习计划',
-        SpecPhase.progress => '正在生成计划…',
-        SpecPhase.plan => '我的学习计划',
-      };
+    SpecPhase.chat => '制定学习计划',
+    SpecPhase.progress => '正在生成计划…',
+    SpecPhase.plan => '我的学习计划',
+  };
 
   Widget _buildBody(SpecPhase phase, PlanCollectionState collection) {
     switch (phase) {
       case SpecPhase.chat:
         return PhaseChatView(
           prefilledSubjectIds: widget.prefilledSubjectIds,
+          prefilledContext: widget.prefilledContext,
           onConfirmed: _onChatConfirmed,
         );
       case SpecPhase.progress:

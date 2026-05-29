@@ -1,536 +1,277 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
-/// 所有工具可用的图标名称 → IconData 映射（常量，tree-shaking 安全）
-const Map<String, IconData> kToolIconMap = {
-  'error_outline_rounded': Icons.error_outline_rounded,
-  'error_rounded': Icons.error_rounded,
-  'warning_amber_outlined': Icons.warning_amber_outlined,
-  'update_outlined': Icons.update_outlined,
-  'replay_outlined': Icons.replay_outlined,
-  'refresh_outlined': Icons.refresh_outlined,
-  'note_alt_outlined': Icons.note_alt_outlined,
-  'note_alt_rounded': Icons.note_alt_rounded,
-  'sticky_note_2_outlined': Icons.sticky_note_2_outlined,
-  'book_outlined': Icons.book_outlined,
-  'auto_stories_outlined': Icons.auto_stories_outlined,
-  'edit_note_outlined': Icons.edit_note_outlined,
-  'calculate_outlined': Icons.calculate_outlined,
-  'calculate_rounded': Icons.calculate_rounded,
-  'functions': Icons.functions,
-  'analytics_outlined': Icons.analytics_outlined,
-  'numbers': Icons.numbers,
-  'quick_contacts_dialer_outlined': Icons.quick_contacts_dialer_outlined,
-  'quiz_outlined': Icons.quiz_outlined,
-  'quiz_rounded': Icons.quiz_rounded,
-  'help_outline_rounded': Icons.help_outline_rounded,
-  'extension_outlined': Icons.extension_outlined,
-  'psychology_outlined': Icons.psychology_outlined,
-  'lightbulb_outline_rounded': Icons.lightbulb_outline_rounded,
-  'account_tree_outlined': Icons.account_tree_outlined,
-  'account_tree_rounded': Icons.account_tree_rounded,
-  'hub_outlined': Icons.hub_outlined,
-  'device_hub_outlined': Icons.device_hub_outlined,
-  'bubble_chart_outlined': Icons.bubble_chart_outlined,
-  'auto_awesome_outlined': Icons.auto_awesome_outlined,
-  'auto_awesome_rounded': Icons.auto_awesome_rounded,
-  'star_outline_rounded': Icons.star_outline_rounded,
-  'auto_fix_high_outlined': Icons.auto_fix_high_outlined,
-  'tips_and_updates_outlined': Icons.tips_and_updates_outlined,
-  'calendar_today_outlined': Icons.calendar_today_outlined,
-  'calendar_today_rounded': Icons.calendar_today_rounded,
-  'calendar_month_outlined': Icons.calendar_month_outlined,
-  'event_note_outlined': Icons.event_note_outlined,
-  'schedule_outlined': Icons.schedule_outlined,
-  'edit_calendar_outlined': Icons.edit_calendar_outlined,
-  'date_range_outlined': Icons.date_range_outlined,
-};
+import '../../core/capability/capability_models.dart';
+import '../../core/capability/capability_providers.dart';
+import '../../core/theme/styles/export.dart';
+import '../../routes/app_router.dart';
+import '../workshop/mini_app_models.dart';
+import '../workshop/mini_app_providers.dart';
 
-/// IconData → 名称（反向查找，用于保存）
-String _iconToName(IconData icon) {
-  return kToolIconMap.entries
-      .firstWhere((e) => e.value == icon,
-          orElse: () => const MapEntry('error_outline_rounded', Icons.error_outline_rounded))
-      .key;
-}
-
-/// 用户自定义的工具图标 Provider
-final toolIconsProvider = StateNotifierProvider<ToolIconsNotifier, Map<String, IconData>>((ref) {
-  return ToolIconsNotifier();
-});
-
-class ToolIconsNotifier extends StateNotifier<Map<String, IconData>> {
-  ToolIconsNotifier() : super({}) {
-    _loadSavedIcons();
-  }
-
-  Future<void> _loadSavedIcons() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList('custom_tool_icons');
-    if (saved != null) {
-      final map = <String, IconData>{};
-      for (final item in saved) {
-        final parts = item.split(':');
-        if (parts.length == 2) {
-          final icon = kToolIconMap[parts[1]];
-          if (icon != null) {
-            map[parts[0]] = icon;
-          }
-        }
-      }
-      state = map;
-    }
-  }
-
-  Future<void> setIcon(String toolId, IconData icon) async {
-    state = {...state, toolId: icon};
-    await _saveIcons();
-  }
-
-  Future<void> resetIcon(String toolId) async {
-    final newState = Map<String, IconData>.from(state);
-    newState.remove(toolId);
-    state = newState;
-    await _saveIcons();
-  }
-
-  Future<void> _saveIcons() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = state.entries.map((e) => '${e.key}:${_iconToName(e.value)}').toList();
-    await prefs.setStringList('custom_tool_icons', list);
-  }
-
-  IconData getIcon(String toolId, IconData defaultIcon) {
-    return state[toolId] ?? defaultIcon;
-  }
-}
-
-/// 工具顺序管理 Provider
-final toolOrderProvider = StateNotifierProvider<ToolOrderNotifier, List<String>>((ref) {
-  return ToolOrderNotifier();
-});
-
-class ToolOrderNotifier extends StateNotifier<List<String>> {
-  ToolOrderNotifier() : super([]) {
-    _loadSavedOrder();
-  }
-
-  Future<void> _loadSavedOrder() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList('tool_order');
-    if (saved != null && saved.isNotEmpty) {
-      state = saved;
-    } else {
-      // 使用默认顺序
-      state = kDefaultTools.map((tool) => tool.id).toList();
-    }
-  }
-
-  Future<void> reorder(int oldIndex, int newIndex) async {
-    final newOrder = List<String>.from(state);
-    // Flutter 2.0+ onReorder: newIndex 已经是移除后的正确位置，不需要调整
-    final item = newOrder.removeAt(oldIndex);
-    newOrder.insert(newIndex, item);
-    state = newOrder;
-    await _saveOrder();
-  }
-
-  Future<void> resetToDefault() async {
-    state = kDefaultTools.map((tool) => tool.id).toList();
-    await _saveOrder();
-  }
-
-  Future<void> _saveOrder() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('tool_order', state);
-  }
-
-  /// 根据保存的顺序获取排序后的工具列表
-  List<ToolItem> getOrderedTools() {
-    if (state.isEmpty) {
-      return kDefaultTools;
-    }
-    
-    final toolMap = {for (var tool in kDefaultTools) tool.id: tool};
-    final orderedTools = <ToolItem>[];
-    
-    for (final id in state) {
-      final tool = toolMap[id];
-      if (tool != null) {
-        orderedTools.add(tool);
-      }
-    }
-    
-    // 添加任何新工具（不在保存的顺序中）
-    for (final tool in kDefaultTools) {
-      if (!state.contains(tool.id)) {
-        orderedTools.add(tool);
-      }
-    }
-    
-    return orderedTools;
-  }
-}
-
-/// 工具项数据模型
 class ToolItem {
   final String id;
   final IconData icon;
-  final IconData filledIcon;
-  final List<Color> gradientColors;
+  final List<Color> colors;
   final String label;
   final String description;
   final String route;
-  /// 可选的图标列表（用户可切换）
-  final List<IconData>? iconOptions;
+  final String? iconAsset;
+  final bool userCreated;
 
   const ToolItem({
     required this.id,
     required this.icon,
-    required this.filledIcon,
-    required this.gradientColors,
+    required this.colors,
     required this.label,
     required this.description,
     required this.route,
-    this.iconOptions,
+    this.iconAsset,
+    this.userCreated = false,
   });
 
-  /// 获取可用的图标列表
-  List<IconData> get availableIcons {
-    if (iconOptions != null && iconOptions!.isNotEmpty) {
-      return iconOptions!;
-    }
-    return [icon, filledIcon];
+  List<Color> get gradientColors => colors;
+
+  ToolItem copyWith({IconData? icon}) {
+    return ToolItem(
+      id: id,
+      icon: icon ?? this.icon,
+      colors: colors,
+      label: label,
+      description: description,
+      route: route,
+      iconAsset: iconAsset,
+      userCreated: userCreated,
+    );
   }
 }
 
-/// 默认工具列表（数据驱动，扩展只需追加 ToolItem）
-const List<ToolItem> kDefaultTools = [
-  // 1. 解题（最常用）
+const _iconPackRoot = 'assets/images/icons/nieobie_game_icon_pack/svg-v1.0.3';
+
+const kWorkshopTool = ToolItem(
+  id: 'workshop',
+  icon: Icons.precision_manufacturing_rounded,
+  colors: [Color(0xFF0F766E), Color(0xFF2563EB)],
+  label: '软件工坊',
+  description: '拼装并运行学科学习软件',
+  route: R.workshop,
+  iconAsset: '$_iconPackRoot/6.Items/tool-kit.svg',
+);
+
+const kDefaultTools = [
   ToolItem(
     id: 'solve',
-    icon: Icons.calculate_outlined,
-    filledIcon: Icons.calculate_rounded,
-    gradientColors: [Color(0xFF10B981), Color(0xFF34D399)],
-    label: '解题',
-    description: '拍照识题，AI解答',
-    route: '/toolkit/solve',
-    iconOptions: [
-      Icons.calculate_outlined,
-      Icons.calculate_rounded,
-      Icons.functions,
-      Icons.analytics_outlined,
-      Icons.numbers,
-      Icons.quick_contacts_dialer_outlined,
-    ],
+    icon: Icons.camera_alt_rounded,
+    colors: [Color(0xFF19D3A2), Color(0xFF12AEEA)],
+    label: '拍照解题',
+    description: '拍题、识别、讲透步骤',
+    route: R.toolkitSolve,
+    iconAsset: '$_iconPackRoot/2.Media & Technology/camera.svg',
   ),
-  // 2. 出题
   ToolItem(
     id: 'quiz',
-    icon: Icons.quiz_outlined,
-    filledIcon: Icons.quiz_rounded,
-    gradientColors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
-    label: '出题',
-    description: '智能出题，检验学习',
-    route: '/toolkit/quiz',
-    iconOptions: [
-      Icons.quiz_outlined,
-      Icons.quiz_rounded,
-      Icons.help_outline_rounded,
-      Icons.extension_outlined,
-      Icons.psychology_outlined,
-      Icons.lightbulb_outline_rounded,
-    ],
+    icon: Icons.extension_rounded,
+    colors: [Color(0xFFFFB23F), Color(0xFFFF6B8B)],
+    label: '智能出题',
+    description: '按知识点生成练习',
+    route: R.toolkitQuiz,
+    iconAsset: '$_iconPackRoot/5.Game/puzzle.svg',
   ),
-  // 3. 复盘中心
   ToolItem(
-    id: 'mistake-book',
-    icon: Icons.error_outline_rounded,
-    filledIcon: Icons.error_rounded,
-    gradientColors: [Color(0xFFEF4444), Color(0xFFF87171)],
+    id: 'review',
+    icon: Icons.replay_circle_filled_rounded,
+    colors: [Color(0xFFFF5F6D), Color(0xFFFFC371)],
     label: '复盘中心',
-    description: '错题复盘，SM-2间隔复习',
+    description: '错题、间隔复习、再练',
     route: '/toolkit/review',
-    iconOptions: [
-      Icons.error_outline_rounded,
-      Icons.error_rounded,
-      Icons.warning_amber_outlined,
-      Icons.update_outlined,
-      Icons.replay_outlined,
-      Icons.refresh_outlined,
-    ],
+    iconAsset: '$_iconPackRoot/5.Game/cards.svg',
   ),
-  // 4. 笔记本
   ToolItem(
     id: 'notebooks',
-    icon: Icons.note_alt_outlined,
-    filledIcon: Icons.note_alt_rounded,
-    gradientColors: [Color(0xFF3B82F6), Color(0xFF60A5FA)],
+    icon: Icons.auto_stories_rounded,
+    colors: [Color(0xFF5B8CFF), Color(0xFF7C5CFF)],
     label: '笔记本',
-    description: '收藏内容，整理笔记',
-    route: '/toolkit/notebooks',
-    iconOptions: [
-      Icons.note_alt_outlined,
-      Icons.note_alt_rounded,
-      Icons.sticky_note_2_outlined,
-      Icons.book_outlined,
-      Icons.auto_stories_outlined,
-      Icons.edit_note_outlined,
-    ],
+    description: '保存讲义、整理灵感',
+    route: R.toolkitNotebooks,
+    iconAsset: '$_iconPackRoot/6.Items/book.svg',
   ),
-  // 5. 脑图工坊
   ToolItem(
     id: 'mindmap',
-    icon: Icons.account_tree_outlined,
-    filledIcon: Icons.account_tree_rounded,
-    gradientColors: [Color(0xFF8B5CF6), Color(0xFFA78BFA)],
+    icon: Icons.account_tree_rounded,
+    colors: [Color(0xFF8B5CF6), Color(0xFFEC5DFF)],
     label: '脑图工坊',
-    description: '生成思维导图',
-    route: '/toolkit/mindmap-workshop',
-    iconOptions: [
-      Icons.account_tree_outlined,
-      Icons.account_tree_rounded,
-      Icons.hub_outlined,
-      Icons.device_hub_outlined,
-      Icons.bubble_chart_outlined,
-      Icons.psychology_outlined,
-    ],
+    description: '把知识整理成结构',
+    route: R.mindmapEntry,
+    iconAsset: '$_iconPackRoot/6.Items/map.svg',
   ),
-  // 6. 学习日历
   ToolItem(
     id: 'calendar',
-    icon: Icons.calendar_today_outlined,
-    filledIcon: Icons.calendar_today_rounded,
-    gradientColors: [Color(0xFF6366F1), Color(0xFF818CF8)],
+    icon: Icons.calendar_month_rounded,
+    colors: [Color(0xFF4F8BFF), Color(0xFF4EE7F1)],
     label: '学习日历',
-    description: '计划、打卡、复盘，学习闭环',
-    route: '/toolkit/calendar',
-    iconOptions: [
-      Icons.calendar_today_outlined,
-      Icons.calendar_month_outlined,
-      Icons.event_note_outlined,
-      Icons.schedule_outlined,
-      Icons.edit_calendar_outlined,
-      Icons.date_range_outlined,
-    ],
+    description: '计划、打卡、倒计时',
+    route: R.toolkitCalendar,
+    iconAsset: '$_iconPackRoot/2.Media & Technology/calendar.svg',
   ),
-  // 7. 方法库
-  ToolItem(
-    id: 'my-skills',
-    icon: Icons.auto_awesome_outlined,
-    filledIcon: Icons.auto_awesome_rounded,
-    gradientColors: [Color(0xFFEC4899), Color(0xFFF472B6)],
-    label: '方法库',
-    description: '查看并使用学习方法',
-    route: '/my-skills',
-    iconOptions: [
-      Icons.auto_awesome_outlined,
-      Icons.auto_awesome_rounded,
-      Icons.star_outline_rounded,
-      Icons.auto_fix_high_outlined,
-      Icons.psychology_outlined,
-      Icons.tips_and_updates_outlined,
-    ],
-  ),
+  kWorkshopTool,
 ];
 
-/// 工具箱页：全新设计的卡片风格
+ToolItem toolItemFromCapability(CapabilitySummary capability) {
+  return ToolItem(
+    id: capability.id,
+    icon: _iconFromCapability(capability.icon),
+    colors: _colorsFromCapability(capability.color),
+    label: capability.title,
+    description: capability.description,
+    route: capability.miniAppRoute ?? R.toolkit,
+  );
+}
+
+ToolItem toolItemFromMiniApp(MiniAppSummary app) {
+  return ToolItem(
+    id: 'mini_app_${app.id}',
+    icon: _miniAppIcon(app.appType),
+    iconAsset: _miniAppIconAsset(app.appType),
+    colors: _miniAppColors(app.appType),
+    label: app.title.isEmpty ? '学习小软件' : app.title,
+    description: app.description.isEmpty ? '运行工坊生成的学习流程' : app.description,
+    route: R.workshopApp(app.id),
+    userCreated: true,
+  );
+}
+
+IconData _miniAppIcon(String type) {
+  return switch (type) {
+    'mistake_drill' => Icons.replay_circle_filled_rounded,
+    'quest' => Icons.route_rounded,
+    _ => Icons.style_rounded,
+  };
+}
+
+String _miniAppIconAsset(String type) {
+  return switch (type) {
+    'mistake_drill' => '$_iconPackRoot/5.Game/cards.svg',
+    'quest' => '$_iconPackRoot/6.Items/map.svg',
+    _ => '$_iconPackRoot/5.Game/card.svg',
+  };
+}
+
+List<Color> _miniAppColors(String type) {
+  return switch (type) {
+    'mistake_drill' => const [Color(0xFFFF5F6D), Color(0xFFFFC371)],
+    'quest' => const [Color(0xFF8B5CF6), Color(0xFFEC5DFF)],
+    _ => const [Color(0xFF2563EB), Color(0xFF10B981)],
+  };
+}
+
+IconData _iconFromCapability(String icon) {
+  return switch (icon) {
+    'camera_alt' => Icons.camera_alt_rounded,
+    'extension' => Icons.extension_rounded,
+    'replay_circle_filled' => Icons.replay_circle_filled_rounded,
+    'auto_stories' => Icons.auto_stories_rounded,
+    'account_tree' => Icons.account_tree_rounded,
+    'calendar_month' => Icons.calendar_month_rounded,
+    'auto_awesome' => Icons.auto_awesome_rounded,
+    _ => Icons.widgets_rounded,
+  };
+}
+
+List<Color> _colorsFromCapability(List<String> values) {
+  final parsed = values.map(_parseHexColor).whereType<Color>().toList();
+  if (parsed.length >= 2) return parsed.take(2).toList();
+  return const [Color(0xFF5B8CFF), Color(0xFF7C5CFF)];
+}
+
+Color? _parseHexColor(String value) {
+  final normalized = value.trim().replaceFirst('#', '');
+  if (normalized.length != 6 && normalized.length != 8) return null;
+  final raw = int.tryParse(normalized, radix: 16);
+  if (raw == null) return null;
+  return Color(normalized.length == 6 ? 0xFF000000 | raw : raw);
+}
+
 class ToolkitPage extends ConsumerWidget {
   const ToolkitPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
-    
-    // 正确监听排序状态
+    final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = width >= 900;
+    final styleId = ref.watch(uiStyleIdProvider);
+    final isClay = styleId == StyleIds.clay;
+    final crossAxisCount = width >= 1400 ? 4 : (isDesktop ? 3 : 2);
+    final horizontal = isDesktop ? 28.0 : 18.0;
+    final capabilitiesAsync = ref.watch(standaloneCapabilitiesProvider);
+    final miniApps = ref.watch(miniAppsProvider).valueOrNull ?? const [];
     final order = ref.watch(toolOrderProvider);
-    final toolMap = {for (var tool in kDefaultTools) tool.id: tool};
-    final orderedTools = order
-        .map((id) => toolMap[id])
-        .whereType<ToolItem>()
+    final hiddenIds = ref.watch(hiddenToolsProvider);
+    final customIcons = ref.watch(toolIconsProvider);
+    final capabilityTools = capabilitiesAsync.maybeWhen(
+      data: (capabilities) => capabilities
+          .where(
+            (capability) =>
+                capability.miniAppRoute != null &&
+                capability.miniAppRoute!.isNotEmpty &&
+                capability.miniAppRoute != '/my-skills',
+          )
+          .map(toolItemFromCapability)
+          .toList(),
+      orElse: () => const <ToolItem>[],
+    );
+    final baseTools = capabilityTools.isNotEmpty
+        ? capabilityTools
+        : kDefaultTools;
+    final builtInTools =
+        baseTools.any(
+          (tool) =>
+              tool.id == kWorkshopTool.id || tool.route == kWorkshopTool.route,
+        )
+        ? baseTools
+        : [...baseTools, kWorkshopTool];
+    final availableTools = [
+      ...builtInTools,
+      ...miniApps.map(toolItemFromMiniApp),
+    ];
+    final tools = _orderedTools(availableTools, order)
+        .where((tool) => !hiddenIds.contains(tool.id))
+        .map((tool) => tool.copyWith(icon: customIcons[tool.id]))
         .toList();
-    // 添加默认列表中新增的工具（向后兼容）
-    for (final tool in kDefaultTools) {
-      if (!order.contains(tool.id)) {
-        orderedTools.add(tool);
-      }
-    }
-
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWideScreen = screenWidth > 600;
-    // Web端限制最大宽度，保持类似手机的紧凑布局
-    final contentMaxWidth = isWideScreen ? 420.0 : double.infinity;
 
     return Scaffold(
-      backgroundColor: cs.surface,
-      body: Stack(
-        children: [
-          // 主内容（SVG 背景由 ShellPage 提供）
-          Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: contentMaxWidth),
-              child: CustomScrollView(
-                slivers: [
-                  // App Bar
-                  SliverAppBar(
-                    expandedHeight: 80,
-                    floating: true,
-                    pinned: false,
-                    backgroundColor: Colors.transparent,
-                    actions: [
-                      // 设置按钮
-                      IconButton(
-                        icon: Icon(Icons.settings_outlined, color: cs.onSurface),
-                        onPressed: () => context.push('/toolkit/settings'),
-                        tooltip: '工具排序',
-                      ),
-                    ],
-                    flexibleSpace: FlexibleSpaceBar(
-                      titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-                      title: Text(
-                        '工具箱',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // 工具卡片网格（响应式，像手机桌面一样）
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                    sliver: SliverGrid(
-                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 100,  // 减小，让一行能放4-5个
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: 0.85,
-                      ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _ToolCard(
-                          item: orderedTools[index],
-                          iconSize: 48,  // 图标改小，像桌面图标
-                        ),
-                        childCount: orderedTools.length,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ToolCard extends ConsumerStatefulWidget {
-  final ToolItem item;
-  final double iconSize;
-
-  const _ToolCard({required this.item, this.iconSize = 48});
-
-  @override
-  ConsumerState<_ToolCard> createState() => _ToolCardState();
-}
-
-class _ToolCardState extends ConsumerState<_ToolCard> {
-  bool _isPressed = false;
-
-  /// 长按显示功能说明和图标选择器
-  void _showToolOptions() {
-    if (widget.item.iconOptions == null || widget.item.iconOptions!.isEmpty) {
-      return;
-    }
-
-    HapticFeedback.mediumImpact();
-    showModalBottomSheet(
-      context: context,
       backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => _ToolOptionsSheet(
-        item: widget.item,
-        currentIcon: ref.read(toolIconsProvider.notifier).getIcon(
-              widget.item.id,
-              widget.item.icon,
+      body: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              horizontal,
+              isDesktop ? 26 : 18,
+              horizontal,
+              0,
             ),
-        onSelectIcon: (icon) {
-          ref.read(toolIconsProvider.notifier).setIcon(widget.item.id, icon);
-        },
-        onResetIcon: () {
-          ref.read(toolIconsProvider.notifier).resetIcon(widget.item.id);
-        },
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    // 获取用户自定义图标或默认图标
-    final currentIcon = ref.watch(toolIconsProvider.notifier).getIcon(
-          widget.item.id,
-          widget.item.icon,
-        );
-
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: () => context.push(widget.item.route),
-      // 长按显示功能说明和图标选择（仅对有 iconOptions 的工具生效）
-      onLongPress: widget.item.iconOptions != null ? _showToolOptions : null,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 图标（像手机桌面图标，小方块）
-          Transform.scale(
-            scale: _isPressed ? 0.9 : 1.0,
-            child: Container(
-              width: widget.iconSize,
-              height: widget.iconSize,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: widget.item.gradientColors,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.item.gradientColors.first.withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Icon(
-                currentIcon,
-                size: widget.iconSize * 0.5,
-                color: Colors.white,
-              ),
+            sliver: SliverToBoxAdapter(
+              child: _ToolkitHero(isDesktop: isDesktop, styleId: styleId),
             ),
           ),
-          const SizedBox(height: 6),
-          // 文字（在图标下方，像手机桌面）
-          SizedBox(
-            width: widget.iconSize + 16,
-            child: Text(
-              widget.item.label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: cs.onSurface,
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              horizontal,
+              isClay ? 18 : 22,
+              horizontal,
+              120,
+            ),
+            sliver: SliverGrid.builder(
+              itemCount: tools.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: isDesktop ? 16 : 12,
+                mainAxisSpacing: isDesktop ? 16 : 12,
+                childAspectRatio: isDesktop ? 1.55 : 1.06,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
+              itemBuilder: (context, index) =>
+                  _ToolCard(item: tools[index], styleId: styleId),
             ),
           ),
         ],
@@ -539,194 +280,366 @@ class _ToolCardState extends ConsumerState<_ToolCard> {
   }
 }
 
-/// 工具选项底部弹窗（功能说明 + 图标选择）
-class _ToolOptionsSheet extends StatelessWidget {
-  final ToolItem item;
-  final IconData currentIcon;
-  final ValueChanged<IconData> onSelectIcon;
-  final VoidCallback onResetIcon;
+List<ToolItem> _orderedTools(List<ToolItem> tools, List<String> order) {
+  final byId = {for (final tool in tools) tool.id: tool};
+  final ordered = <ToolItem>[];
+  for (final id in order) {
+    final tool = byId.remove(id);
+    if (tool != null) ordered.add(tool);
+  }
+  ordered.addAll(byId.values);
+  return ordered;
+}
 
-  const _ToolOptionsSheet({
-    required this.item,
-    required this.currentIcon,
-    required this.onSelectIcon,
-    required this.onResetIcon,
-  });
+final toolOrderProvider =
+    StateNotifierProvider<ToolOrderNotifier, List<String>>((ref) {
+      return ToolOrderNotifier();
+    });
+
+class ToolOrderNotifier extends StateNotifier<List<String>> {
+  ToolOrderNotifier() : super(kDefaultTools.map((tool) => tool.id).toList()) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList('tool_order');
+    if (saved != null && saved.isNotEmpty) state = saved;
+  }
+
+  Future<void> reorder(int oldIndex, int newIndex) async {
+    final next = [...state];
+    if (newIndex > oldIndex) newIndex -= 1;
+    final item = next.removeAt(oldIndex);
+    next.insert(newIndex.clamp(0, next.length), item);
+    state = next;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('tool_order', state);
+  }
+
+  Future<void> resetToDefault() async {
+    state = kDefaultTools.map((tool) => tool.id).toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('tool_order', state);
+  }
+}
+
+final hiddenToolsProvider =
+    StateNotifierProvider<HiddenToolsNotifier, Set<String>>((ref) {
+      return HiddenToolsNotifier();
+    });
+
+class HiddenToolsNotifier extends StateNotifier<Set<String>> {
+  HiddenToolsNotifier() : super(const {}) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = (prefs.getStringList('hidden_tools') ?? const []).toSet();
+  }
+
+  Future<void> hide(String id) async {
+    state = {...state, id};
+    await _persist();
+  }
+
+  Future<void> show(String id) async {
+    final next = {...state}..remove(id);
+    state = next;
+    await _persist();
+  }
+
+  Future<void> reset() async {
+    state = const {};
+    await _persist();
+  }
+
+  Future<void> _persist() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('hidden_tools', state.toList());
+  }
+}
+
+final toolIconsProvider =
+    StateNotifierProvider<ToolIconsNotifier, Map<String, IconData>>((ref) {
+      return ToolIconsNotifier();
+    });
+
+class ToolIconsNotifier extends StateNotifier<Map<String, IconData>> {
+  ToolIconsNotifier() : super(const {});
+
+  IconData getIcon(String toolId, IconData defaultIcon) {
+    return state[toolId] ?? defaultIcon;
+  }
+
+  Future<void> setIcon(String toolId, IconData icon) async {
+    state = {...state, toolId: icon};
+  }
+
+  Future<void> resetIcon(String toolId) async {
+    final next = {...state}..remove(toolId);
+    state = next;
+  }
+}
+
+class _ToolkitHero extends StatelessWidget {
+  final bool isDesktop;
+  final String styleId;
+
+  const _ToolkitHero({required this.isDesktop, required this.styleId});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final icons = item.iconOptions!;
+    final isClay = styleId == StyleIds.clay;
+    final claySurface = Color.lerp(
+      cs.surface,
+      cs.surfaceContainerHighest,
+      0.32,
+    )!;
 
     return Container(
+      padding: EdgeInsets.all(isDesktop ? 24 : 20),
       decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        color: isClay ? claySurface : null,
+        gradient: isClay
+            ? null
+            : const LinearGradient(
+                colors: [
+                  Color(0xFF1F2937),
+                  Color(0xFF5B5CF6),
+                  Color(0xFFFF6BAA),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        borderRadius: BorderRadius.circular(
+          isClay ? 32 : (isDesktop ? 28 : 24),
+        ),
+        border: isClay
+            ? Border.all(
+                color: Colors.white.withValues(alpha: 0.92),
+                width: 1.4,
+              )
+            : null,
+        boxShadow: [
+          if (isClay) ...[
+            BoxShadow(
+              color: Theme.of(context).shadowColor.withValues(alpha: 0.20),
+              blurRadius: 26,
+              spreadRadius: 1,
+              offset: const Offset(12, 12),
+            ),
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.78),
+              blurRadius: 22,
+              spreadRadius: 1,
+              offset: const Offset(-12, -12),
+            ),
+          ] else
+            BoxShadow(
+              color: const Color(0xFF5B5CF6).withValues(alpha: 0.25),
+              blurRadius: 30,
+              offset: const Offset(0, 16),
+            ),
+        ],
       ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 拖动指示条
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: cs.outline,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // 功能说明区域
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-              child: Row(
-                children: [
-                  // 当前图标
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: item.gradientColors,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      currentIcon,
-                      color: Colors.white,
-                      size: 26,
-                    ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '工具箱',
+                  style: TextStyle(
+                    fontSize: isDesktop ? 32 : 28,
+                    fontWeight: FontWeight.w900,
+                    color: isClay ? cs.onSurface : Colors.white,
                   ),
-                  const SizedBox(width: 14),
-                  // 标题和说明
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.label,
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                            color: cs.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.description,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: cs.onSurfaceVariant,
-                            height: 1.3,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '把拍题、出题、复盘、笔记和计划放进一个学习工作台。',
+                  style: TextStyle(
+                    fontSize: isDesktop ? 15 : 13,
+                    color: isClay
+                        ? cs.onSurfaceVariant
+                        : Colors.white.withValues(alpha: 0.82),
+                    height: 1.45,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            // 分割线
-            Divider(
-              height: 1,
-              thickness: 0.5,
-              color: cs.outline.withValues(alpha: 0.5),
-              indent: 20,
-              endIndent: 20,
-            ),
-            // 图标选择标题
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-              child: Row(
-                children: [
-                  Text(
-                    '选择图标',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurface,
-                    ),
-                  ),
-                  const Spacer(),
-                  // 重置按钮
-                  GestureDetector(
-                    onTap: () {
-                      onResetIcon();
-                      Navigator.pop(context);
-                    },
-                    child: Text(
-                      '恢复默认',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // 图标网格
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: icons.map((icon) {
-                  final isSelected = icon == currentIcon;
-                  return GestureDetector(
-                    onTap: () {
-                      onSelectIcon(icon);
-                      Navigator.pop(context);
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        gradient: isSelected
-                            ? LinearGradient(colors: item.gradientColors)
-                            : null,
-                        color: isSelected
-                            ? null
-                            : cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isSelected
-                              ? Colors.transparent
-                              : cs.outline,
-                          width: 1,
-                        ),
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: item.gradientColors.first.withValues(alpha: 0.4),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Icon(
-                        icon,
-                        size: 26,
-                        color: isSelected
-                            ? Colors.white
-                            : cs.onSurface,
-                      ),
-                    ),
-                  );
-                }).toList(),
+          ),
+          if (isDesktop) ...[
+            const SizedBox(width: 28),
+            IconButton.filledTonal(
+              onPressed: () => context.push(R.toolkitSettings),
+              icon: const Icon(Icons.tune_rounded),
+              tooltip: '工具设置',
+              style: IconButton.styleFrom(
+                backgroundColor: isClay
+                    ? cs.surface.withValues(alpha: 0.60)
+                    : Colors.white.withValues(alpha: 0.16),
+                foregroundColor: isClay ? cs.primary : Colors.white,
               ),
             ),
           ],
+          if (!isDesktop)
+            IconButton(
+              onPressed: () => context.push(R.toolkitSettings),
+              icon: const Icon(Icons.tune_rounded),
+              color: isClay ? cs.primary : Colors.white,
+              tooltip: '工具设置',
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ToolCard extends StatefulWidget {
+  final ToolItem item;
+  final String styleId;
+
+  const _ToolCard({required this.item, required this.styleId});
+
+  @override
+  State<_ToolCard> createState() => _ToolCardState();
+}
+
+class _ToolCardState extends State<_ToolCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isClay = widget.styleId == StyleIds.clay;
+    final radius = isClay ? 28.0 : 22.0;
+    final cardColor = isClay
+        ? Color.lerp(cs.surface, cs.surfaceContainerHighest, 0.30)!
+        : cs.surface.withValues(alpha: 0.86);
+
+    return AnimatedScale(
+      scale: _pressed ? 0.97 : 1,
+      duration: const Duration(milliseconds: 120),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(radius),
+        child: InkWell(
+          onTap: () => context.push(widget.item.route),
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapCancel: () => setState(() => _pressed = false),
+          onTapUp: (_) => setState(() => _pressed = false),
+          borderRadius: BorderRadius.circular(radius),
+          child: Ink(
+            padding: EdgeInsets.all(isClay ? 17 : 18),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: isClay ? 0.92 : 0.62),
+                width: isClay ? 1.35 : 1,
+              ),
+              boxShadow: [
+                if (isClay) ...[
+                  BoxShadow(
+                    color: Theme.of(
+                      context,
+                    ).shadowColor.withValues(alpha: 0.20),
+                    blurRadius: 24,
+                    spreadRadius: 1,
+                    offset: const Offset(11, 11),
+                  ),
+                  BoxShadow(
+                    color: Colors.white.withValues(alpha: 0.78),
+                    blurRadius: 20,
+                    spreadRadius: 1,
+                    offset: const Offset(-11, -11),
+                  ),
+                ] else
+                  BoxShadow(
+                    color: widget.item.colors.first.withValues(alpha: 0.14),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
+                  ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: widget.item.colors),
+                    borderRadius: BorderRadius.circular(isClay ? 18 : 16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: widget.item.colors.first.withValues(
+                          alpha: isClay ? 0.28 : 0.36,
+                        ),
+                        blurRadius: isClay ? 16 : 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: _ToolIcon(item: widget.item, size: 25),
+                ),
+                const Spacer(),
+                Text(
+                  widget.item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  widget.item.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
+  }
+}
+
+class _ToolIcon extends StatelessWidget {
+  final ToolItem item;
+  final double size;
+
+  const _ToolIcon({required this.item, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final asset = item.iconAsset;
+    if (asset != null && asset.isNotEmpty) {
+      return Center(
+        child: SvgPicture.asset(
+          asset,
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          placeholderBuilder: (_) =>
+              Icon(item.icon, color: Colors.white, size: size),
+        ),
+      );
+    }
+    return Icon(item.icon, color: Colors.white, size: size);
   }
 }

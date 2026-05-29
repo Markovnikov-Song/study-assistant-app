@@ -279,10 +279,10 @@ class Level3Monitor {
     String body;
 
     if (streakBrokenDays >= 7) {
-      title = '⚠️ 已经${streakBrokenDays}天没学习了';
+      title = '⚠️ 已经$streakBrokenDays天没学习了';
       body = '学习习惯需要保持，今天开始重新学习吧！';
     } else if (streakBrokenDays >= 3) {
-      title = '📚 ${streakBrokenDays}天没学习';
+      title = '📚 $streakBrokenDays天没学习';
       body = '知识会遗忘哦，今天抽空复习一下吧～';
     } else {
       title = '📖 今天还没开始学习';

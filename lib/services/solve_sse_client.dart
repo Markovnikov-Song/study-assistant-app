@@ -108,7 +108,7 @@ class SolveSSEClient {
             final rawData = line.substring(6);
             final event = _parseDataLine(rawData);
             if (event != null) {
-              controller.add(event);
+              controller.add(_sanitizeEvent(event));
               if (event is SolveDoneEvent || event is SolveErrorEvent) {
                 await controller.close();
                 return;
@@ -131,14 +131,12 @@ class SolveSSEClient {
     } on DioException catch (e) {
       if (!controller.isClosed) {
         final api = ApiException.fromDioException(e);
-        controller.add(SolveErrorEvent(api.message));
+        controller.add(SolveErrorEvent(_friendlyErrorMessage(api.message)));
         await controller.close();
       }
     } catch (_) {
       if (!controller.isClosed) {
-        controller.add(
-          const SolveErrorEvent('网络异常，请检查连接后重试'),
-        );
+        controller.add(const SolveErrorEvent('拍照解题连接失败，请检查网络后重试'));
         await controller.close();
       }
     }
@@ -176,7 +174,7 @@ class SolveSSEClient {
         return null;
       } else if (content == '[ERROR]') {
         final error = decoded['error'] as String? ?? '未知错误';
-        return SolveErrorEvent(error);
+        return SolveErrorEvent(_friendlyErrorMessage(error));
       } else {
         return SolveTokenEvent(content);
       }
@@ -188,9 +186,38 @@ class SolveSSEClient {
     if (rawData == '[DONE]') {
       return const SolveDoneEvent();
     } else if (rawData.startsWith('[ERROR]')) {
-      return SolveErrorEvent(rawData.substring(7).trim());
+      return SolveErrorEvent(
+        _friendlyErrorMessage(rawData.substring(7).trim()),
+      );
     } else {
       return SolveTokenEvent(rawData);
     }
+  }
+
+  SolveSSEEvent _sanitizeEvent(SolveSSEEvent event) {
+    if (event is SolveErrorEvent) {
+      return SolveErrorEvent(_friendlyErrorMessage(event.message));
+    }
+    return event;
+  }
+
+  String _friendlyErrorMessage(String raw) {
+    final message = raw.trim();
+    if (message.isEmpty) {
+      return '拍照解题暂时失败，请换一张更清晰的照片后重试';
+    }
+
+    if (message.contains('DioException') ||
+        message.contains('HttpException') ||
+        message.contains('Software caused connection abort') ||
+        message.contains('Connection closed') ||
+        message.contains('status code of 400')) {
+      return '拍照解题连接中断，请检查网络后重试；如果连续失败，请重新拍一张更清晰的题目照片';
+    }
+
+    if (message.length > 180) {
+      return '${message.substring(0, 180)}...';
+    }
+    return message;
   }
 }

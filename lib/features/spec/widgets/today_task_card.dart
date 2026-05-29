@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../routes/app_router.dart';
 import '../models/study_plan_models.dart';
 import '../providers/study_planner_providers.dart';
-import '../../../routes/app_router.dart';
+import '../services/capability_launch_service.dart';
 
-/// 今日任务卡片，插入到 ChatPage 空状态区域上方。
-/// 条件：有 active 计划 && 今日有 pending items && 用户未关闭
 class TodayTaskCard extends ConsumerStatefulWidget {
   const TodayTaskCard({super.key});
 
@@ -59,50 +59,58 @@ class _TodayTaskCardState extends ConsumerState<TodayTaskCard> {
 
     return planAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (plan) {
         if (plan == null || !plan.isActive) return const SizedBox.shrink();
         return todayAsync.when(
           loading: () => const SizedBox.shrink(),
-          error: (_, __) => const SizedBox.shrink(),
+          error: (_, _) => const SizedBox.shrink(),
           data: (items) {
-            final pending = items.where((i) => i.isPending).toList();
-            if (pending.isEmpty) return const SizedBox.shrink();
-            return _buildCard(context, plan, pending);
+            if (items.isEmpty) return const SizedBox.shrink();
+            final pending = items.where((item) => item.isPending).toList();
+            return _buildCard(context, plan, items, pending);
           },
         );
       },
     );
   }
 
-  Widget _buildCard(BuildContext context, StudyPlan plan, List<PlanItem> pending) {
+  Widget _buildCard(
+    BuildContext context,
+    StudyPlan plan,
+    List<PlanItem> todayItems,
+    List<PlanItem> pending,
+  ) {
     final cs = Theme.of(context).colorScheme;
     final show = pending.take(3).toList();
-    final allDone = pending.isEmpty;
+    final done = todayItems
+        .where((item) => item.isDone || item.isSkipped)
+        .length;
+    final progress = todayItems.isEmpty ? 0.0 : done / todayItems.length;
+    final next = pending.isEmpty ? null : pending.first;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       decoration: BoxDecoration(
         color: cs.primaryContainer,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: cs.primary.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 标题栏
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
             child: Row(
               children: [
-                Icon(Icons.today_outlined, size: 18, color: cs.primary),
+                Icon(Icons.track_changes, size: 18, color: cs.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    allDone ? '今日任务全部完成 🎉' : '今日学习任务 · ${pending.length} 项待完成',
+                    '今日任务条 · $done/${todayItems.length}',
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: cs.onPrimaryContainer,
                     ),
                   ),
@@ -115,12 +123,35 @@ class _TodayTaskCardState extends ConsumerState<TodayTaskCard> {
               ],
             ),
           ),
-
-          // 任务列表
-          if (!allDone)
-            ...show.map((item) => _TaskRow(item: item, cs: cs)),
-
-          // 底部操作
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress.clamp(0, 1),
+                minHeight: 7,
+                backgroundColor: cs.primary.withValues(alpha: 0.16),
+                color: cs.primary,
+              ),
+            ),
+          ),
+          if (next != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              child: Text(
+                '下一关约 ${next.estimatedMinutes} 分钟，完成后获得 +${next.estimatedMinutes.clamp(10, 60)} XP。',
+                style: TextStyle(fontSize: 12, color: cs.onPrimaryContainer),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                '今日任务已完成，可以去复盘或让助教安排下一轮。',
+                style: TextStyle(fontSize: 12, color: cs.onPrimaryContainer),
+              ),
+            ),
+          for (final item in show) _TaskRow(item: item, cs: cs),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: Row(
@@ -133,9 +164,17 @@ class _TodayTaskCardState extends ConsumerState<TodayTaskCard> {
                       padding: EdgeInsets.zero,
                       alignment: Alignment.centerLeft,
                     ),
-                    child: const Text('查看完整计划 →', style: TextStyle(fontSize: 13)),
+                    child: const Text('查看完整计划'),
                   ),
                 ),
+                if (next != null)
+                  FilledButton.icon(
+                    onPressed: () => context.push(
+                      CapabilityLaunchService.routeForPlanItem(next),
+                    ),
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('开始'),
+                  ),
               ],
             ),
           ),
@@ -145,24 +184,16 @@ class _TodayTaskCardState extends ConsumerState<TodayTaskCard> {
   }
 }
 
-class _TaskRow extends ConsumerWidget {
+class _TaskRow extends StatelessWidget {
   final PlanItem item;
   final ColorScheme cs;
 
   const _TaskRow({required this.item, required this.cs});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {
-        if (item.subjectId == null) return;
-        // 跳转到学科专属对话，预填节点文本
-        final chatId = DateTime.now().millisecondsSinceEpoch.toString();
-        context.push(
-          '/chat/$chatId/subject/${item.subjectId}',
-          extra: {'prefillText': item.nodeText},
-        );
-      },
+      onTap: () => context.push(CapabilityLaunchService.routeForPlanItem(item)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Row(
@@ -186,7 +217,7 @@ class _TaskRow extends ConsumerWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              '${item.estimatedMinutes}min',
+              '${item.estimatedMinutes} min',
               style: TextStyle(fontSize: 11, color: cs.outline),
             ),
           ],

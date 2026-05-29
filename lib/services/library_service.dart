@@ -41,7 +41,10 @@ class LibraryService {
 
   Future<void> renameSession(int sessionId, String title) async {
     try {
-      await _dio.patch('$_base/sessions/$sessionId/title', data: {'title': title});
+      await _dio.patch(
+        '$_base/sessions/$sessionId/title',
+        data: {'title': title},
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -55,12 +58,16 @@ class LibraryService {
     }
   }
 
-  Future<void> updateSessionMeta(int sessionId, {bool? isPinned, int? sortOrder}) async {
+  Future<void> updateSessionMeta(
+    int sessionId, {
+    bool? isPinned,
+    int? sortOrder,
+  }) async {
     try {
-      await _dio.patch('$_base/sessions/$sessionId/meta', data: {
-        if (isPinned != null) 'is_pinned': isPinned,
-        if (sortOrder != null) 'sort_order': sortOrder,
-      });
+      await _dio.patch(
+        '$_base/sessions/$sessionId/meta',
+        data: {'is_pinned': ?isPinned, 'sort_order': ?sortOrder},
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -71,8 +78,7 @@ class LibraryService {
   Future<List<TreeNode>> getNodes(int sessionId) async {
     try {
       final res = await _dio.get('$_base/sessions/$sessionId/nodes');
-      final flat = (res.data['nodes'] as List)
-          .cast<Map<String, dynamic>>();
+      final flat = (res.data['nodes'] as List).cast<Map<String, dynamic>>();
       return TreeNode.buildTree(flat);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -81,7 +87,10 @@ class LibraryService {
 
   Future<void> updateContent(int sessionId, String markdown) async {
     try {
-      await _dio.patch('$_base/sessions/$sessionId/content', data: {'content': markdown});
+      await _dio.patch(
+        '$_base/sessions/$sessionId/content',
+        data: {'content': markdown},
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -175,7 +184,11 @@ class LibraryService {
     return ctrl.stream;
   }
 
-  Future<void> _doStream(String url, Map<String, dynamic> body, StreamController<String> ctrl) async {
+  Future<void> _doStream(
+    String url,
+    Map<String, dynamic> body,
+    StreamController<String> ctrl,
+  ) async {
     try {
       final token = await StorageService.instance.getToken();
       final stream = ssePost(url, body, token);
@@ -191,7 +204,10 @@ class LibraryService {
 
   Future<void> patchLecture(int lectureId, Map<String, dynamic> content) async {
     try {
-      await _dio.patch('$_base/lectures/$lectureId', data: {'content': content});
+      await _dio.patch(
+        '$_base/lectures/$lectureId',
+        data: {'content': content},
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -208,7 +224,10 @@ class LibraryService {
     }
   }
 
-  Future<List<int>> exportLecture(int lectureId, {String format = 'docx'}) async {
+  Future<List<int>> exportLecture(
+    int lectureId, {
+    String format = 'docx',
+  }) async {
     try {
       final res = await _dio.post(
         '$_base/lectures/$lectureId/export',

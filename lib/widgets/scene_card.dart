@@ -18,24 +18,57 @@ class SceneCard extends StatelessWidget {
   // 根据场景类型返回左侧竖条颜色
   Color _accentColor(BuildContext context) {
     switch (data.sceneType) {
-      case SceneType.subject:  return const Color(0xFF1E88E5); // 蓝色
-      case SceneType.planning: return const Color(0xFF43A047); // 绿色
-      case SceneType.tool:     return const Color(0xFFFB8C00); // 橙色
-      case SceneType.spec:     return const Color(0xFF8E24AA); // 紫色
-      case SceneType.calendar: return const Color(0xFF6366F1); // 靛蓝色
+      case SceneType.subject:
+        return const Color(0xFF1E88E5); // 蓝色
+      case SceneType.planning:
+        return const Color(0xFF43A047); // 绿色
+      case SceneType.tool:
+        return const Color(0xFFFB8C00); // 橙色
+      case SceneType.spec:
+        return const Color(0xFF8E24AA); // 紫色
+      case SceneType.calendar:
+        return const Color(0xFF6366F1); // 靛蓝色
     }
   }
 
   // 根据场景类型返回图标
   IconData _icon() {
     switch (data.sceneType) {
-      case SceneType.subject:  return Icons.school_outlined;
-      case SceneType.planning: return Icons.assignment_outlined;
-      case SceneType.tool:     return Icons.build_outlined;
-      case SceneType.spec:     return Icons.account_tree_outlined;
-      case SceneType.calendar: return Icons.calendar_today_outlined;
+      case SceneType.subject:
+        return Icons.school_outlined;
+      case SceneType.planning:
+        return Icons.assignment_outlined;
+      case SceneType.tool:
+        return Icons.build_outlined;
+      case SceneType.spec:
+        return Icons.account_tree_outlined;
+      case SceneType.calendar:
+        return Icons.calendar_today_outlined;
     }
   }
+
+  List<Map<String, dynamic>> _capabilityMix() {
+    final draft = data.payload['examPrepDraft'];
+    if (draft is! Map) return const [];
+    final raw = draft['capability_mix'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+  }
+
+  List<String> _missingSlots() {
+    final draft = data.payload['examPrepDraft'];
+    if (draft is! Map) return const [];
+    final raw = draft['missing_slots'];
+    if (raw is! List) return const [];
+    return raw.map((e) => '$e').toList();
+  }
+
+  String _slotLabel(String value) => switch (value) {
+    'subject' => '科目',
+    'deadline' => '考试日期',
+    'daily_minutes' => '每日时长',
+    _ => value,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +81,9 @@ class SceneCard extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.88),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.88,
+        ),
         decoration: BoxDecoration(
           color: cs.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(12),
@@ -83,7 +118,10 @@ class SceneCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               data.title,
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
@@ -95,6 +133,31 @@ class SceneCard extends StatelessWidget {
                           style: TextStyle(fontSize: 12, color: cs.outline),
                         ),
                       ],
+                      if (_capabilityMix().isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final item in _capabilityMix().take(4))
+                              _CapabilityPill(
+                                label:
+                                    item['label'] as String? ??
+                                    item['capability_id'] as String? ??
+                                    '能力',
+                                weight: (item['weight'] as num?)?.toDouble(),
+                                color: accent,
+                              ),
+                          ],
+                        ),
+                      ],
+                      if (_missingSlots().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '待补充：${_missingSlots().map(_slotLabel).join('、')}',
+                          style: TextStyle(fontSize: 12, color: cs.error),
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       Row(
                         children: [
@@ -102,21 +165,33 @@ class SceneCard extends StatelessWidget {
                             onPressed: onConfirm,
                             style: FilledButton.styleFrom(
                               backgroundColor: accent,
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            child: Text(data.confirmLabel, style: const TextStyle(fontSize: 13)),
+                            child: Text(
+                              data.confirmLabel,
+                              style: const TextStyle(fontSize: 13),
+                            ),
                           ),
                           const SizedBox(width: 8),
                           TextButton(
                             onPressed: onDismiss,
                             style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            child: Text(data.dismissLabel, style: const TextStyle(fontSize: 13)),
+                            child: Text(
+                              data.dismissLabel,
+                              style: const TextStyle(fontSize: 13),
+                            ),
                           ),
                         ],
                       ),
@@ -126,6 +201,39 @@ class SceneCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CapabilityPill extends StatelessWidget {
+  final String label;
+  final double? weight;
+  final Color color;
+
+  const _CapabilityPill({
+    required this.label,
+    required this.weight,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final text = weight == null ? label : '$label ${(weight! * 100).round()}%';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

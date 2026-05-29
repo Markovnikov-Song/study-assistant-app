@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,16 +21,22 @@ import 'notification_service.dart';
 class Level2MonitorSettings {
   /// 检查间隔（分钟）
   final int checkIntervalMinutes;
+
   /// 闲置阈值（分钟）
   final int idleThresholdMinutes;
+
   /// 完成率阈值（0.0 - 1.0）
   final double completionThreshold;
+
   /// 冷却时间（分钟）
   final int cooldownMinutes;
+
   /// 完成率低提醒触发时间（小时，0-23）
   final int completionReminderHour;
+
   /// 是否启用完成率低提醒
   final bool completionReminderEnabled;
+
   /// 是否启用闲置提醒
   final bool idleReminderEnabled;
 
@@ -45,33 +50,33 @@ class Level2MonitorSettings {
     this.idleReminderEnabled = true,
   });
 
-  static const _kCheckInterval    = 'l2_check_interval';
-  static const _kIdleThreshold    = 'l2_idle_threshold';
-  static const _kCooldown         = 'l2_cooldown';
-  static const _kReminderHour      = 'l2_reminder_hour';
+  static const _kCheckInterval = 'l2_check_interval';
+  static const _kIdleThreshold = 'l2_idle_threshold';
+  static const _kCooldown = 'l2_cooldown';
+  static const _kReminderHour = 'l2_reminder_hour';
   static const _kCompletionEnabled = 'l2_completion_enabled';
-  static const _kIdleEnabled       = 'l2_idle_enabled';
+  static const _kIdleEnabled = 'l2_idle_enabled';
 
   static Future<Level2MonitorSettings> load() async {
     final p = await SharedPreferences.getInstance();
     return Level2MonitorSettings(
-      checkIntervalMinutes:   p.getInt(_kCheckInterval)    ?? 5,
-      idleThresholdMinutes:   p.getInt(_kIdleThreshold)    ?? 15,
-      cooldownMinutes:        p.getInt(_kCooldown)          ?? 30,
-      completionReminderHour: p.getInt(_kReminderHour)     ?? 20,
+      checkIntervalMinutes: p.getInt(_kCheckInterval) ?? 5,
+      idleThresholdMinutes: p.getInt(_kIdleThreshold) ?? 15,
+      cooldownMinutes: p.getInt(_kCooldown) ?? 30,
+      completionReminderHour: p.getInt(_kReminderHour) ?? 20,
       completionReminderEnabled: p.getBool(_kCompletionEnabled) ?? true,
-      idleReminderEnabled:    p.getBool(_kIdleEnabled)      ?? true,
+      idleReminderEnabled: p.getBool(_kIdleEnabled) ?? true,
     );
   }
 
   Future<void> save() async {
     final p = await SharedPreferences.getInstance();
-    await p.setInt(_kCheckInterval,    checkIntervalMinutes);
-    await p.setInt(_kIdleThreshold,     idleThresholdMinutes);
-    await p.setInt(_kCooldown,          cooldownMinutes);
-    await p.setInt(_kReminderHour,       completionReminderHour);
+    await p.setInt(_kCheckInterval, checkIntervalMinutes);
+    await p.setInt(_kIdleThreshold, idleThresholdMinutes);
+    await p.setInt(_kCooldown, cooldownMinutes);
+    await p.setInt(_kReminderHour, completionReminderHour);
     await p.setBool(_kCompletionEnabled, completionReminderEnabled);
-    await p.setBool(_kIdleEnabled,       idleReminderEnabled);
+    await p.setBool(_kIdleEnabled, idleReminderEnabled);
   }
 
   Level2MonitorSettings copyWith({
@@ -82,12 +87,14 @@ class Level2MonitorSettings {
     bool? completionReminderEnabled,
     bool? idleReminderEnabled,
   }) => Level2MonitorSettings(
-    checkIntervalMinutes:   checkIntervalMinutes   ?? this.checkIntervalMinutes,
-    idleThresholdMinutes:   idleThresholdMinutes   ?? this.idleThresholdMinutes,
-    cooldownMinutes:        cooldownMinutes        ?? this.cooldownMinutes,
-    completionReminderHour: completionReminderHour ?? this.completionReminderHour,
-    completionReminderEnabled: completionReminderEnabled ?? this.completionReminderEnabled,
-    idleReminderEnabled:    idleReminderEnabled    ?? this.idleReminderEnabled,
+    checkIntervalMinutes: checkIntervalMinutes ?? this.checkIntervalMinutes,
+    idleThresholdMinutes: idleThresholdMinutes ?? this.idleThresholdMinutes,
+    cooldownMinutes: cooldownMinutes ?? this.cooldownMinutes,
+    completionReminderHour:
+        completionReminderHour ?? this.completionReminderHour,
+    completionReminderEnabled:
+        completionReminderEnabled ?? this.completionReminderEnabled,
+    idleReminderEnabled: idleReminderEnabled ?? this.idleReminderEnabled,
   );
 }
 
@@ -107,7 +114,7 @@ class Level2Monitor {
   bool _initialized = false;
 
   Level2Monitor(this._ref, BuildContext Function() contextGetter)
-      : _contextGetter = contextGetter;
+    : _contextGetter = contextGetter;
 
   Future<void> _ensureInit() async {
     if (_initialized) return;
@@ -162,7 +169,8 @@ class Level2Monitor {
     final now = DateTime.now();
 
     // 条件 1：今日完成率 < 阈值 且已过提醒时间
-    if (_settings.completionReminderEnabled && now.hour >= _settings.completionReminderHour) {
+    if (_settings.completionReminderEnabled &&
+        now.hour >= _settings.completionReminderHour) {
       final todayItems = _ref.read(todayPlanItemsProvider).valueOrNull ?? [];
       if (todayItems.isNotEmpty) {
         final done = todayItems.where((i) => i.isDone || i.isSkipped).length;
@@ -170,7 +178,10 @@ class Level2Monitor {
         if (rate < _settings.completionThreshold) {
           final lastTrigger = prefs.getString(_prefLastTriggerCompletion);
           if (_canTrigger(lastTrigger, now)) {
-            await prefs.setString(_prefLastTriggerCompletion, now.toIso8601String());
+            await prefs.setString(
+              _prefLastTriggerCompletion,
+              now.toIso8601String(),
+            );
             if (!context.mounted) return;
             await _trigger(
               context,
@@ -195,7 +206,10 @@ class Level2Monitor {
           if (idleMinutes >= _settings.idleThresholdMinutes) {
             final lastTrigger = prefs.getString(_prefLastTriggerIdle);
             if (_canTrigger(lastTrigger, now)) {
-              await prefs.setString(_prefLastTriggerIdle, now.toIso8601String());
+              await prefs.setString(
+                _prefLastTriggerIdle,
+                now.toIso8601String(),
+              );
               if (!context.mounted) return;
               await _trigger(
                 context,
@@ -230,11 +244,14 @@ class Level2Monitor {
     // 尝试调用 companion_observe 获取 AI 文案
     try {
       final dio = DioClient.instance.dio;
-      final res = await dio.post('/api/council/companion/observe', data: {
-        'focus_minutes': focusMinutes,
-        'mistake_count': mistakeCount,
-        'trigger_type': triggerType,
-      });
+      final res = await dio.post(
+        '/api/council/companion/observe',
+        data: {
+          'focus_minutes': focusMinutes,
+          'mistake_count': mistakeCount,
+          'trigger_type': triggerType,
+        },
+      );
       final data = res.data as Map<String, dynamic>;
       final aiMessage = data['message'] as String?;
       if (aiMessage != null && aiMessage.isNotEmpty) {
@@ -250,9 +267,7 @@ class Level2Monitor {
     _CompanionBubbleOverlay.show(context, message);
 
     // Level 2: 系统通知（后台也推送）
-    final notificationTitle = triggerType == 'completion'
-        ? '今日计划待完成'
-        : '学习提醒';
+    final notificationTitle = triggerType == 'completion' ? '今日计划待完成' : '学习提醒';
     await NotificationService.instance.showImmediate(
       id: NotificationIds.level2Reminder,
       title: notificationTitle,
@@ -287,7 +302,8 @@ class _CompanionBubbleOverlay extends StatefulWidget {
   }
 
   @override
-  State<_CompanionBubbleOverlay> createState() => _CompanionBubbleOverlayState();
+  State<_CompanionBubbleOverlay> createState() =>
+      _CompanionBubbleOverlayState();
 }
 
 class _CompanionBubbleOverlayState extends State<_CompanionBubbleOverlay>
@@ -298,7 +314,10 @@ class _CompanionBubbleOverlayState extends State<_CompanionBubbleOverlay>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
     _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
     _ctrl.forward();
 
@@ -350,7 +369,11 @@ class _CompanionBubbleOverlayState extends State<_CompanionBubbleOverlay>
                       color: cs.primary,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.school_outlined, size: 18, color: cs.onPrimary),
+                    child: Icon(
+                      Icons.school_outlined,
+                      size: 18,
+                      color: cs.onPrimary,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -368,7 +391,10 @@ class _CompanionBubbleOverlayState extends State<_CompanionBubbleOverlay>
                     onPressed: _close,
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                    constraints: const BoxConstraints(
+                      minWidth: 24,
+                      minHeight: 24,
+                    ),
                   ),
                 ],
               ),

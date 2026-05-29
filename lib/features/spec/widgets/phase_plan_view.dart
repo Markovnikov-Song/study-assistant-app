@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../models/study_plan_models.dart';
 import '../providers/study_planner_providers.dart';
+import '../services/capability_launch_service.dart';
+import '../services/study_reward_service.dart';
 
 /// 阶段 3：计划表视图
 class PhasePlanView extends ConsumerStatefulWidget {
@@ -31,22 +34,32 @@ class _PhasePlanViewState extends ConsumerState<PhasePlanView> {
           : '未排期';
       map.putIfAbsent(key, () => []).add(item);
     }
-    return Map.fromEntries(map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)));
+    return Map.fromEntries(
+      map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+    );
   }
 
   Future<void> _updateItemStatus(PlanItem item, String status) async {
     try {
-      await ref.read(studyPlannerApiServiceProvider).updateItemStatus(
-            _plan.id,
-            item.id,
-            status,
-          );
+      await ref
+          .read(studyPlannerApiServiceProvider)
+          .updateItemStatus(_plan.id, item.id, status);
       // 刷新计划
-      final updated = await ref.read(studyPlannerApiServiceProvider).getActivePlan();
+      final updated = await ref
+          .read(studyPlannerApiServiceProvider)
+          .getActivePlan();
       if (updated != null && mounted) {
         setState(() => _plan = updated);
         ref.invalidate(activePlanProvider);
         ref.invalidate(todayPlanItemsProvider);
+        if (status == 'done') {
+          await StudyRewardService.showTaskCompleted(
+            context: context,
+            ref: ref,
+            plan: updated,
+            completedItemId: item.id,
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -64,7 +77,10 @@ class _PhasePlanViewState extends ConsumerState<PhasePlanView> {
         title: const Text('放弃计划'),
         content: const Text('确认放弃当前学习计划？历史数据将保留。'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
@@ -80,9 +96,9 @@ class _PhasePlanViewState extends ConsumerState<PhasePlanView> {
       ref.invalidate(activePlanProvider);
       ref.invalidate(todayPlanItemsProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('计划已放弃')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('计划已放弃')));
         // 重置到对话阶段
         ref.read(specPhaseProvider.notifier).state = SpecPhase.chat;
       }
@@ -104,7 +120,9 @@ class _PhasePlanViewState extends ConsumerState<PhasePlanView> {
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
     final totalItems = _plan.items.length;
-    final completedItems = _plan.items.where((i) => i.isDone || i.isSkipped).length;
+    final completedItems = _plan.items
+        .where((i) => i.isDone || i.isSkipped)
+        .length;
     final todayItems = grouped[todayKey] ?? [];
     final todayDone = todayItems.where((i) => i.isDone || i.isSkipped).length;
     final todayRate = todayItems.isEmpty ? 0.0 : todayDone / todayItems.length;
@@ -207,11 +225,7 @@ class _SummaryCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _StatItem(
-                  label: '总任务',
-                  value: '$totalItems',
-                  cs: cs,
-                ),
+                child: _StatItem(label: '总任务', value: '$totalItems', cs: cs),
               ),
               Expanded(
                 child: _StatItem(
@@ -269,7 +283,10 @@ class _StatItem extends StatelessWidget {
             color: cs.onPrimaryContainer,
           ),
         ),
-        Text(label, style: TextStyle(fontSize: 11, color: cs.onPrimaryContainer)),
+        Text(
+          label,
+          style: TextStyle(fontSize: 11, color: cs.onPrimaryContainer),
+        ),
       ],
     );
   }
@@ -297,15 +314,41 @@ class _PlanItemTile extends StatelessWidget {
   }
 
   String _priorityLabel() => switch (item.priority) {
-        'high' => '重点',
-        'medium' => '一般',
-        _ => '补充',
-      };
+    'high' => '重点',
+    'medium' => '一般',
+    _ => '补充',
+  };
+
+  String _capabilityLabel() {
+    final id = item.capabilityId;
+    if (id == null || id.isEmpty) return '';
+
+    final params = item.capabilityParams;
+    final tool = switch (params['tool'] as String? ?? id) {
+      'memory-drill' || 'memory.drill' => '记忆训练',
+      'lecture-view' || 'lecture.view' => '讲义学习',
+      'quiz.generate' => '智能练习',
+      _ => params['tool'] as String? ?? id,
+    };
+    final count = params['count'];
+    final contentType = switch (params['content_type'] as String?) {
+      'vocabulary' => '词汇',
+      'political-concept' => '政治概念',
+      'formula' => '公式',
+      'knowledge-node' => '知识点',
+      _ => params['content_type'] as String?,
+    };
+    if (count != null && contentType != null && contentType.isNotEmpty) {
+      return '$tool · $count 个$contentType';
+    }
+    return tool;
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDone = item.isDone || item.isSkipped;
+    final capabilityLabel = _capabilityLabel();
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -317,6 +360,10 @@ class _PlanItemTile extends StatelessWidget {
         border: Border.all(color: cs.outlineVariant),
       ),
       child: ListTile(
+        onTap: isDone
+            ? null
+            : () =>
+                  context.push(CapabilityLaunchService.routeForPlanItem(item)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: GestureDetector(
           onTap: isDone ? null : onDone,
@@ -347,44 +394,70 @@ class _PlanItemTile extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Row(
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (item.subjectName != null) ...[
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: cs.primary,
-                  shape: BoxShape.circle,
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (item.subjectName != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: cs.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        item.subjectName!,
+                        style: TextStyle(fontSize: 11, color: cs.outline),
+                      ),
+                    ],
+                  ),
+                Text(
+                  '${item.estimatedMinutes} 分钟',
+                  style: TextStyle(fontSize: 11, color: cs.outline),
                 ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                item.subjectName!,
-                style: TextStyle(fontSize: 11, color: cs.outline),
-              ),
-              const SizedBox(width: 8),
-            ],
-            Text(
-              '${item.estimatedMinutes} 分钟',
-              style: TextStyle(fontSize: 11, color: cs.outline),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _priorityColor(context).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    _priorityLabel(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: _priorityColor(context),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: _priorityColor(context).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                _priorityLabel(),
+            if (capabilityLabel.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                capabilityLabel,
                 style: TextStyle(
-                  fontSize: 10,
-                  color: _priorityColor(context),
+                  fontSize: 11,
+                  color: cs.primary,
                   fontWeight: FontWeight.w600,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
+            ],
           ],
         ),
         trailing: isDone

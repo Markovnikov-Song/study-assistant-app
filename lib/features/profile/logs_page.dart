@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../services/connectivity_guardian_service.dart';
 import '../../services/error_service.dart';
 
 class LogsPage extends StatefulWidget {
@@ -24,6 +25,16 @@ class _LogsPageState extends State<LogsPage> {
     setState(() {
       _logs = ErrorService.instance.getLogs();
     });
+  }
+
+  Future<void> _runGuardianScan() async {
+    await ConnectivityGuardianService.instance.runScanNow();
+    _refresh();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('连接诊断已完成，请查看下方日志')),
+      );
+    }
   }
 
   void _clearLogs() async {
@@ -240,6 +251,11 @@ class _LogsPageState extends State<LogsPage> {
         title: const Text('系统日志'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: '刷新',
+            onPressed: _refresh,
+          ),
+          IconButton(
             icon: const Icon(Icons.share),
             onPressed: _shareLogs,
           ),
@@ -270,6 +286,27 @@ class _LogsPageState extends State<LogsPage> {
                     onSelected: (_) => setState(() => _filterLevel = level),
                   ),
               ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: Text(
+              '任意页面右下角可提交反馈（含截图与日志）。'
+              '运维收件箱：/api/ops/inbox',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _runGuardianScan,
+                icon: const Icon(Icons.health_and_safety_outlined, size: 18),
+                label: const Text('运行连接守护诊断'),
+              ),
             ),
           ),
           const Divider(height: 1),

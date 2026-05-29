@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/mindmap_library.dart';
+import '../../core/theme/styles/export.dart';
 import '../../providers/library_provider.dart';
 import '../../routes/app_router.dart';
 
@@ -35,7 +36,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
 
     filtered.sort((a, b) {
       // Pinned first
-      final pinCmp = (b.subject.isPinned ? 1 : 0) - (a.subject.isPinned ? 1 : 0);
+      final pinCmp =
+          (b.subject.isPinned ? 1 : 0) - (a.subject.isPinned ? 1 : 0);
       if (pinCmp != 0) return pinCmp;
       // Then by last visited desc
       final aTime = a.lastVisitedAt ?? DateTime(0);
@@ -49,9 +51,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   Widget build(BuildContext context) {
     final subjectsAsync = ref.watch(schoolSubjectsProvider);
     final cs = Theme.of(context).colorScheme;
+    final styleId = ref.watch(uiStyleIdProvider);
+    final isClay = styleId == StyleIds.clay;
+    final useDesktopGrid = MediaQuery.sizeOf(context).width >= 1180;
 
     return Scaffold(
-      backgroundColor: cs.surface,
+      backgroundColor: isClay ? Colors.transparent : cs.surface,
       body: Stack(
         children: [
           // 主内容（SVG 背景由 ShellPage 提供）
@@ -81,20 +86,50 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: cs.surface,
-                      borderRadius: BorderRadius.circular(16),
+                      color: isClay
+                          ? Color.lerp(
+                              cs.surface,
+                              cs.surfaceContainerHighest,
+                              0.22,
+                            )
+                          : cs.surface,
+                      borderRadius: BorderRadius.circular(isClay ? 24 : 16),
+                      border: Border.all(
+                        color: isClay
+                            ? Colors.white.withValues(alpha: 0.88)
+                            : Colors.transparent,
+                        width: isClay ? 1.2 : 0,
+                      ),
                       boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: cs.brightness == Brightness.dark ? 0.2 : 0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
+                        if (isClay) ...[
+                          BoxShadow(
+                            color: Theme.of(
+                              context,
+                            ).shadowColor.withValues(alpha: 0.16),
+                            blurRadius: 20,
+                            offset: const Offset(9, 9),
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withValues(alpha: 0.76),
+                            blurRadius: 18,
+                            offset: const Offset(-9, -9),
+                          ),
+                        ] else
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: cs.brightness == Brightness.dark
+                                  ? 0.2
+                                  : 0.05,
+                            ),
+                            blurRadius: 10,
+                            offset: const Offset(0, 2),
+                          ),
                       ],
                     ),
                     child: TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
-                        hintText: '搜索学科名称或分类…',
+                        hintText: '搜索科目名称或分类…',
                         prefixIcon: Icon(
                           Icons.search_rounded,
                           color: cs.onSurface.withValues(alpha: 0.6),
@@ -106,7 +141,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                         filled: true,
                         fillColor: Colors.transparent,
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                       ),
                       onChanged: (v) => setState(() => _query = v.trim()),
                     ),
@@ -118,14 +156,34 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                 loading: () => const SliverFillRemaining(
                   child: Center(child: CircularProgressIndicator()),
                 ),
-                error: (e, _) => SliverFillRemaining(
-                  child: Center(child: Text('加载失败：$e')),
-                ),
+                error: (e, _) =>
+                    SliverFillRemaining(child: Center(child: Text('加载失败：$e'))),
                 data: (subjects) {
                   final sorted = _sorted(subjects);
                   if (sorted.isEmpty) {
                     return SliverFillRemaining(
                       child: _EmptyState(hasQuery: _query.isNotEmpty),
+                    );
+                  }
+                  if (useDesktopGrid) {
+                    return SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                      sliver: SliverGrid(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 18,
+                              mainAxisSpacing: 18,
+                              mainAxisExtent: 206,
+                            ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => _SubjectCard(
+                            item: sorted[index],
+                            styleId: styleId,
+                          ),
+                          childCount: sorted.length,
+                        ),
+                      ),
                     );
                   }
                   return SliverPadding(
@@ -134,7 +192,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       delegate: SliverChildBuilderDelegate(
                         (context, index) => Padding(
                           padding: const EdgeInsets.only(bottom: 16),
-                          child: _SubjectCard(item: sorted[index]),
+                          child: _SubjectCard(
+                            item: sorted[index],
+                            styleId: styleId,
+                          ),
                         ),
                         childCount: sorted.length,
                       ),
@@ -184,7 +245,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              hasQuery ? '没有匹配的学科' : '图书馆空空的',
+              hasQuery ? '没有匹配的科目' : '图书馆空空的',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -193,9 +254,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              hasQuery
-                  ? '试试其他关键词'
-                  : '去「我的」→「学科管理」创建学科\n再生成思维导图，课程就会出现',
+              hasQuery ? '试试其他关键词' : '去「我的」→「科目管理」创建科目\n再生成思维导图，课程就会出现',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
@@ -212,38 +271,63 @@ class _EmptyState extends StatelessWidget {
 
 class _SubjectCard extends StatelessWidget {
   final SubjectWithProgress item;
-  const _SubjectCard({required this.item});
+  final String styleId;
+
+  const _SubjectCard({required this.item, required this.styleId});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final subject = item.subject;
-    final percent = item.totalNodes == 0 ? 0.0 : item.litNodes / item.totalNodes;
+    final percent = item.totalNodes == 0
+        ? 0.0
+        : item.litNodes / item.totalNodes;
+    final isClay = styleId == StyleIds.clay;
+    final radius = isClay ? 28.0 : 16.0;
+    final cardColor = isClay
+        ? Color.lerp(cs.surface, cs.surfaceContainerHighest, 0.30)!
+        : cs.surface;
 
     // 为不同学科生成独特颜色（固定的8种预设）
     final subjectColors = _getSubjectColors(subject.name);
 
     return Container(
       decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(16),
+        color: cardColor,
+        borderRadius: BorderRadius.circular(radius),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: cs.brightness == Brightness.dark ? 0.2 : 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
+          if (isClay) ...[
+            BoxShadow(
+              color: Theme.of(context).shadowColor.withValues(alpha: 0.20),
+              blurRadius: 24,
+              spreadRadius: 1,
+              offset: const Offset(12, 12),
+            ),
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.78),
+              blurRadius: 22,
+              spreadRadius: 1,
+              offset: const Offset(-12, -12),
+            ),
+          ] else
+            BoxShadow(
+              color: Colors.black.withValues(
+                alpha: cs.brightness == Brightness.dark ? 0.2 : 0.06,
+              ),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
         ],
         border: Border.all(
-          color: cs.outline,
-          width: 0.5,
+          color: isClay ? Colors.white.withValues(alpha: 0.92) : cs.outline,
+          width: isClay ? 1.4 : 0.5,
         ),
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(radius),
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(radius),
           onTap: () => context.push(AppRoutes.courseSpaceById(subject.id)),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -314,7 +398,8 @@ class _SubjectCard extends StatelessWidget {
                                 ),
                             ],
                           ),
-                          if (subject.category != null && subject.category!.isNotEmpty)
+                          if (subject.category != null &&
+                              subject.category!.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 2),
                               child: Text(
@@ -339,16 +424,16 @@ class _SubjectCard extends StatelessWidget {
                         height: 6,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(3),
-                          color: cs.surfaceContainerHighest,
+                          color: isClay
+                              ? cs.surface.withValues(alpha: 0.72)
+                              : cs.surfaceContainerHighest,
                         ),
                         child: FractionallySizedBox(
                           alignment: Alignment.centerLeft,
                           widthFactor: percent,
                           child: Container(
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: subjectColors,
-                              ),
+                              gradient: LinearGradient(colors: subjectColors),
                               borderRadius: BorderRadius.circular(3),
                             ),
                           ),
@@ -357,7 +442,10 @@ class _SubjectCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
@@ -385,19 +473,22 @@ class _SubjectCard extends StatelessWidget {
                     _StatChip(
                       icon: Icons.lightbulb_outline_rounded,
                       label: '${item.litNodes}/${item.totalNodes}',
+                      isClay: isClay,
                     ),
                     const SizedBox(width: 8),
                     _StatChip(
                       icon: Icons.account_tree_outlined,
                       label: '${item.sessionCount}份导图',
+                      isClay: isClay,
                     ),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: subjectColors,
-                        ),
+                        gradient: LinearGradient(colors: subjectColors),
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
@@ -419,7 +510,11 @@ class _SubjectCard extends StatelessWidget {
                             ),
                           ),
                           SizedBox(width: 4),
-                          Icon(Icons.arrow_forward_rounded, size: 14, color: Colors.white),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 14,
+                            color: Colors.white,
+                          ),
                         ],
                       ),
                     ),
@@ -467,10 +562,12 @@ class _SubjectCard extends StatelessWidget {
 class _StatChip extends StatelessWidget {
   final IconData icon;
   final String label;
+  final bool isClay;
 
   const _StatChip({
     required this.icon,
     required this.label,
+    required this.isClay,
   });
 
   @override
@@ -480,24 +577,33 @@ class _StatChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(6),
+        color: isClay
+            ? cs.surface.withValues(alpha: 0.58)
+            : cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(isClay ? 10 : 6),
+        boxShadow: isClay
+            ? [
+                BoxShadow(
+                  color: Theme.of(context).shadowColor.withValues(alpha: 0.10),
+                  blurRadius: 8,
+                  offset: const Offset(3, 3),
+                ),
+                BoxShadow(
+                  color: Colors.white.withValues(alpha: 0.62),
+                  blurRadius: 7,
+                  offset: const Offset(-3, -3),
+                ),
+              ]
+            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 12,
-            color: cs.onSurface.withValues(alpha: 0.6),
-          ),
+          Icon(icon, size: 12, color: cs.onSurface.withValues(alpha: 0.6)),
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 11,
-              color: cs.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
           ),
         ],
       ),

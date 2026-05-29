@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
+import '../services/connectivity_guardian_service.dart';
 import '../core/storage/storage_service.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
@@ -39,7 +40,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (token != null && token.isNotEmpty) {
       try {
         final user = await _service.getMe();
-        if (mounted) state = AuthState(user: user, isRestoring: false);
+        if (mounted) {
+          state = AuthState(user: user, isRestoring: false);
+          ConnectivityGuardianService.instance.start();
+        }
       } catch (_) {
         await StorageService.instance.clearTokens();
         if (mounted) state = const AuthState(isRestoring: false);
@@ -54,6 +58,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final user = await _service.login(username, password);
       state = AuthState(user: user);
+      ConnectivityGuardianService.instance.start();
       return true;
     } catch (e) {
       state = AuthState(error: e.toString());
@@ -66,6 +71,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final user = await _service.register(username, password);
       state = AuthState(user: user);
+      ConnectivityGuardianService.instance.start();
       return true;
     } catch (e) {
       state = AuthState(error: e.toString());
@@ -74,6 +80,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    ConnectivityGuardianService.instance.stop();
     await _service.logout();
     state = const AuthState();
   }

@@ -14,11 +14,13 @@ import '../providers/study_planner_providers.dart';
 /// - 参数齐备后显示确认卡片
 class PhaseChatView extends ConsumerStatefulWidget {
   final List<int> prefilledSubjectIds;
+  final String? prefilledContext;
   final VoidCallback onConfirmed;
 
   const PhaseChatView({
     super.key,
     this.prefilledSubjectIds = const [],
+    this.prefilledContext,
     required this.onConfirmed,
   });
 
@@ -78,20 +80,30 @@ class _PhaseChatViewState extends ConsumerState<PhaseChatView> {
   }
 
   void _startConversation() {
+    final contextText = widget.prefilledContext?.trim();
     if (widget.prefilledSubjectIds.isNotEmpty) {
-      _addBubble(_Bubble.assistant(
-        '你好！我来帮你制定学习计划。\n\n'
-        '告诉我你想学什么、什么时候截止、每天能花多少时间。\n\n'
-        '比如：「高数和线代，期末前，每天2小时」',
-      ));
+      _addBubble(
+        _Bubble.assistant(
+          '你好！我来帮你制定学习计划。\n\n'
+          '告诉我你想学什么、什么时候截止、每天能花多少时间。\n\n'
+          '比如：「高数和线代，期末前，每天2小时」',
+        ),
+      );
     } else {
-      _addBubble(_Bubble.assistant(
-        '你好！我来帮你制定学习计划。\n\n'
-        '告诉我你想学什么、什么时候截止、每天能花多少时间。\n\n'
-        '比如：「高数，6月30日前，每天1.5小时」\n\n'
-        '当然，如果你不确定，也可以一步步来——'
-        '先告诉我你想学哪些学科？',
-      ));
+      _addBubble(
+        _Bubble.assistant(
+          '你好！我来帮你制定学习计划。\n\n'
+          '告诉我你想学什么、什么时候截止、每天能花多少时间。\n\n'
+          '比如：「高数，6月30日前，每天1.5小时」\n\n'
+          '当然，如果你不确定，也可以一步步来——'
+          '先告诉我你想学哪些科目？',
+        ),
+      );
+    }
+    if (contextText != null && contextText.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _sendMessage(contextText);
+      });
     }
   }
 
@@ -104,9 +116,7 @@ class _PhaseChatViewState extends ConsumerState<PhaseChatView> {
     _inputCtrl.clear();
 
     try {
-      final res = await _dio.post('/api/spec/chat', data: {
-        'message': text,
-      });
+      final res = await _dio.post('/api/spec/chat', data: {'message': text});
 
       final data = res.data as Map<String, dynamic>;
       final reply = data['reply'] as String? ?? '';
@@ -117,12 +127,14 @@ class _PhaseChatViewState extends ConsumerState<PhaseChatView> {
       if (ready && collected != null) {
         if (!mounted) return;
         _addBubble(_Bubble.assistant(reply));
-        _addBubble(_Bubble.confirm(
-          subjectIds: List<int>.from(collected['subject_ids'] ?? []),
-          subjectNames: List<String>.from(collected['subject_names'] ?? []),
-          deadline: collected['deadline'] as String,
-          dailyMinutes: collected['daily_minutes'] as int,
-        ));
+        _addBubble(
+          _Bubble.confirm(
+            subjectIds: List<int>.from(collected['subject_ids'] ?? []),
+            subjectNames: List<String>.from(collected['subject_names'] ?? []),
+            deadline: collected['deadline'] as String,
+            dailyMinutes: collected['daily_minutes'] as int,
+          ),
+        );
       } else {
         if (!mounted) return;
         _addBubble(_Bubble.assistant(reply));
@@ -162,23 +174,27 @@ class _PhaseChatViewState extends ConsumerState<PhaseChatView> {
       _mode = _Mode.form;
       _formStep = 0;
     });
-    _addBubble(_Bubble.assistant(
-      '好的，我来一步步引导你填写信息。\n\n'
-      '首先，选择你想学习的学科（可多选）：',
-    ));
+    _addBubble(
+      _Bubble.assistant(
+        '好的，我来一步步引导你填写信息。\n\n'
+        '首先，选择你想学习的科目（可多选）：',
+      ),
+    );
   }
 
   /// 表单模式的学科确认
   void _onSubjectsConfirmed() {
     if (_selectedSubjectIds.isEmpty) {
-      _addBubble(_Bubble.assistant('请至少选择一个学科'));
+      _addBubble(_Bubble.assistant('请至少选择一个科目'));
       return;
     }
     _addBubble(_Bubble.user('已选择：${_selectedSubjectNames.join('、')}'));
-    _addBubble(_Bubble.assistant(
-      '好的！截止日期是什么时候？\n\n'
-      '你可以输入日期（如 2025-08-31），也可以说"期末"、"下个月"。',
-    ));
+    _addBubble(
+      _Bubble.assistant(
+        '好的！截止日期是什么时候？\n\n'
+        '你可以输入日期（如 2025-08-31），也可以说"期末"、"下个月"。',
+      ),
+    );
     setState(() => _formStep = 1);
   }
 
@@ -210,11 +226,12 @@ class _PhaseChatViewState extends ConsumerState<PhaseChatView> {
     }
 
     _deadline = parsed;
-    final dateStr = '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')}';
+    final dateStr =
+        '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')}';
     _addBubble(_Bubble.user(text));
-    _addBubble(_Bubble.assistant(
-      '截止日期：$dateStr。\n\n每天能花多少时间学习？（如"2小时"或直接输入分钟数）',
-    ));
+    _addBubble(
+      _Bubble.assistant('截止日期：$dateStr。\n\n每天能花多少时间学习？（如"2小时"或直接输入分钟数）'),
+    );
     setState(() => _formStep = 2);
   }
 
@@ -225,11 +242,16 @@ class _PhaseChatViewState extends ConsumerState<PhaseChatView> {
 
     if (trimmed.isNotEmpty) {
       // 尝试解析 "X小时" / "X小时" / "Xmin" 等
-      final hourMatch = RegExp(r'(\d+\.?\d*)\s*(?:小时|h|hours?)').firstMatch(trimmed);
+      final hourMatch = RegExp(
+        r'(\d+\.?\d*)\s*(?:小时|h|hours?)',
+      ).firstMatch(trimmed);
       final minMatch = RegExp(r'(\d+)\s*(?:分钟|min)').firstMatch(trimmed);
 
       if (hourMatch != null) {
-        minutes = (double.parse(hourMatch.group(1)!) * 60).round().clamp(15, 480);
+        minutes = (double.parse(hourMatch.group(1)!) * 60).round().clamp(
+          15,
+          480,
+        );
       } else if (minMatch != null) {
         minutes = int.parse(minMatch.group(1)!).clamp(15, 480);
       } else {
@@ -249,13 +271,16 @@ class _PhaseChatViewState extends ConsumerState<PhaseChatView> {
 
   void _showConfirmSummary() {
     final d = _deadline!;
-    final dateStr = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-    _addBubble(_Bubble.confirm(
-      subjectIds: _selectedSubjectIds.toList(),
-      subjectNames: _selectedSubjectNames.toList(),
-      deadline: dateStr,
-      dailyMinutes: _dailyMinutes,
-    ));
+    final dateStr =
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    _addBubble(
+      _Bubble.confirm(
+        subjectIds: _selectedSubjectIds.toList(),
+        subjectNames: _selectedSubjectNames.toList(),
+        deadline: dateStr,
+        dailyMinutes: _dailyMinutes,
+      ),
+    );
   }
 
   void _onSubmit() {
@@ -288,10 +313,14 @@ class _PhaseChatViewState extends ConsumerState<PhaseChatView> {
           child: ListView.builder(
             controller: _scrollCtrl,
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            itemCount: _bubbles.length + (_mode == _Mode.form && _formStep == 0 ? 1 : 0),
+            itemCount:
+                _bubbles.length +
+                (_mode == _Mode.form && _formStep == 0 ? 1 : 0),
             itemBuilder: (_, i) {
               // 表单模式的学科选择器
-              if (_mode == _Mode.form && _formStep == 0 && i == _bubbles.length) {
+              if (_mode == _Mode.form &&
+                  _formStep == 0 &&
+                  i == _bubbles.length) {
                 return _SubjectSelector(
                   subjectsAsync: subjectsAsync,
                   prefilledIds: widget.prefilledSubjectIds,
@@ -328,10 +357,13 @@ class _PhaseChatViewState extends ConsumerState<PhaseChatView> {
         if (_loading)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
-            child: Center(child: SizedBox(
-              width: 20, height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )),
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
           ),
         // 输入栏
         SafeArea(
@@ -352,17 +384,20 @@ class _PhaseChatViewState extends ConsumerState<PhaseChatView> {
                       hintText: _mode == _Mode.form && _formStep == 0
                           ? '或直接告诉我你的目标…'
                           : _mode == _Mode.form && _formStep == 1
-                              ? '输入截止日期，如 2025-08-31 或"下个月"'
-                              : _mode == _Mode.form && _formStep == 2
-                                  ? '如"2小时"或直接输入分钟数'
-                                  : '告诉我你的学习目标…',
+                          ? '输入截止日期，如 2025-08-31 或"下个月"'
+                          : _mode == _Mode.form && _formStep == 2
+                          ? '如"2小时"或直接输入分钟数'
+                          : '告诉我你的学习目标…',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide.none,
                       ),
                       filled: true,
                       fillColor: cs.surfaceContainerHigh,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                       isDense: true,
                     ),
                     onSubmitted: (_) => _onSubmit(),
@@ -415,11 +450,14 @@ class _Bubble {
     required List<String> subjectNames,
     required String deadline,
     required int dailyMinutes,
-  }) =>
-      _Bubble(type: _BubbleType.confirm, subjectIds: subjectIds,
-          subjectNames: subjectNames, deadline: deadline, dailyMinutes: dailyMinutes);
-  factory _Bubble.fallbackHint() =>
-      _Bubble(type: _BubbleType.fallbackHint);
+  }) => _Bubble(
+    type: _BubbleType.confirm,
+    subjectIds: subjectIds,
+    subjectNames: subjectNames,
+    deadline: deadline,
+    dailyMinutes: dailyMinutes,
+  );
+  factory _Bubble.fallbackHint() => _Bubble(type: _BubbleType.fallbackHint);
 }
 
 // ── 气泡 Widget ───────────────────────────────────────────────────────────────
@@ -429,11 +467,7 @@ class _BubbleWidget extends StatelessWidget {
   final VoidCallback? onConfirm;
   final VoidCallback? onFallback;
 
-  const _BubbleWidget({
-    required this.bubble,
-    this.onConfirm,
-    this.onFallback,
-  });
+  const _BubbleWidget({required this.bubble, this.onConfirm, this.onFallback});
 
   @override
   Widget build(BuildContext context) {
@@ -447,19 +481,14 @@ class _BubbleWidget extends StatelessWidget {
           onPressed: onFallback,
           icon: const Icon(Icons.edit_note_outlined, size: 18),
           label: const Text('换种方式，一步步填写'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: cs.outline,
-          ),
+          style: OutlinedButton.styleFrom(foregroundColor: cs.outline),
         ),
       );
     }
 
     // confirm 类型
     if (bubble.type == _BubbleType.confirm) {
-      return _ConfirmCard(
-        bubble: bubble,
-        onConfirm: onConfirm!,
-      );
+      return _ConfirmCard(bubble: bubble, onConfirm: onConfirm!);
     }
 
     // 普通气泡
@@ -467,7 +496,9 @@ class _BubbleWidget extends StatelessWidget {
       alignment: bubble.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.8,
+        ),
         decoration: BoxDecoration(
           color: bubble.isUser ? cs.primary : cs.surfaceContainerHigh,
           borderRadius: BorderRadius.only(
@@ -527,11 +558,20 @@ class _ConfirmCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          _InfoRow(icon: Icons.school_outlined, label: '学科', value: names.join('、')),
+          _InfoRow(
+            icon: Icons.school_outlined,
+            label: '科目',
+            value: names.join('、'),
+          ),
           const SizedBox(height: 8),
           _InfoRow(icon: Icons.event_outlined, label: '截止日期', value: deadline),
           const SizedBox(height: 8),
-          _InfoRow(icon: Icons.timer_outlined, label: '每日时长', value: '${hours > 0 && hours == hours.roundToDouble() ? hours.toInt() : hours}小时'),
+          _InfoRow(
+            icon: Icons.timer_outlined,
+            label: '每日时长',
+            value:
+                '${hours > 0 && hours == hours.roundToDouble() ? hours.toInt() : hours}小时',
+          ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -552,7 +592,11 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -561,11 +605,18 @@ class _InfoRow extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: cs.onPrimaryContainer),
         const SizedBox(width: 10),
-        Text('$label：', style: TextStyle(fontSize: 13, color: cs.onPrimaryContainer)),
+        Text(
+          '$label：',
+          style: TextStyle(fontSize: 13, color: cs.onPrimaryContainer),
+        ),
         Expanded(
           child: Text(
             value,
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onPrimaryContainer),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: cs.onPrimaryContainer,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -605,12 +656,12 @@ class _SubjectSelector extends StatelessWidget {
       ),
       child: subjectsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Text('加载学科失败：$e'),
+        error: (e, _) => Text('加载科目失败：$e'),
         data: (subjects) {
           final active = subjects.where((s) => !s.isArchived).toList();
           if (active.isEmpty) {
             return Text(
-              '暂无学科，请先在「我的 → 学科管理」创建学科',
+              '暂无科目，请先在「我的 → 科目管理」创建科目',
               style: TextStyle(color: cs.outline),
             );
           }
@@ -634,7 +685,7 @@ class _SubjectSelector extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: selectedIds.isEmpty ? null : onConfirm,
-                  child: const Text('确认学科'),
+                  child: const Text('确认科目'),
                 ),
               ),
             ],

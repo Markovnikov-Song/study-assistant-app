@@ -18,6 +18,7 @@ import json
 import logging
 import re
 from datetime import date, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -32,6 +33,10 @@ logger = logging.getLogger(__name__)
 # ── 内存级 session 存储 ──────────────────────────────────────────────────────
 # key: user_id → {messages, collected, session_id}
 _sessions: Dict[int, dict] = {}
+
+
+def _subject_snapshots(subjects: list[Subject]) -> list[SimpleNamespace]:
+    return [SimpleNamespace(id=s.id, name=s.name) for s in subjects]
 
 
 def _get_session(user_id: int) -> dict:
@@ -182,7 +187,7 @@ _SYSTEM_PROMPT = """你是一个学习规划助教，负责通过对话收集学
 - 如果用户说的是日期口语（如"下个月"、"期末前"），转换为 YYYY-MM-DD
 - 如果用户说的时间是小时，转换为分钟（如"2小时"→120）
 - 每次回复末尾用一行 JSON 标记提取结果，格式：```json
-{"subject_ids": [1,2], "subject_names": ["高数","线代"], "deadline": "2025-06-30", "daily_minutes": 120}
+{{"subject_ids": [1,2], "subject_names": ["高数","线代"], "deadline": "2025-06-30", "daily_minutes": 120}}
 ```
 缺少的字段用 null。如果参数已齐备（三个字段都不为null），在 JSON 里加 "ready": true。
 只输出自然语言回复 + JSON 标记，不要输出其他格式。"""
@@ -286,9 +291,62 @@ def _get_subject_aliases(name: str) -> list[str]:
     return []
 
 
+def _infer_subject_name_from_message(message: str) -> Optional[str]:
+    known_subjects = [
+        "材料力学",
+        "理论力学",
+        "高等数学",
+        "线性代数",
+        "概率论与数理统计",
+        "大学物理",
+        "大学英语",
+        "数据结构",
+        "计算机网络",
+        "操作系统",
+    ]
+    for subject in known_subjects:
+        if subject in message:
+            return subject
+    patterns = [
+        r"(?:备考|复习|学习|学|准备)\s*([\u4e00-\u9fa5A-Za-z0-9·]{2,24})",
+        r"([\u4e00-\u9fa5A-Za-z0-9·]{2,24})(?:考试|期末|考研|复习|备考)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, message)
+        if match:
+            name = match.group(1).strip(" ，。,.!！?？")
+            stop_words = {"一个", "一下", "计划", "考试", "期末", "复习", "备考"}
+            if name and name not in stop_words:
+                return name[:128]
+    return None
+
+
+def _ensure_subject_for_exam_prep(user_id: int, message: str) -> Optional[Subject]:
+    subject_name = _infer_subject_name_from_message(message)
+    if not subject_name:
+        return None
+    with db_session() as db:
+        existing = (
+            db.query(Subject)
+            .filter(Subject.user_id == user_id, Subject.name == subject_name)
+            .first()
+        )
+        if existing:
+            return existing
+        subject = Subject(
+            user_id=user_id,
+            name=subject_name,
+            category="exam_prep",
+            description="由备考编排器根据用户目标自动创建",
+        )
+        db.add(subject)
+        db.flush()
+        return subject
+
+
 def _check_ready(collected: dict) -> bool:
     """检查三个必需参数是否齐全。"""
-    return (
+    return bool(
         collected.get("subject_ids")
         and collected.get("deadline")
         and collected.get("daily_minutes")
@@ -323,12 +381,28 @@ def spec_chat(body: ChatMessageIn, user=Depends(get_current_user)):
 
     # 获取用户学科列表
     with db_session() as db:
-        subjects = db.query(Subject).filter_by(user_id=user_id).all()
+        subjects = _subject_snapshots(
+            db.query(Subject).filter_by(user_id=user_id).all()
+        )
 
     if not subjects:
-        raise HTTPException(400, "请先在「我的」页面添加学科")
+        created = _ensure_subject_for_exam_prep(user_id, body.message)
+        if not created:
+            raise HTTPException(400, "??????????????")
+        with db_session() as db:
+            subjects = _subject_snapshots(
+                db.query(Subject).filter_by(user_id=user_id).all()
+            )
+    else:
+        subject_name = _infer_subject_name_from_message(body.message)
+        if subject_name and not any(s.name == subject_name for s in subjects):
+            _ensure_subject_for_exam_prep(user_id, body.message)
+            with db_session() as db:
+                subjects = _subject_snapshots(
+                    db.query(Subject).filter_by(user_id=user_id).all()
+                )
 
-    # 记录用户消息
+    # ??????
     session["messages"].append({"role": "user", "content": body.message})
 
     # ── 尝试 LLM 提取 ────────────────────────────────────────────────────

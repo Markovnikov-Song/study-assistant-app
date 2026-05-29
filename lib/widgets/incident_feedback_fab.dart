@@ -114,7 +114,7 @@ class _IncidentFeedbackFabState extends ConsumerState<IncidentFeedbackFab> {
     );
     descCtrl.dispose();
     contactCtrl.dispose();
-    if (ok != true || !mounted) return;
+    if (ok != true || !mounted || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _submitting = true);

@@ -1,0 +1,52 @@
+{
+  "name": "automated-learning-pipeline",
+  "displayName": "自动化全链路学习规划",
+  "description": "从用户自然语言输入到完整学习闭环的自动化 - 输入「我要备考材料力学」全流程自动化",
+  "version": "1.0.0",
+  "specType": "feature",
+  "priority": "high",
+  "tags": ["planning", "automation", "intent-detection", "calendar", "skill-dispatch", "adaptive-loop"],
+  "requirements": [
+    "增强型意图识别",
+    "参数自动提取",
+    "多轮对话收集",
+    "知识导航生成",
+    "学习计划生成",
+    "日历自动写入",
+    "学习提醒调度",
+    "Skill智能调度",
+    "错题反馈调整"
+  ],
+  "dependencies": [
+    "cas-system",
+    "knowledge-graph-evolution",
+    "calendar-service",
+    "notification-service",
+    "skill-ecosystem",
+    "mistake-book"
+  ],
+  "team": "backend-frontend-joint",
+  "estimatedWeeks": 10,
+  "phases": [
+    {
+      "name": "意图识别与参数提取",
+      "week": "1-2"
+    },
+    {
+      "name": "知识导航与计划生成",
+      "week": "3-4"
+    },
+    {
+      "name": "日历与通知集成",
+      "week": "5-6"
+    },
+    {
+      "name": "Skill调度与自适应",
+      "week": "7-8"
+    },
+    {
+      "name": "前端集成与状态管理",
+      "week": "9-10"
+    }
+  ]
+}

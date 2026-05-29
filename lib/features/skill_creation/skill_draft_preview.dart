@@ -124,7 +124,7 @@ class _SkillDraftPreviewState extends ConsumerState<SkillDraftPreview> {
 
             // 标签
             if (draft.tags.isNotEmpty) ...[
-              _SectionLabel(label: '适用学科'),
+              _SectionLabel(label: '适用科目'),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,

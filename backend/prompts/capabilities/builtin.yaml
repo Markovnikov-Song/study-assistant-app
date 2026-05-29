@@ -1,0 +1,320 @@
+capabilities:
+  - id: pattern.recognition_choice
+    kind: pattern
+    title: 识别式选择训练
+    description: 百词斩式的识别、选择、反馈和复习玩法，可用于单词、概念、公式等内容。
+    category: pattern
+    version: "1.0.0"
+    icon: rule
+    color: ["#14B8A6", "#22C55E"]
+    standalone: false
+    orchestratable: true
+    schedulable: false
+    node_types: [memory, recognition]
+    provider_refs: [choice_generator, feedback_policy]
+    fallback_refs: [llm_generate_distractors]
+    tags: [Pattern, 记忆, 选择]
+
+  - id: pattern.micro_lesson_quest
+    kind: pattern
+    title: 微课闯关
+    description: 多邻国式的微课、即时反馈、关卡推进和掌握度门槛玩法。
+    category: pattern
+    version: "1.0.0"
+    icon: route
+    color: ["#6366F1", "#A855F7"]
+    standalone: false
+    orchestratable: true
+    schedulable: true
+    node_types: [lesson, quest]
+    provider_refs: [lesson_planner, mastery_gate]
+    fallback_refs: [linear_lesson_path]
+    tags: [Pattern, 闯关, 微课]
+
+  - id: pattern.spaced_recall_card
+    kind: pattern
+    title: 主动回忆卡片
+    description: Anki 式的卡片、主动回忆、自评和间隔复习玩法。
+    category: pattern
+    version: "1.0.0"
+    icon: style
+    color: ["#F97316", "#FACC15"]
+    standalone: false
+    orchestratable: true
+    schedulable: true
+    node_types: [card, review]
+    provider_refs: [sm2_engine]
+    fallback_refs: [simple_review_queue]
+    tags: [Pattern, 卡片, 间隔复习]
+
+  - id: adapter.vocabulary
+    kind: adapter
+    title: 词汇内容适配器
+    description: 将词表、教材或用户资料转换为可记忆、可测验、可复习的词汇条目。
+    category: adapter
+    version: "1.0.0"
+    icon: translate
+    color: ["#0EA5E9", "#22D3EE"]
+    standalone: false
+    orchestratable: true
+    schedulable: false
+    node_types: [memory_item]
+    provider_refs: [dictionary_api, llm.word_extractor]
+    fallback_refs: [manual_word_list]
+    tags: [Adapter, 单词, 语言]
+
+  - id: adapter.political_concept
+    kind: adapter
+    title: 政治概念适配器
+    description: 将政治知识点、概念解释和易混项转换为可背诵、可选择、可复盘的条目。
+    category: adapter
+    version: "1.0.0"
+    icon: account_balance
+    color: ["#EF4444", "#F97316"]
+    standalone: false
+    orchestratable: true
+    schedulable: false
+    node_types: [concept_item]
+    provider_refs: [document_parser, llm.concept_extractor]
+    fallback_refs: [baseline_concept_list]
+    tags: [Adapter, 政治, 概念]
+
+  - id: adapter.formula
+    kind: adapter
+    title: 公式内容适配器
+    description: 将数学、物理等公式转换为填空、选择、推导步骤和复习卡片。
+    category: adapter
+    version: "1.0.0"
+    icon: functions
+    color: ["#8B5CF6", "#06B6D4"]
+    standalone: false
+    orchestratable: true
+    schedulable: false
+    node_types: [formula_item]
+    provider_refs: [latex_renderer, llm.formula_parser]
+    fallback_refs: [manual_formula_entry]
+    tags: [Adapter, 公式, 理科]
+
+  - id: solve.problem
+    kind: capability_app
+    title: 拍照解题
+    description: 拍题、识别、讲透步骤，并沉淀到学习记录。
+    category: problem_solving
+    version: "1.0.0"
+    icon: camera_alt
+    color: ["#19D3A2", "#12AEEA"]
+    action_id: solve_problem
+    mini_app_route: /toolkit/solve
+    standalone: true
+    orchestratable: true
+    schedulable: false
+    node_types: [diagnosis, explanation]
+    provider_refs: [ocr.local, llm.reasoning]
+    fallback_refs: [text_problem_input, manual_explanation]
+    plan_contract:
+      unit: problem
+      unit_label: 道题
+      supports_daily_quota: true
+      supports_review: true
+      default_daily_quota: 3
+      estimated_minutes_per_unit: 8
+      calendar_title_template: "用拍照解题处理 {count} 道题"
+      completion_metrics: [solved_count, accuracy, mistake_count]
+    tags: [解题, OCR, 多模态]
+
+  - id: quiz.generate
+    kind: capability_app
+    title: 智能出题
+    description: 按学科、知识点、题型和数量生成练习。
+    category: practice
+    version: "1.0.0"
+    icon: extension
+    color: ["#FFB23F", "#FF6B8B"]
+    action_id: make_quiz
+    mini_app_route: /toolkit/quiz
+    standalone: true
+    orchestratable: true
+    schedulable: true
+    node_types: [practice, diagnosis]
+    pattern_refs: [question_practice]
+    provider_refs: [quiz_generator_service, llm.fallback]
+    fallback_refs: [llm_generate_questions, reduce_question_count]
+    plan_contract:
+      unit: question
+      unit_label: 道练习
+      supports_daily_quota: true
+      supports_review: true
+      default_daily_quota: 10
+      estimated_minutes_per_unit: 3
+      calendar_title_template: "用智能出题完成 {count} 道{topic}练习"
+      completion_metrics: [attempted_count, accuracy, weak_points]
+    tags: [练习, 出题, 诊断]
+
+  - id: lecture.view
+    kind: capability_app
+    title: 讲义学习
+    description: 围绕知识点阅读讲义、查看解释，并沉淀理解状态。
+    category: lecture
+    version: "1.0.0"
+    icon: menu_book
+    color: ["#3B82F6", "#06B6D4"]
+    mini_app_route: /course-space
+    standalone: true
+    orchestratable: true
+    schedulable: true
+    node_types: [lecture, concept]
+    provider_refs: [lecture_generator_service, document_parser, llm.explain]
+    fallback_refs: [llm_explain_without_material]
+    plan_contract:
+      unit: concept
+      unit_label: 个知识点
+      supports_daily_quota: true
+      supports_review: false
+      default_daily_quota: 1
+      estimated_minutes_per_unit: 20
+      calendar_title_template: "学习「{topic}」讲义"
+      completion_metrics: [read_done, self_marked_done]
+    tags: [讲义, 知识点, 阅读]
+
+  - id: memory.drill
+    kind: capability_app
+    title: 记忆训练引擎
+    description: 用同一套记忆玩法训练单词、政治概念、公式和错题知识点。
+    category: memory
+    version: "1.0.0"
+    icon: psychology
+    color: ["#10B981", "#84CC16"]
+    mini_app_route: /toolkit/memory-drill
+    standalone: true
+    orchestratable: true
+    schedulable: true
+    node_types: [memory, review]
+    pattern_refs: [pattern.recognition_choice, pattern.spaced_recall_card]
+    adapter_refs: [adapter.vocabulary, adapter.political_concept, adapter.formula]
+    provider_refs: [sm2_engine, llm.fallback]
+    fallback_refs: [manual_item_entry, llm_generate_items]
+    plan_contract:
+      unit: memory_item
+      unit_label: 个记忆条目
+      supports_daily_quota: true
+      supports_review: true
+      default_daily_quota: 30
+      estimated_minutes_per_unit: 0.8
+      calendar_title_template: "用记忆训练引擎背 {count} 个{content_type}"
+      completion_metrics: [attempted_count, accuracy, mastery_delta, review_count]
+    tags: [记忆, 百词斩式, 可组合]
+
+  - id: review.loop
+    kind: capability_app
+    title: 复盘中心
+    description: 管理错题、间隔复习和薄弱点再练。
+    category: review
+    version: "1.0.0"
+    icon: replay_circle_filled
+    color: ["#FF5F6D", "#FFC371"]
+    mini_app_route: /toolkit/review
+    standalone: true
+    orchestratable: true
+    schedulable: true
+    node_types: [review, remediation]
+    pattern_refs: [spaced_review, mistake_repractice]
+    provider_refs: [sm2_engine, review_service]
+    fallback_refs: [manual_review_queue]
+    plan_contract:
+      unit: review_item
+      unit_label: 个复盘项
+      supports_daily_quota: true
+      supports_review: true
+      default_daily_quota: 20
+      estimated_minutes_per_unit: 1.5
+      calendar_title_template: "复盘 {count} 个薄弱点"
+      completion_metrics: [reviewed_count, retention_rate]
+    tags: [复盘, 错题, 间隔复习]
+
+  - id: notebook.manage
+    kind: capability_app
+    title: 笔记本
+    description: 保存讲义、整理知识和沉淀学习产物。
+    category: knowledge_base
+    version: "1.0.0"
+    icon: auto_stories
+    color: ["#5B8CFF", "#7C5CFF"]
+    mini_app_route: /toolkit/notebooks
+    standalone: true
+    orchestratable: true
+    schedulable: false
+    node_types: [note_taking, artifact]
+    provider_refs: [notebook_service]
+    fallback_refs: [local_note_draft]
+    tags: [笔记, 讲义, 知识库]
+
+  - id: mindmap.build
+    kind: capability_app
+    title: 脑图工坊
+    description: 从资料、主题或课程空间构建知识地图。
+    category: structure
+    version: "1.0.0"
+    icon: account_tree
+    color: ["#8B5CF6", "#EC5DFF"]
+    mini_app_route: /mindmap-entry
+    standalone: true
+    orchestratable: true
+    schedulable: true
+    node_types: [mindmap, structure]
+    pattern_refs: [knowledge_graphing]
+    provider_refs: [mindmap_service, document_parser, llm.fallback]
+    fallback_refs: [baseline_map_from_llm, ask_upload_material]
+    tags: [导图, 结构化, 资料]
+
+  - id: calendar.plan
+    kind: capability_app
+    title: 学习日历
+    description: 安排计划、提醒、倒计时和任务执行时间轴。
+    category: planning
+    version: "1.0.0"
+    icon: calendar_month
+    color: ["#4F8BFF", "#4EE7F1"]
+    action_id: add_calendar_event
+    mini_app_route: /toolkit/calendar
+    standalone: true
+    orchestratable: true
+    schedulable: true
+    node_types: [schedule, reminder]
+    provider_refs: [calendar_service, notification_service]
+    fallback_refs: [manual_calendar_entry, reschedule_task]
+    tags: [计划, 日历, 提醒]
+
+  - id: skill.run
+    kind: capability_app
+    title: 方法与流程
+    description: 运行学习 Skill，承载多步流程配方。
+    category: recipe
+    version: "1.0.0"
+    icon: auto_awesome
+    color: ["#FF4FA3", "#8B5CF6"]
+    mini_app_route: /my-skills
+    standalone: true
+    orchestratable: true
+    schedulable: true
+    node_types: [recipe, guided_flow]
+    provider_refs: [agent.execute_node, skill_registry]
+    fallback_refs: [manual_skill_steps]
+    tags: [Skill, 流程, 方法]
+
+  - id: recipe.exam_sprint
+    kind: recipe
+    title: 考前冲刺流程
+    description: 由问诊、资料解析、知识地图、诊断练习、计划排程和复盘组成的可复用流程。
+    category: recipe
+    version: "1.0.0"
+    icon: bolt
+    color: ["#F43F5E", "#F59E0B"]
+    standalone: false
+    orchestratable: true
+    schedulable: true
+    node_types: [intake, structure, practice, schedule, review]
+    pattern_refs: [pattern.micro_lesson_quest, pattern.spaced_recall_card]
+    adapter_refs: [adapter.political_concept, adapter.formula]
+    provider_refs: [skill_registry, study_planner_service]
+    fallback_refs: [quick_plan_without_materials]
+    tags: [Recipe, 考试, 冲刺]

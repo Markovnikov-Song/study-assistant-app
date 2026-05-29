@@ -8,9 +8,11 @@ import '../../widgets/markdown_latex_view.dart';
 
 final _skillDetailProvider =
     FutureProvider.family<Map<String, dynamic>, String>((ref, skillId) async {
-  final res = await DioClient.instance.dio.get('/api/agent/skills/$skillId');
-  return res.data as Map<String, dynamic>;
-});
+      final res = await DioClient.instance.dio.get(
+        '/api/agent/skills/$skillId',
+      );
+      return res.data as Map<String, dynamic>;
+    });
 
 // ── SkillRunnerPage ───────────────────────────────────────────────────────────
 
@@ -74,7 +76,9 @@ class _SkillRunnerPageState extends ConsumerState<SkillRunnerPage> {
   }
 
   Future<void> _executeStep(
-      List<Map<String, dynamic>> nodes, int stepIndex) async {
+    List<Map<String, dynamic>> nodes,
+    int stepIndex,
+  ) async {
     if (stepIndex >= nodes.length) {
       if (!mounted) return;
       setState(() => _done = true);
@@ -120,13 +124,16 @@ class _SkillRunnerPageState extends ConsumerState<SkillRunnerPage> {
           'node_id': nodeId,
           'prompt': prompt,
           'input': input,
-          if (subjectId != null) 'subject_id': subjectId,
+          'subject_id': ?subjectId,
         },
       );
-      final content = (res.data as Map<String, dynamic>)['content'] as String? ?? '';
+      final content =
+          (res.data as Map<String, dynamic>)['content'] as String? ?? '';
       if (!mounted) return;
       setState(() {
-        _outputs[nodeId] = content.trim().isEmpty ? '（该步骤暂无内容，可能正在开发中）' : content;
+        _outputs[nodeId] = content.trim().isEmpty
+            ? '（该步骤暂无内容，可能正在开发中）'
+            : content;
         _currentStep = stepIndex + 1;
         _running = false;
         if (_currentStep >= nodes.length) _done = true;
@@ -146,10 +153,7 @@ class _SkillRunnerPageState extends ConsumerState<SkillRunnerPage> {
     final skillAsync = ref.watch(_skillDetailProvider(widget.skillId));
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.skillName),
-        centerTitle: false,
-      ),
+      appBar: AppBar(title: Text(widget.skillName), centerTitle: false),
       body: skillAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('加载失败：$e')),
@@ -224,7 +228,10 @@ class _SkillRunnerPageState extends ConsumerState<SkillRunnerPage> {
               ),
 
               // 底部操作栏
-              if (_topicEntered && !_done && !_running && _error == null &&
+              if (_topicEntered &&
+                  !_done &&
+                  !_running &&
+                  _error == null &&
                   _currentStep < nodes.length)
                 _BottomBar(
                   stepIndex: _currentStep,
@@ -309,10 +316,7 @@ class _TopicInputCard extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onConfirm;
 
-  const _TopicInputCard({
-    required this.controller,
-    required this.onConfirm,
-  });
+  const _TopicInputCard({required this.controller, required this.onConfirm});
 
   @override
   Widget build(BuildContext context) {
@@ -355,7 +359,9 @@ class _TopicInputCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     isDense: true,
                   ),
                   textInputAction: TextInputAction.send,
@@ -363,10 +369,7 @@ class _TopicInputCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              FilledButton(
-                onPressed: onConfirm,
-                child: const Text('开始'),
-              ),
+              FilledButton(onPressed: onConfirm, child: const Text('开始')),
             ],
           ),
         ],
@@ -438,9 +441,10 @@ class _StepResultCardState extends State<_StepResultCard> {
                     child: Text(
                       '${widget.stepIndex + 1}',
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold),
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -448,9 +452,10 @@ class _StepResultCardState extends State<_StepResultCard> {
                     child: Text(
                       '第 ${widget.stepIndex + 1} 步 / 共 ${widget.totalSteps} 步',
                       style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: cs.onSurface),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
                     ),
                   ),
                   Icon(
@@ -470,9 +475,10 @@ class _StepResultCardState extends State<_StepResultCard> {
               child: Text(
                 displayPrompt,
                 style: TextStyle(
-                    fontSize: 12,
-                    color: cs.onSurfaceVariant,
-                    fontStyle: FontStyle.italic),
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                  fontStyle: FontStyle.italic,
+                ),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -483,12 +489,16 @@ class _StepResultCardState extends State<_StepResultCard> {
               child: widget.output.trim().isEmpty
                   ? Row(
                       children: [
-                        Icon(Icons.construction_outlined,
-                            size: 16, color: cs.outline),
+                        Icon(
+                          Icons.construction_outlined,
+                          size: 16,
+                          color: cs.outline,
+                        ),
                         const SizedBox(width: 6),
-                        Text('该步骤暂无输出',
-                            style: TextStyle(
-                                fontSize: 13, color: cs.outline)),
+                        Text(
+                          '该步骤暂无输出',
+                          style: TextStyle(fontSize: 13, color: cs.outline),
+                        ),
                       ],
                     )
                   : MarkdownLatexView(data: widget.output),
@@ -556,8 +566,10 @@ class _ErrorCard extends StatelessWidget {
           const Icon(Icons.error_outline, color: Colors.red, size: 20),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(error,
-                style: const TextStyle(color: Colors.red, fontSize: 13)),
+            child: Text(
+              error,
+              style: const TextStyle(color: Colors.red, fontSize: 13),
+            ),
           ),
           TextButton(onPressed: onRetry, child: const Text('重试')),
         ],
@@ -588,9 +600,10 @@ class _DoneCard extends StatelessWidget {
           Text(
             '「$skillName」已完成！',
             style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.green),
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.green,
+            ),
           ),
           const SizedBox(height: 6),
           Text(

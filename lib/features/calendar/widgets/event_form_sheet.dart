@@ -319,11 +319,11 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
                     DropdownButtonFormField<int?>(
                       initialValue: _subjectId,
                       decoration: const InputDecoration(
-                        labelText: '学科（选填）',
+                        labelText: '科目（选填）',
                         border: OutlineInputBorder(),
                       ),
                       items: [
-                        const DropdownMenuItem(value: null, child: Text('不绑定学科')),
+                        const DropdownMenuItem(value: null, child: Text('不绑定科目')),
                         ...subjects.map((s) => DropdownMenuItem(
                               value: s.id,
                               child: Text(s.name),

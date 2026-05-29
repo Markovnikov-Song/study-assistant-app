@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,10 +10,13 @@ class BackgroundStyle {
   final List<String> svgAssets; // 4个页面的背景
   /// 浅色模式底色（透过 SVG 的底层颜色）
   final Color lightBg;
+
   /// 深色模式底色
   final Color darkBg;
+
   /// 导航栏/卡片主色调（用于强调色）
   final Color accentColor;
+
   /// SVG 装饰层透明度 (0.0-1.0)
   final double svgOpacity;
 
@@ -34,7 +36,7 @@ class BackgroundStyle {
     final primary = accentColor;
     final primaryLight = _lighten(primary, 0.15);
     final primaryDark = _darken(primary, 0.1);
-    
+
     return ColorScheme.light(
       primary: primary,
       onPrimary: Colors.white,
@@ -67,7 +69,7 @@ class BackgroundStyle {
     final primaryLight = _lighten(accentColor, 0.1);
     final primary = primaryLight;
     final primaryDark = accentColor;
-    
+
     return ColorScheme.dark(
       primary: primary,
       onPrimary: darkBg,
@@ -107,9 +109,7 @@ class BackgroundStyle {
 
   /// 获取适合文字颜色（深色背景用浅色文字，浅色背景用深色文字）
   static Color _getTextColor(Color bgColor) {
-    return _isDark(bgColor)
-        ? const Color(0xFFF1F5F9)
-        : const Color(0xFF1E293B);
+    return _isDark(bgColor) ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
   }
 
   /// 变亮
@@ -156,8 +156,8 @@ class KBackgroundStyles {
       'assets/images/backgrounds/bg_toolkit.svg',
       'assets/images/backgrounds/bg_profile.svg',
     ],
-    lightBg: Color(0xFFF8FAFF),   // 淡蓝白
-    darkBg: Color(0xFF0F172A),    // 深靛蓝黑
+    lightBg: Color(0xFFF8FAFF), // 淡蓝白
+    darkBg: Color(0xFF0F172A), // 深靛蓝黑
     accentColor: Color(0xFF6366F1),
     svgOpacity: 0.7,
   );
@@ -173,10 +173,10 @@ class KBackgroundStyles {
       'assets/images/backgrounds/bg_minimal.svg',
       'assets/images/backgrounds/bg_minimal.svg',
     ],
-    lightBg: Color(0xFFFFFFFF),   // 纯白
-    darkBg: Color(0xFF111111),    // 纯黑
+    lightBg: Color(0xFFFFFFFF), // 纯白
+    darkBg: Color(0xFF111111), // 纯黑
     accentColor: Color(0xFF374151),
-    svgOpacity: 0.25,  // 极淡装饰
+    svgOpacity: 0.25, // 极淡装饰
   );
 
   /// 活力橙黄
@@ -190,8 +190,8 @@ class KBackgroundStyles {
       'assets/images/backgrounds/bg_vibrant_toolkit.svg',
       'assets/images/backgrounds/bg_vibrant_profile.svg',
     ],
-    lightBg: Color(0xFFFFFBF0),   // 暖奶白
-    darkBg: Color(0xFF1C1208),    // 深棕黑
+    lightBg: Color(0xFFFFFBF0), // 暖奶白
+    darkBg: Color(0xFF1C1208), // 深棕黑
     accentColor: Color(0xFFF59E0B),
     svgOpacity: 0.6,
   );
@@ -207,8 +207,8 @@ class KBackgroundStyles {
       'assets/images/backgrounds/bg_nature_toolkit.svg',
       'assets/images/backgrounds/bg_nature_profile.svg',
     ],
-    lightBg: Color(0xFFF0FDF4),   // 嫩绿白
-    darkBg: Color(0xFF052E16),    // 深森林绿
+    lightBg: Color(0xFFF0FDF4), // 嫩绿白
+    darkBg: Color(0xFF052E16), // 深森林绿
     accentColor: Color(0xFF10B981),
     svgOpacity: 0.5,
   );
@@ -224,8 +224,8 @@ class KBackgroundStyles {
       'assets/images/backgrounds/bg_midnight_toolkit.svg',
       'assets/images/backgrounds/bg_midnight_profile.svg',
     ],
-    lightBg: Color(0xFFF0F4FF),   // 淡星空蓝
-    darkBg: Color(0xFF0A0E1A),    // 极深夜蓝
+    lightBg: Color(0xFFF0F4FF), // 淡星空蓝
+    darkBg: Color(0xFF0A0E1A), // 极深夜蓝
     accentColor: Color(0xFF3B82F6),
     svgOpacity: 0.75,
   );
@@ -239,18 +239,15 @@ class KBackgroundStyles {
   ];
 
   static BackgroundStyle getById(String id) {
-    return all.firstWhere(
-      (s) => s.id == id,
-      orElse: () => defaultStyle,
-    );
+    return all.firstWhere((s) => s.id == id, orElse: () => defaultStyle);
   }
 }
 
 /// 背景风格 Provider
 final backgroundStyleProvider =
     StateNotifierProvider<BackgroundStyleNotifier, BackgroundStyle>((ref) {
-  return BackgroundStyleNotifier();
-});
+      return BackgroundStyleNotifier();
+    });
 
 /// 加载状态 Provider（用于等待异步初始化完成）
 final backgroundStyleLoadedProvider = StateProvider<bool>((ref) => false);
@@ -294,8 +291,10 @@ class BackgroundStyleNotifier extends StateNotifier<BackgroundStyle> {
 }
 
 /// 当前页面的背景 SVG 路径
-final currentPageBackgroundProvider =
-    Provider.family<String, int>((ref, pageIndex) {
+final currentPageBackgroundProvider = Provider.family<String, int>((
+  ref,
+  pageIndex,
+) {
   final style = ref.watch(backgroundStyleProvider);
   if (pageIndex >= 0 && pageIndex < style.svgAssets.length) {
     return style.svgAssets[pageIndex];
@@ -310,7 +309,10 @@ final currentPageBackgroundProvider =
 /// 风格切换时自动更新
 
 /// 获取当前 accentColor 对应的 ColorScheme（自动适配明暗模式）
-final accentColorSchemeProvider = Provider.family<ColorScheme, BuildContext>((ref, context) {
+final accentColorSchemeProvider = Provider.family<ColorScheme, BuildContext>((
+  ref,
+  context,
+) {
   final style = ref.watch(backgroundStyleProvider);
   final isDark = Theme.of(context).brightness == Brightness.dark;
   return isDark ? style.toDarkColorScheme() : style.toLightColorScheme();

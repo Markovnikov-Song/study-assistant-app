@@ -1,11 +1,15 @@
 import 'package:dio/dio.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../models/daily_task.dart';
+import '../../../services/calendar_service.dart';
 import '../models/study_plan_models.dart';
 
+/// 学习计划 API 服务
 class StudyPlannerApiService {
   final Dio _dio = DioClient.instance.dio;
   static const _base = '/api/study-planner';
+  final CalendarService _calendarService = CalendarService.instance;
 
   /// 创建计划，触发后台规划。返回 {plan_id, status}
   Future<Map<String, dynamic>> createPlan({
@@ -53,9 +57,20 @@ class StudyPlannerApiService {
   }
 
   /// 更新 plan_item 状态（done / skipped）
-  Future<void> updateItemStatus(int planId, int itemId, String status) async {
+  Future<void> updateItemStatus(
+    int planId,
+    int itemId,
+    String status, {
+    Map<String, dynamic>? completionResult,
+  }) async {
     try {
-      await _dio.patch('$_base/plans/$planId/items/$itemId', data: {'status': status});
+      await _dio.patch(
+        '$_base/plans/$planId/items/$itemId',
+        data: {
+          'status': status,
+          'completion_result': completionResult ?? const {},
+        },
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -95,6 +110,54 @@ class StudyPlannerApiService {
     try {
       final res = await _dio.post('$_base/replan');
       return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// 确认并执行学习计划
+  Future<Map<String, dynamic>> confirmPlan({
+    required int planId,
+  }) async {
+    // 1. 调用后端确认接口
+    final res = await _dio.post('$_base/plans/$planId/confirm');
+
+    // 2. 同步到日历
+    final data = res.data as Map<String, dynamic>;
+    if (data['calendar_synced'] == true) {
+      // 获取任务列表并写入日历
+      final tasks = (data['daily_tasks'] as List?)
+              ?.map((e) => DailyTask.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [];
+
+      if (tasks.isNotEmpty) {
+        // 确保日历服务已初始化
+        await _calendarService.init();
+
+        await _calendarService.importPlanToCalendar(
+          planId: planId,
+          tasks: tasks,
+        );
+
+        // 设置提醒
+        await _calendarService.scheduleStudyReminders(
+          planId: planId,
+          startDate: DateTime.parse(tasks.first.date),
+          endDate: DateTime.parse(tasks.last.date),
+        );
+      }
+    }
+
+    return data;
+  }
+
+  /// 更新任务状态
+  Future<void> updateTaskStatus(String taskId, TaskStatus status) async {
+    try {
+      await _dio.put('$_base/tasks/$taskId/status', data: {
+        'status': status.name,
+      });
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

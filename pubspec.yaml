@@ -1,7 +1,7 @@
 name: study_assistant_app
 description: "伴学 - AI 学习助手"
 publish_to: 'none'
-version: 1.2.2+3
+version: 1.2.13+13
 
 environment:
   sdk: ^3.11.4
@@ -32,6 +32,7 @@ dependencies:
   flutter_svg: ^2.0.10
   image_picker: ^1.1.2
   file_picker: ^8.1.2
+  flutter_image_compress: ^2.3.0
 
   # Markdown + LaTeX Rendering
   flutter_markdown: ^0.7.4
@@ -41,6 +42,7 @@ dependencies:
   webview_flutter: ^4.10.0
   screenshot: ^3.0.0
   gal: ^2.3.0
+  photo_view: ^0.15.0
 
   # UUID Generation
   uuid: ^4.5.1
@@ -83,8 +85,9 @@ dependencies:
 
   # Calendar
   table_calendar: ^3.2.0
+  device_calendar: ^4.3.3
   flutter_local_notifications: ^18.0.0
-  timezone: ^0.10.0
+  timezone: ^0.9.4
 
   # Speech Recognition
   speech_to_text: ^7.0.0
@@ -99,6 +102,7 @@ dependencies:
   
   # Keep App Awake During Tasks
   wakelock_plus: ^1.2.8
+  url_launcher: ^6.3.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

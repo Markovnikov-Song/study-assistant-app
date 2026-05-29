@@ -59,88 +59,84 @@ class ClaySpacing implements SpacingPack {
   // ─── 黏土风核心阴影 ────────────────────────────────────────
   /// 右下角的柔和暗面阴影 + 左上角的强高光
   List<BoxShadow> get clayShadow => [
-        BoxShadow(
-          color: const ClayColors().shadowDark,
-          blurRadius: 12,
-          offset: const Offset(6, 6),
-        ),
-        BoxShadow(
-          color: Colors.white,
-          blurRadius: 10,
-          offset: const Offset(-6, -6),
-        ),
-      ];
+    BoxShadow(
+      color: const ClayColors().shadowDark,
+      blurRadius: 24,
+      spreadRadius: 1,
+      offset: const Offset(12, 12),
+    ),
+    BoxShadow(
+      color: Colors.white,
+      blurRadius: 22,
+      spreadRadius: 1,
+      offset: const Offset(-12, -12),
+    ),
+  ];
 
   /// 深色模式黏土阴影
   List<BoxShadow> get clayShadowDark => [
-        BoxShadow(
-          color: const ClayColors().shadowDarkNight,
-          blurRadius: 12,
-          offset: const Offset(6, 6),
-        ),
-        BoxShadow(
-          color: const ClayColors().shadowLightNight,
-          blurRadius: 10,
-          offset: const Offset(-4, -4),
-        ),
-      ];
+    BoxShadow(
+      color: const ClayColors().shadowDarkNight,
+      blurRadius: 24,
+      spreadRadius: 1,
+      offset: const Offset(12, 12),
+    ),
+    BoxShadow(
+      color: const ClayColors().shadowLightNight,
+      blurRadius: 22,
+      spreadRadius: 1,
+      offset: const Offset(-10, -10),
+    ),
+  ];
 
   /// 按钮按压下去的"内凹"效果
   List<BoxShadow> get clayShadowPressed => [
-        BoxShadow(
-          color: const ClayColors().shadowDark,
-          blurRadius: 4,
-          offset: const Offset(2, 2),
-        ),
-        BoxShadow(
-          color: Colors.white,
-          blurRadius: 4,
-          offset: const Offset(-2, -2),
-        ),
-      ];
+    BoxShadow(
+      color: const ClayColors().shadowDark,
+      blurRadius: 4,
+      offset: const Offset(2, 2),
+    ),
+    BoxShadow(color: Colors.white, blurRadius: 4, offset: const Offset(-2, -2)),
+  ];
 
   /// 浅色模式标准阴影
   List<BoxShadow> get shadowSm => [
-        BoxShadow(
-          color: const ClayColors().shadowDark,
-          blurRadius: 4,
-          offset: const Offset(2, 2),
-        ),
-      ];
+    BoxShadow(
+      color: const ClayColors().shadowDark,
+      blurRadius: 4,
+      offset: const Offset(2, 2),
+    ),
+  ];
 
   List<BoxShadow> get shadowMd => [
-        BoxShadow(
-          color: const ClayColors().shadowDark,
-          blurRadius: 8,
-          offset: const Offset(4, 4),
-        ),
-        const BoxShadow(
-          color: Colors.white,
-          blurRadius: 6,
-          offset: Offset(-3, -3),
-        ),
-      ];
+    BoxShadow(
+      color: const ClayColors().shadowDark,
+      blurRadius: 8,
+      offset: const Offset(4, 4),
+    ),
+    const BoxShadow(color: Colors.white, blurRadius: 6, offset: Offset(-3, -3)),
+  ];
 
   List<BoxShadow> get shadowLg => [
-        BoxShadow(
-          color: const ClayColors().shadowDark,
-          blurRadius: 16,
-          offset: const Offset(8, 8),
-        ),
-        const BoxShadow(
-          color: Colors.white,
-          blurRadius: 12,
-          offset: Offset(-6, -6),
-        ),
-      ];
+    BoxShadow(
+      color: const ClayColors().shadowDark,
+      blurRadius: 16,
+      offset: const Offset(8, 8),
+    ),
+    const BoxShadow(
+      color: Colors.white,
+      blurRadius: 12,
+      offset: Offset(-6, -6),
+    ),
+  ];
 
   List<BoxShadow> get shadowPrimary => [
-        BoxShadow(
-          color: const ClayColors().primary.withValues(alpha: 0.3),
-          blurRadius: 20,
-          offset: const Offset(0, 4),
-        ),
-      ];
+    BoxShadow(
+      color: const ClayColors().primary.withValues(alpha: 0.3),
+      blurRadius: 20,
+      offset: const Offset(0, 4),
+    ),
+  ];
 }
 
 /// 黏土风完整包
@@ -152,10 +148,10 @@ class ClayStylePack extends StylePack {
 
   @override
   StyleMeta get meta => const StyleMeta(
-        id: StyleIds.clay,
-        name: '黏土风',
-        description: '柔和糖果感，微凸体积感，像鹅卵石一样圆润',
-      );
+    id: StyleIds.clay,
+    name: '黏土风',
+    description: '柔和糖果感，微凸体积感，像鹅卵石一样圆润',
+  );
 
   @override
   ThemeData get lightTheme => _buildLightTheme();
@@ -200,7 +196,10 @@ ThemeData _buildLightTheme() {
     useMaterial3: true,
     colorScheme: colorScheme,
     fontFamily: 'Noto Sans SC',
-    textTheme: textTheme.apply(bodyColor: colors.textPrimary, displayColor: colors.textPrimary),
+    textTheme: textTheme.apply(
+      bodyColor: colors.textPrimary,
+      displayColor: colors.textPrimary,
+    ),
     scaffoldBackgroundColor: colors.background,
     appBarTheme: _buildAppBarTheme(colors, textTheme, Brightness.light),
     cardTheme: _buildCardTheme(colors, spacing),
@@ -259,7 +258,10 @@ ThemeData _buildDarkTheme() {
     useMaterial3: true,
     colorScheme: colorScheme,
     fontFamily: 'Noto Sans SC',
-    textTheme: textTheme.apply(bodyColor: colors.textPrimaryDark, displayColor: colors.textPrimaryDark),
+    textTheme: textTheme.apply(
+      bodyColor: colors.textPrimaryDark,
+      displayColor: colors.textPrimaryDark,
+    ),
     scaffoldBackgroundColor: colors.backgroundDark,
     appBarTheme: _buildAppBarTheme(colors, textTheme, Brightness.dark),
     cardTheme: _buildCardThemeDark(colors, spacing),
@@ -282,271 +284,648 @@ ThemeData _buildDarkTheme() {
 }
 
 TextTheme _buildTextTheme(ClayColors c) => TextTheme(
-  displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: -0.02, height: 1.2, color: c.textPrimary),
-  displayMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.01, height: 1.25, color: c.textPrimary),
-  displaySmall: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, letterSpacing: -0.01, height: 1.3, color: c.textPrimary),
-  headlineLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, height: 1.35, color: c.textPrimary),
-  headlineMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, height: 1.4, color: c.textPrimary),
-  headlineSmall: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.4, color: c.textPrimary),
-  titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.4, color: c.textPrimary),
-  titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, height: 1.5, color: c.textPrimary),
-  titleSmall: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, height: 1.5, color: c.textPrimary),
-  bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400, height: 1.5, color: c.textPrimary),
-  bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, height: 1.5, color: c.textPrimary),
-  bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, letterSpacing: 0.01, height: 1.5, color: c.textSecondary),
-  labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, height: 1.4, color: c.textPrimary),
-  labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, height: 1.4, color: c.textPrimary),
-  labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 0.02, height: 1.4, color: c.textSecondary),
+  displayLarge: TextStyle(
+    fontSize: 32,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.02,
+    height: 1.2,
+    color: c.textPrimary,
+  ),
+  displayMedium: TextStyle(
+    fontSize: 28,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.01,
+    height: 1.25,
+    color: c.textPrimary,
+  ),
+  displaySmall: TextStyle(
+    fontSize: 24,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -0.01,
+    height: 1.3,
+    color: c.textPrimary,
+  ),
+  headlineLarge: TextStyle(
+    fontSize: 22,
+    fontWeight: FontWeight.w600,
+    height: 1.35,
+    color: c.textPrimary,
+  ),
+  headlineMedium: TextStyle(
+    fontSize: 20,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+    color: c.textPrimary,
+  ),
+  headlineSmall: TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+    color: c.textPrimary,
+  ),
+  titleLarge: TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+    color: c.textPrimary,
+  ),
+  titleMedium: TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w500,
+    height: 1.5,
+    color: c.textPrimary,
+  ),
+  titleSmall: TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    height: 1.5,
+    color: c.textPrimary,
+  ),
+  bodyLarge: TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+    color: c.textPrimary,
+  ),
+  bodyMedium: TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+    color: c.textPrimary,
+  ),
+  bodySmall: TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.01,
+    height: 1.5,
+    color: c.textSecondary,
+  ),
+  labelLarge: TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    height: 1.4,
+    color: c.textPrimary,
+  ),
+  labelMedium: TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    height: 1.4,
+    color: c.textPrimary,
+  ),
+  labelSmall: TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.02,
+    height: 1.4,
+    color: c.textSecondary,
+  ),
 );
 
 TextTheme _buildTextThemeDark(ClayColors c) => TextTheme(
-  displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: -0.02, height: 1.2, color: c.textPrimaryDark),
-  displayMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.01, height: 1.25, color: c.textPrimaryDark),
-  displaySmall: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, letterSpacing: -0.01, height: 1.3, color: c.textPrimaryDark),
-  headlineLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, height: 1.35, color: c.textPrimaryDark),
-  headlineMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, height: 1.4, color: c.textPrimaryDark),
-  headlineSmall: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.4, color: c.textPrimaryDark),
-  titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.4, color: c.textPrimaryDark),
-  titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, height: 1.5, color: c.textPrimaryDark),
-  titleSmall: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, height: 1.5, color: c.textPrimaryDark),
-  bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400, height: 1.5, color: c.textPrimaryDark),
-  bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, height: 1.5, color: c.textPrimaryDark),
-  bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, letterSpacing: 0.01, height: 1.5, color: c.textSecondaryDark),
-  labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, height: 1.4, color: c.textPrimaryDark),
-  labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, height: 1.4, color: c.textPrimaryDark),
-  labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 0.02, height: 1.4, color: c.textSecondaryDark),
+  displayLarge: TextStyle(
+    fontSize: 32,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.02,
+    height: 1.2,
+    color: c.textPrimaryDark,
+  ),
+  displayMedium: TextStyle(
+    fontSize: 28,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.01,
+    height: 1.25,
+    color: c.textPrimaryDark,
+  ),
+  displaySmall: TextStyle(
+    fontSize: 24,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -0.01,
+    height: 1.3,
+    color: c.textPrimaryDark,
+  ),
+  headlineLarge: TextStyle(
+    fontSize: 22,
+    fontWeight: FontWeight.w600,
+    height: 1.35,
+    color: c.textPrimaryDark,
+  ),
+  headlineMedium: TextStyle(
+    fontSize: 20,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+    color: c.textPrimaryDark,
+  ),
+  headlineSmall: TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+    color: c.textPrimaryDark,
+  ),
+  titleLarge: TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+    color: c.textPrimaryDark,
+  ),
+  titleMedium: TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w500,
+    height: 1.5,
+    color: c.textPrimaryDark,
+  ),
+  titleSmall: TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    height: 1.5,
+    color: c.textPrimaryDark,
+  ),
+  bodyLarge: TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+    color: c.textPrimaryDark,
+  ),
+  bodyMedium: TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+    color: c.textPrimaryDark,
+  ),
+  bodySmall: TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.01,
+    height: 1.5,
+    color: c.textSecondaryDark,
+  ),
+  labelLarge: TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    height: 1.4,
+    color: c.textPrimaryDark,
+  ),
+  labelMedium: TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    height: 1.4,
+    color: c.textPrimaryDark,
+  ),
+  labelSmall: TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.02,
+    height: 1.4,
+    color: c.textSecondaryDark,
+  ),
 );
 
-AppBarTheme _buildAppBarTheme(ClayColors c, TextTheme t, Brightness brightness) {
-  final bgColor = brightness == Brightness.dark ? c.backgroundDark : c.background;
-  final fgColor = brightness == Brightness.dark ? c.textPrimaryDark : c.textPrimary;
+AppBarTheme _buildAppBarTheme(
+  ClayColors c,
+  TextTheme t,
+  Brightness brightness,
+) {
+  final bgColor = brightness == Brightness.dark
+      ? c.backgroundDark
+      : c.background;
+  final fgColor = brightness == Brightness.dark
+      ? c.textPrimaryDark
+      : c.textPrimary;
   return AppBarTheme(
-    elevation: 0, scrolledUnderElevation: 0.5, backgroundColor: bgColor, foregroundColor: fgColor,
+    elevation: 0,
+    scrolledUnderElevation: 0.5,
+    backgroundColor: bgColor,
+    foregroundColor: fgColor,
     surfaceTintColor: Colors.transparent,
-    systemOverlayStyle: brightness == Brightness.dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
-    titleTextStyle: t.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: fgColor),
+    systemOverlayStyle: brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark,
+    titleTextStyle: t.titleLarge?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: fgColor,
+    ),
     iconTheme: IconThemeData(color: fgColor, size: 24),
   );
 }
 
 CardThemeData _buildCardTheme(ClayColors c, ClaySpacing s) => CardThemeData(
-  elevation: 0, color: c.surface, surfaceTintColor: Colors.transparent,
-  shape: RoundedRectangleBorder(borderRadius: s.borderRadiusMd), margin: EdgeInsets.zero,
+  elevation: 10,
+  color: c.surface,
+  shadowColor: c.shadowDark.withValues(alpha: 0.78),
+  surfaceTintColor: Colors.white.withValues(alpha: 0.18),
+  shape: RoundedRectangleBorder(
+    borderRadius: s.borderRadiusLg,
+    side: BorderSide(color: Colors.white.withValues(alpha: 0.92), width: 1.4),
+  ),
+  margin: EdgeInsets.zero,
 );
 
 CardThemeData _buildCardThemeDark(ClayColors c, ClaySpacing s) => CardThemeData(
-  elevation: 0, color: c.surfaceDark, surfaceTintColor: Colors.transparent,
-  shape: RoundedRectangleBorder(borderRadius: s.borderRadiusMd), margin: EdgeInsets.zero,
+  elevation: 10,
+  color: c.surfaceDark,
+  shadowColor: Colors.black.withValues(alpha: 0.72),
+  surfaceTintColor: Colors.white.withValues(alpha: 0.08),
+  shape: RoundedRectangleBorder(
+    borderRadius: s.borderRadiusLg,
+    side: BorderSide(
+      color: c.shadowLightNight.withValues(alpha: 0.45),
+      width: 1,
+    ),
+  ),
+  margin: EdgeInsets.zero,
 );
 
-ElevatedButtonThemeData _buildElevatedButtonTheme(ClayColors c, TextTheme t) => ElevatedButtonThemeData(
+ElevatedButtonThemeData _buildElevatedButtonTheme(ClayColors c, TextTheme t) =>
+    ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        elevation: 8,
+        shadowColor: c.primary.withValues(alpha: 0.38),
+        backgroundColor: c.primary,
+        foregroundColor: c.textOnPrimary,
+        minimumSize: const Size(0, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        textStyle: t.labelLarge?.copyWith(
+          color: c.textOnPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+
+ElevatedButtonThemeData _buildElevatedButtonThemeDark(
+  ClayColors c,
+  TextTheme t,
+) => ElevatedButtonThemeData(
   style: ElevatedButton.styleFrom(
-    elevation: 0, backgroundColor: c.primary, foregroundColor: c.textOnPrimary,
-    minimumSize: const Size(0, 48), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    textStyle: t.labelLarge?.copyWith(color: c.textOnPrimary, fontWeight: FontWeight.w600),
+    elevation: 8,
+    shadowColor: Colors.black.withValues(alpha: 0.44),
+    backgroundColor: c.primaryLight,
+    foregroundColor: c.backgroundDark,
+    minimumSize: const Size(0, 46),
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    textStyle: t.labelLarge?.copyWith(
+      color: c.backgroundDark,
+      fontWeight: FontWeight.w600,
+    ),
   ),
 );
 
-ElevatedButtonThemeData _buildElevatedButtonThemeDark(ClayColors c, TextTheme t) => ElevatedButtonThemeData(
-  style: ElevatedButton.styleFrom(
-    elevation: 0, backgroundColor: c.primaryLight, foregroundColor: c.backgroundDark,
-    minimumSize: const Size(0, 48), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    textStyle: t.labelLarge?.copyWith(color: c.backgroundDark, fontWeight: FontWeight.w600),
-  ),
-);
+FilledButtonThemeData _buildFilledButtonTheme(ClayColors c, TextTheme t) =>
+    FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        elevation: 8,
+        shadowColor: c.primary.withValues(alpha: 0.38),
+        backgroundColor: c.primary,
+        foregroundColor: c.textOnPrimary,
+        minimumSize: const Size(0, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        textStyle: t.labelLarge?.copyWith(
+          color: c.textOnPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
 
-FilledButtonThemeData _buildFilledButtonTheme(ClayColors c, TextTheme t) => FilledButtonThemeData(
-  style: FilledButton.styleFrom(
-    elevation: 0, backgroundColor: c.primary, foregroundColor: c.textOnPrimary,
-    minimumSize: const Size(0, 48), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    textStyle: t.labelLarge?.copyWith(color: c.textOnPrimary, fontWeight: FontWeight.w600),
-  ),
-);
+FilledButtonThemeData _buildFilledButtonThemeDark(ClayColors c, TextTheme t) =>
+    FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        elevation: 8,
+        shadowColor: Colors.black.withValues(alpha: 0.44),
+        backgroundColor: c.primaryLight,
+        foregroundColor: c.backgroundDark,
+        minimumSize: const Size(0, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        textStyle: t.labelLarge?.copyWith(
+          color: c.backgroundDark,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
 
-FilledButtonThemeData _buildFilledButtonThemeDark(ClayColors c, TextTheme t) => FilledButtonThemeData(
-  style: FilledButton.styleFrom(
-    elevation: 0, backgroundColor: c.primaryLight, foregroundColor: c.backgroundDark,
-    minimumSize: const Size(0, 48), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    textStyle: t.labelLarge?.copyWith(color: c.backgroundDark, fontWeight: FontWeight.w600),
-  ),
-);
+OutlinedButtonThemeData _buildOutlinedButtonTheme(ClayColors c, TextTheme t) =>
+    OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        elevation: 4,
+        foregroundColor: c.primary,
+        minimumSize: const Size(0, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        side: BorderSide(color: c.primary.withValues(alpha: 0.55), width: 1.4),
+        textStyle: t.labelLarge?.copyWith(
+          color: c.primary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
 
-OutlinedButtonThemeData _buildOutlinedButtonTheme(ClayColors c, TextTheme t) => OutlinedButtonThemeData(
+OutlinedButtonThemeData _buildOutlinedButtonThemeDark(
+  ClayColors c,
+  TextTheme t,
+) => OutlinedButtonThemeData(
   style: OutlinedButton.styleFrom(
-    elevation: 0, foregroundColor: c.primary,
-    minimumSize: const Size(0, 48), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    side: BorderSide(color: c.primary, width: 1.5),
-    textStyle: t.labelLarge?.copyWith(color: c.primary, fontWeight: FontWeight.w600),
+    elevation: 4,
+    foregroundColor: c.primaryLight,
+    minimumSize: const Size(0, 46),
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    side: BorderSide(color: c.primaryLight.withValues(alpha: 0.62), width: 1.4),
+    textStyle: t.labelLarge?.copyWith(
+      color: c.primaryLight,
+      fontWeight: FontWeight.w600,
+    ),
   ),
 );
 
-OutlinedButtonThemeData _buildOutlinedButtonThemeDark(ClayColors c, TextTheme t) => OutlinedButtonThemeData(
-  style: OutlinedButton.styleFrom(
-    elevation: 0, foregroundColor: c.primaryLight,
-    minimumSize: const Size(0, 48), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    side: BorderSide(color: c.primaryLight, width: 1.5),
-    textStyle: t.labelLarge?.copyWith(color: c.primaryLight, fontWeight: FontWeight.w600),
-  ),
-);
+TextButtonThemeData _buildTextButtonTheme(ClayColors c, TextTheme t) =>
+    TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: c.primary,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        textStyle: t.labelLarge?.copyWith(
+          color: c.primary,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
 
-TextButtonThemeData _buildTextButtonTheme(ClayColors c, TextTheme t) => TextButtonThemeData(
-  style: TextButton.styleFrom(
-    foregroundColor: c.primary, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-    textStyle: t.labelLarge?.copyWith(color: c.primary, fontWeight: FontWeight.w500),
-  ),
-);
-
-TextButtonThemeData _buildTextButtonThemeDark(ClayColors c, TextTheme t) => TextButtonThemeData(
-  style: TextButton.styleFrom(
-    foregroundColor: c.primaryLight, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-    textStyle: t.labelLarge?.copyWith(color: c.primaryLight, fontWeight: FontWeight.w500),
-  ),
-);
+TextButtonThemeData _buildTextButtonThemeDark(ClayColors c, TextTheme t) =>
+    TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: c.primaryLight,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        textStyle: t.labelLarge?.copyWith(
+          color: c.primaryLight,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
 
 IconButtonThemeData _buildIconButtonTheme(ClayColors c) => IconButtonThemeData(
-  style: IconButton.styleFrom(foregroundColor: c.textSecondary, minimumSize: const Size(44, 44)),
+  style: IconButton.styleFrom(
+    foregroundColor: c.textSecondary,
+    minimumSize: const Size(44, 44),
+  ),
 );
 
-IconButtonThemeData _buildIconButtonThemeDark(ClayColors c) => IconButtonThemeData(
-  style: IconButton.styleFrom(foregroundColor: c.textSecondaryDark, minimumSize: const Size(44, 44)),
-);
+IconButtonThemeData _buildIconButtonThemeDark(ClayColors c) =>
+    IconButtonThemeData(
+      style: IconButton.styleFrom(
+        foregroundColor: c.textSecondaryDark,
+        minimumSize: const Size(44, 44),
+      ),
+    );
 
-FloatingActionButtonThemeData _buildFabTheme(ClayColors c, ClaySpacing s) => FloatingActionButtonThemeData(
-  elevation: 4, backgroundColor: c.primary, foregroundColor: c.textOnPrimary,
-  shape: RoundedRectangleBorder(borderRadius: s.borderRadiusMd),
-);
+FloatingActionButtonThemeData _buildFabTheme(ClayColors c, ClaySpacing s) =>
+    FloatingActionButtonThemeData(
+      elevation: 4,
+      backgroundColor: c.primary,
+      foregroundColor: c.textOnPrimary,
+      shape: RoundedRectangleBorder(borderRadius: s.borderRadiusMd),
+    );
 
-FloatingActionButtonThemeData _buildFabThemeDark(ClayColors c, ClaySpacing s) => FloatingActionButtonThemeData(
-  elevation: 4, backgroundColor: c.primaryLight, foregroundColor: c.backgroundDark,
-  shape: RoundedRectangleBorder(borderRadius: s.borderRadiusMd),
-);
+FloatingActionButtonThemeData _buildFabThemeDark(ClayColors c, ClaySpacing s) =>
+    FloatingActionButtonThemeData(
+      elevation: 4,
+      backgroundColor: c.primaryLight,
+      foregroundColor: c.backgroundDark,
+      shape: RoundedRectangleBorder(borderRadius: s.borderRadiusMd),
+    );
 
-InputDecorationTheme _buildInputTheme(ClayColors c, ClaySpacing s, TextTheme t) => InputDecorationTheme(
-  filled: true, fillColor: c.surface,
-  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-  border: OutlineInputBorder(borderRadius: s.borderRadiusMd, borderSide: BorderSide(color: c.border)),
-  enabledBorder: OutlineInputBorder(borderRadius: s.borderRadiusMd, borderSide: BorderSide(color: c.border)),
-  focusedBorder: OutlineInputBorder(borderRadius: s.borderRadiusMd, borderSide: BorderSide(color: c.primary, width: 2)),
-  errorBorder: OutlineInputBorder(borderRadius: s.borderRadiusMd, borderSide: BorderSide(color: c.error)),
-  focusedErrorBorder: OutlineInputBorder(borderRadius: s.borderRadiusMd, borderSide: BorderSide(color: c.error, width: 2)),
+InputDecorationTheme _buildInputTheme(
+  ClayColors c,
+  ClaySpacing s,
+  TextTheme t,
+) => InputDecorationTheme(
+  filled: true,
+  fillColor: c.surfaceElevated,
+  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+  border: OutlineInputBorder(
+    borderRadius: s.borderRadiusLg,
+    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.95)),
+  ),
+  enabledBorder: OutlineInputBorder(
+    borderRadius: s.borderRadiusLg,
+    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.95)),
+  ),
+  focusedBorder: OutlineInputBorder(
+    borderRadius: s.borderRadiusLg,
+    borderSide: BorderSide(color: c.primary, width: 2),
+  ),
+  errorBorder: OutlineInputBorder(
+    borderRadius: s.borderRadiusLg,
+    borderSide: BorderSide(color: c.error),
+  ),
+  focusedErrorBorder: OutlineInputBorder(
+    borderRadius: s.borderRadiusLg,
+    borderSide: BorderSide(color: c.error, width: 2),
+  ),
   hintStyle: t.bodyMedium?.copyWith(color: c.textTertiary),
   labelStyle: t.bodyMedium?.copyWith(color: c.textSecondary),
   errorStyle: t.bodySmall?.copyWith(color: c.error),
 );
 
-InputDecorationTheme _buildInputThemeDark(ClayColors c, ClaySpacing s, TextTheme t) => InputDecorationTheme(
-  filled: true, fillColor: c.surfaceElevatedDark,
-  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-  border: OutlineInputBorder(borderRadius: s.borderRadiusMd, borderSide: BorderSide(color: c.borderDark)),
-  enabledBorder: OutlineInputBorder(borderRadius: s.borderRadiusMd, borderSide: BorderSide(color: c.borderDark)),
-  focusedBorder: OutlineInputBorder(borderRadius: s.borderRadiusMd, borderSide: BorderSide(color: c.primaryLight, width: 2)),
-  errorBorder: OutlineInputBorder(borderRadius: s.borderRadiusMd, borderSide: BorderSide(color: c.errorLight)),
-  focusedErrorBorder: OutlineInputBorder(borderRadius: s.borderRadiusMd, borderSide: BorderSide(color: c.errorLight, width: 2)),
+InputDecorationTheme _buildInputThemeDark(
+  ClayColors c,
+  ClaySpacing s,
+  TextTheme t,
+) => InputDecorationTheme(
+  filled: true,
+  fillColor: c.surfaceElevatedDark,
+  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+  border: OutlineInputBorder(
+    borderRadius: s.borderRadiusLg,
+    borderSide: BorderSide(color: c.borderDark),
+  ),
+  enabledBorder: OutlineInputBorder(
+    borderRadius: s.borderRadiusLg,
+    borderSide: BorderSide(color: c.borderDark),
+  ),
+  focusedBorder: OutlineInputBorder(
+    borderRadius: s.borderRadiusLg,
+    borderSide: BorderSide(color: c.primaryLight, width: 2),
+  ),
+  errorBorder: OutlineInputBorder(
+    borderRadius: s.borderRadiusLg,
+    borderSide: BorderSide(color: c.errorLight),
+  ),
+  focusedErrorBorder: OutlineInputBorder(
+    borderRadius: s.borderRadiusLg,
+    borderSide: BorderSide(color: c.errorLight, width: 2),
+  ),
   hintStyle: t.bodyMedium?.copyWith(color: c.textTertiaryDark),
   labelStyle: t.bodyMedium?.copyWith(color: c.textSecondaryDark),
   errorStyle: t.bodySmall?.copyWith(color: c.errorLight),
 );
 
-NavigationBarThemeData _buildNavBarTheme(ClayColors c, TextTheme t, Brightness brightness) {
+NavigationBarThemeData _buildNavBarTheme(
+  ClayColors c,
+  TextTheme t,
+  Brightness brightness,
+) {
   final isDark = brightness == Brightness.dark;
   return NavigationBarThemeData(
-    elevation: 0, height: 80,
-    backgroundColor: (isDark ? c.surfaceDark : c.surface).withValues(alpha: 0.9),
-    surfaceTintColor: Colors.transparent, labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-    indicatorColor: (isDark ? c.primaryDark : c.primaryLight).withValues(alpha: 0.2),
+    elevation: 0,
+    height: 80,
+    backgroundColor: (isDark ? c.surfaceDark : c.surface).withValues(
+      alpha: 0.9,
+    ),
+    surfaceTintColor: Colors.transparent,
+    labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+    indicatorColor: (isDark ? c.primaryDark : c.primaryLight).withValues(
+      alpha: 0.2,
+    ),
     iconTheme: WidgetStateProperty.resolveWith((states) {
       final color = isDark ? c.primaryLight : c.primary;
-      return IconThemeData(color: states.contains(WidgetState.selected) ? color : (isDark ? c.textSecondaryDark : c.textSecondary), size: 24);
+      return IconThemeData(
+        color: states.contains(WidgetState.selected)
+            ? color
+            : (isDark ? c.textSecondaryDark : c.textSecondary),
+        size: 24,
+      );
     }),
     labelTextStyle: WidgetStateProperty.resolveWith((states) {
       final color = isDark ? c.primaryLight : c.primary;
       return t.labelSmall?.copyWith(
-        color: states.contains(WidgetState.selected) ? color : (isDark ? c.textSecondaryDark : c.textSecondary),
-        fontWeight: states.contains(WidgetState.selected) ? FontWeight.w600 : FontWeight.w400,
+        color: states.contains(WidgetState.selected)
+            ? color
+            : (isDark ? c.textSecondaryDark : c.textSecondary),
+        fontWeight: states.contains(WidgetState.selected)
+            ? FontWeight.w600
+            : FontWeight.w400,
       );
     }),
   );
 }
 
-DividerThemeData _buildDividerTheme(ClayColors c) => DividerThemeData(color: c.divider, thickness: 1, space: 1);
-DividerThemeData _buildDividerThemeDark(ClayColors c) => DividerThemeData(color: c.dividerDark, thickness: 1, space: 1);
+DividerThemeData _buildDividerTheme(ClayColors c) =>
+    DividerThemeData(color: c.divider, thickness: 1, space: 1);
+DividerThemeData _buildDividerThemeDark(ClayColors c) =>
+    DividerThemeData(color: c.dividerDark, thickness: 1, space: 1);
 
-ProgressIndicatorThemeData _buildProgressTheme(ClayColors c) => ProgressIndicatorThemeData(
-  color: c.primary, linearTrackColor: c.surfaceContainerHigh, circularTrackColor: c.surfaceContainerHigh,
-);
+ProgressIndicatorThemeData _buildProgressTheme(ClayColors c) =>
+    ProgressIndicatorThemeData(
+      color: c.primary,
+      linearTrackColor: c.surfaceContainerHigh,
+      circularTrackColor: c.surfaceContainerHigh,
+    );
 
-ProgressIndicatorThemeData _buildProgressThemeDark(ClayColors c) => ProgressIndicatorThemeData(
-  color: c.primaryLight, linearTrackColor: c.surfaceContainerHighDark, circularTrackColor: c.surfaceContainerHighDark,
-);
+ProgressIndicatorThemeData _buildProgressThemeDark(ClayColors c) =>
+    ProgressIndicatorThemeData(
+      color: c.primaryLight,
+      linearTrackColor: c.surfaceContainerHighDark,
+      circularTrackColor: c.surfaceContainerHighDark,
+    );
 
 ChipThemeData _buildChipTheme(ClayColors c, TextTheme t) => ChipThemeData(
-  elevation: 0, pressElevation: 0, backgroundColor: c.surfaceContainer,
+  elevation: 0,
+  pressElevation: 0,
+  backgroundColor: c.surfaceContainer,
   selectedColor: c.primaryLight.withValues(alpha: 0.2),
   labelStyle: t.labelMedium?.copyWith(color: c.textSecondary),
   secondaryLabelStyle: t.labelMedium?.copyWith(color: c.primary),
   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-  side: BorderSide.none, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+  side: BorderSide.none,
+  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
 );
 
 ChipThemeData _buildChipThemeDark(ClayColors c, TextTheme t) => ChipThemeData(
-  elevation: 0, pressElevation: 0, backgroundColor: c.surfaceElevatedDark,
+  elevation: 0,
+  pressElevation: 0,
+  backgroundColor: c.surfaceElevatedDark,
   selectedColor: c.primaryDark.withValues(alpha: 0.4),
   labelStyle: t.labelMedium?.copyWith(color: c.textSecondaryDark),
   secondaryLabelStyle: t.labelMedium?.copyWith(color: c.primaryLight),
   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-  side: BorderSide(color: c.borderDark), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+  side: BorderSide(color: c.borderDark),
+  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
 );
 
-SnackBarThemeData _buildSnackBarTheme(ClayColors c, TextTheme t) => SnackBarThemeData(
-  backgroundColor: c.textPrimary, contentTextStyle: t.bodyMedium?.copyWith(color: c.surface),
-  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), behavior: SnackBarBehavior.floating,
-);
+SnackBarThemeData _buildSnackBarTheme(ClayColors c, TextTheme t) =>
+    SnackBarThemeData(
+      backgroundColor: c.textPrimary,
+      contentTextStyle: t.bodyMedium?.copyWith(color: c.surface),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      behavior: SnackBarBehavior.floating,
+    );
 
-SnackBarThemeData _buildSnackBarThemeDark(ClayColors c, TextTheme t) => SnackBarThemeData(
-  backgroundColor: c.surfaceElevatedDark, contentTextStyle: t.bodyMedium?.copyWith(color: c.textPrimaryDark),
-  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), behavior: SnackBarBehavior.floating,
-);
+SnackBarThemeData _buildSnackBarThemeDark(ClayColors c, TextTheme t) =>
+    SnackBarThemeData(
+      backgroundColor: c.surfaceElevatedDark,
+      contentTextStyle: t.bodyMedium?.copyWith(color: c.textPrimaryDark),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      behavior: SnackBarBehavior.floating,
+    );
 
-DialogThemeData _buildDialogTheme(ClayColors c, TextTheme t, ClaySpacing s) => DialogThemeData(
-  elevation: 8, backgroundColor: c.surface, surfaceTintColor: Colors.transparent,
+DialogThemeData _buildDialogTheme(ClayColors c, TextTheme t, ClaySpacing s) =>
+    DialogThemeData(
+      elevation: 8,
+      backgroundColor: c.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: s.borderRadiusLg),
+      titleTextStyle: t.titleLarge?.copyWith(
+        color: c.textPrimary,
+        fontWeight: FontWeight.w600,
+      ),
+      contentTextStyle: t.bodyMedium?.copyWith(color: c.textSecondary),
+    );
+
+DialogThemeData _buildDialogThemeDark(
+  ClayColors c,
+  TextTheme t,
+  ClaySpacing s,
+) => DialogThemeData(
+  elevation: 8,
+  backgroundColor: c.surfaceDark,
+  surfaceTintColor: Colors.transparent,
   shape: RoundedRectangleBorder(borderRadius: s.borderRadiusLg),
-  titleTextStyle: t.titleLarge?.copyWith(color: c.textPrimary, fontWeight: FontWeight.w600),
-  contentTextStyle: t.bodyMedium?.copyWith(color: c.textSecondary),
-);
-
-DialogThemeData _buildDialogThemeDark(ClayColors c, TextTheme t, ClaySpacing s) => DialogThemeData(
-  elevation: 8, backgroundColor: c.surfaceDark, surfaceTintColor: Colors.transparent,
-  shape: RoundedRectangleBorder(borderRadius: s.borderRadiusLg),
-  titleTextStyle: t.titleLarge?.copyWith(color: c.textPrimaryDark, fontWeight: FontWeight.w600),
+  titleTextStyle: t.titleLarge?.copyWith(
+    color: c.textPrimaryDark,
+    fontWeight: FontWeight.w600,
+  ),
   contentTextStyle: t.bodyMedium?.copyWith(color: c.textSecondaryDark),
 );
 
-BottomSheetThemeData _buildBottomSheetTheme(ClayColors c, ClaySpacing s) => BottomSheetThemeData(
-  backgroundColor: c.surface, surfaceTintColor: Colors.transparent,
-  shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-);
+BottomSheetThemeData _buildBottomSheetTheme(ClayColors c, ClaySpacing s) =>
+    BottomSheetThemeData(
+      backgroundColor: c.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+    );
 
-BottomSheetThemeData _buildBottomSheetThemeDark(ClayColors c, ClaySpacing s) => BottomSheetThemeData(
-  backgroundColor: c.surfaceDark, surfaceTintColor: Colors.transparent,
-  shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-);
+BottomSheetThemeData _buildBottomSheetThemeDark(ClayColors c, ClaySpacing s) =>
+    BottomSheetThemeData(
+      backgroundColor: c.surfaceDark,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+    );
 
 TabBarThemeData _buildTabBarTheme(ClayColors c, TextTheme t) => TabBarThemeData(
-  labelColor: c.primary, unselectedLabelColor: c.textSecondary,
-  labelStyle: t.labelLarge?.copyWith(fontWeight: FontWeight.w600), unselectedLabelStyle: t.labelLarge,
-  indicator: UnderlineTabIndicator(borderSide: BorderSide(color: c.primary, width: 3), borderRadius: BorderRadius.circular(2)),
+  labelColor: c.primary,
+  unselectedLabelColor: c.textSecondary,
+  labelStyle: t.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+  unselectedLabelStyle: t.labelLarge,
+  indicator: UnderlineTabIndicator(
+    borderSide: BorderSide(color: c.primary, width: 3),
+    borderRadius: BorderRadius.circular(2),
+  ),
   indicatorSize: TabBarIndicatorSize.label,
 );
 
-TabBarThemeData _buildTabBarThemeDark(ClayColors c, TextTheme t) => TabBarThemeData(
-  labelColor: c.primaryLight, unselectedLabelColor: c.textSecondaryDark,
-  labelStyle: t.labelLarge?.copyWith(fontWeight: FontWeight.w600), unselectedLabelStyle: t.labelLarge,
-  indicator: UnderlineTabIndicator(borderSide: BorderSide(color: c.primaryLight, width: 3), borderRadius: BorderRadius.circular(2)),
-  indicatorSize: TabBarIndicatorSize.label,
-);
+TabBarThemeData _buildTabBarThemeDark(ClayColors c, TextTheme t) =>
+    TabBarThemeData(
+      labelColor: c.primaryLight,
+      unselectedLabelColor: c.textSecondaryDark,
+      labelStyle: t.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+      unselectedLabelStyle: t.labelLarge,
+      indicator: UnderlineTabIndicator(
+        borderSide: BorderSide(color: c.primaryLight, width: 3),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      indicatorSize: TabBarIndicatorSize.label,
+    );

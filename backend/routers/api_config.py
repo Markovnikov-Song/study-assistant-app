@@ -43,8 +43,16 @@ class VerifyPassphraseRequest(BaseModel):
 class SaveCustomConfigRequest(BaseModel):
     llm_base_url: Optional[str] = None
     llm_api_key: Optional[str] = None
+    llm_model: Optional[str] = None
     vision_base_url: Optional[str] = None
     vision_api_key: Optional[str] = None
+    vision_model: Optional[str] = None
+    embedding_base_url: Optional[str] = None
+    embedding_api_key: Optional[str] = None
+    embedding_model: Optional[str] = None
+    reranker_base_url: Optional[str] = None
+    reranker_api_key: Optional[str] = None
+    reranker_model: Optional[str] = None
 
 
 # ============================================================================
@@ -112,8 +120,16 @@ async def save_custom_config(
             "shared_config_type": None,
             "custom_llm_base_url": body.llm_base_url,
             "custom_llm_api_key": body.llm_api_key,
+            "custom_llm_model": body.llm_model,
             "custom_vision_base_url": body.vision_base_url,
             "custom_vision_api_key": body.vision_api_key,
+            "custom_vision_model": body.vision_model,
+            "custom_embedding_base_url": body.embedding_base_url,
+            "custom_embedding_api_key": body.embedding_api_key,
+            "custom_embedding_model": body.embedding_model,
+            "custom_reranker_base_url": body.reranker_base_url,
+            "custom_reranker_api_key": body.reranker_api_key,
+            "custom_reranker_model": body.reranker_model,
         })
         db.commit()
     
@@ -135,7 +151,16 @@ async def get_config_status(user=Depends(get_current_user)):
             "shared_config_type": u.shared_config_type or None,
             "shared_config_verified": bool(u.use_shared_config) if u.use_shared_config is not None else False,
             "has_custom_config": bool(u.custom_llm_api_key) if u.custom_llm_api_key is not None else False,
-            # 不返回实际的 key
+            # 返回已填写的模型名（不含 key）
+            "custom_llm_model": u.custom_llm_model or "",
+            "custom_vision_model": u.custom_vision_model or "",
+            "custom_embedding_model": u.custom_embedding_model or "",
+            "custom_reranker_model": u.custom_reranker_model or "",
+            # 返回已填写的 base_url（不含 key）
+            "custom_llm_base_url": u.custom_llm_base_url or "",
+            "custom_vision_base_url": u.custom_vision_base_url or "",
+            "custom_embedding_base_url": u.custom_embedding_base_url or "",
+            "custom_reranker_base_url": u.custom_reranker_base_url or "",
         }
 
 

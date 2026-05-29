@@ -227,6 +227,29 @@ class NotificationService {
     await _plugin.show(id, title, body, _details(), payload: payload);
   }
 
+  // ── 定时通知（单次）─────────────────────────────────────────────────────────
+
+  Future<void> scheduleNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledTime,
+    String? payload,
+  }) async {
+    final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      tzTime,
+      _details(),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      payload: payload,
+    );
+  }
+
   // ── 每日定时推送 ──────────────────────────────────────────────────────────
 
   Future<void> scheduleDailyAt({

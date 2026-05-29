@@ -14,8 +14,10 @@ from sqlalchemy import text
 from database import (
     ConversationHistory,
     ConversationSession,
+    LearningPath,
     MindmapNodeState,
     NodeLecture,
+    NodeMastery,
     Subject,
     get_session as db_session,
 )
@@ -82,6 +84,16 @@ class NodeStateItem(BaseModel):
 
 class NodeStatesIn(BaseModel):
     states: list[NodeStateItem]
+
+
+class NodeMasteryStateIn(BaseModel):
+    state: Literal["locked", "unlocked", "in_progress", "mastered"]
+
+
+class NodeMasteryPatchIn(BaseModel):
+    correct_count: Optional[int] = None
+    wrong_count: Optional[int] = None
+    lecture_read_duration: Optional[int] = None
 
 
 class LectureContentIn(BaseModel):
@@ -448,6 +460,60 @@ def _build_node_tree(markdown: str) -> list[dict]:
     return nodes
 
 
+def _node_context_from_mindmap(markdown: str, node_id: str) -> dict[str, Any]:
+    """Return structural context for one mind-map node."""
+    nodes = _build_node_tree(markdown)
+    by_id = {node["node_id"]: node for node in nodes}
+    current = by_id.get(node_id)
+    if not current:
+        return {
+            "node_id": node_id,
+            "title": _parse_text_from_node_id(node_id),
+            "depth": 4,
+            "path": [_parse_text_from_node_id(node_id)],
+            "parent_text": None,
+            "sibling_texts": [],
+            "child_texts": [],
+        }
+
+    path: list[str] = []
+    cursor = current
+    while cursor:
+        path.append(cursor["text"])
+        parent_id = cursor.get("parent_id")
+        cursor = by_id.get(parent_id) if parent_id else None
+    path.reverse()
+
+    parent_id = current.get("parent_id")
+    parent = by_id.get(parent_id) if parent_id else None
+    siblings = [
+        node["text"]
+        for node in nodes
+        if node.get("parent_id") == parent_id and node["node_id"] != node_id
+    ]
+    children = [
+        node["text"]
+        for node in nodes
+        if node.get("parent_id") == node_id
+    ]
+
+    return {
+        "node_id": node_id,
+        "title": current["text"],
+        "depth": int(current.get("depth") or 4),
+        "path": path,
+        "parent_text": parent["text"] if parent else None,
+        "sibling_texts": siblings,
+        "child_texts": children,
+    }
+
+
+def _lecture_context_for_node(db, session_id: int, node_id: str) -> dict[str, Any]:
+    """Resolve the best available title/depth/context for lecture generation."""
+    mindmap_content = _get_mindmap_content(db, session_id) or ""
+    return _node_context_from_mindmap(mindmap_content, node_id)
+
+
 @router.get("/sessions/{session_id}/nodes")
 def get_nodes(session_id: int, user=Depends(get_current_user)):
     with db_session() as db:
@@ -537,6 +603,202 @@ def upsert_node_states(session_id: int, body: NodeStatesIn, user=Depends(get_cur
                     "study_planner sync_node_completion 失败（非致命）：%s", _sync_err
                 )
 
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# 学习路径 & 节点掌握度（知识图谱进化）
+# ---------------------------------------------------------------------------
+
+
+def _node_mastery_state_str(*, is_lit: bool, mastery: NodeMastery | None) -> str:
+    if is_lit:
+        return "mastered"
+    if mastery is None:
+        return "locked"
+    if mastery.mastery_level and mastery.mastery_level >= 50:
+        return "unlocked"
+    if (
+        (mastery.correct_count or 0) + (mastery.wrong_count or 0) > 0
+        or (mastery.lecture_read_duration or 0) > 0
+    ):
+        return "in_progress"
+    return "locked"
+
+
+def _mastery_row_to_dict(row: NodeMastery) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "user_id": row.user_id,
+        "session_id": row.session_id,
+        "node_id": row.node_id,
+        "mastery_level": float(row.mastery_level or 0),
+        "last_practiced_at": row.last_practiced_at.isoformat() if row.last_practiced_at else None,
+        "correct_count": row.correct_count or 0,
+        "wrong_count": row.wrong_count or 0,
+        "lecture_read_duration": row.lecture_read_duration or 0,
+    }
+
+
+def _learning_path_to_dict(path: LearningPath) -> dict[str, Any]:
+    return {
+        "id": path.id,
+        "subject_id": path.subject_id,
+        "name": path.name,
+        "node_ids": path.node_ids or [],
+        "prerequisites": path.prerequisites or {},
+        "is_default": bool(path.is_default),
+    }
+
+
+@router.get("/subjects/{subject_id}/learning-path")
+def get_learning_path(subject_id: int, user=Depends(get_current_user)):
+    with db_session() as db:
+        _ = user
+        path = (
+            db.query(LearningPath)
+            .filter_by(subject_id=subject_id, is_default=1)
+            .order_by(LearningPath.id.asc())
+            .first()
+        )
+        if path is None:
+            path = (
+                db.query(LearningPath)
+                .filter_by(subject_id=subject_id)
+                .order_by(LearningPath.id.asc())
+                .first()
+            )
+        if path is None:
+            return None
+        return _learning_path_to_dict(path)
+
+
+@router.get("/sessions/{session_id}/node-mastery-states")
+def get_node_mastery_states(session_id: int, user=Depends(get_current_user)):
+    with db_session() as db:
+        _assert_session_owner(db, session_id, user["id"])
+        lit_rows = (
+            db.query(MindmapNodeState)
+            .filter_by(user_id=user["id"], session_id=session_id)
+            .all()
+        )
+        lit_map = {row.node_id: bool(row.is_lit) for row in lit_rows}
+        mastery_rows = (
+            db.query(NodeMastery)
+            .filter_by(user_id=user["id"], session_id=session_id)
+            .all()
+        )
+        mastery_map = {row.node_id: row for row in mastery_rows}
+        node_ids = set(lit_map) | set(mastery_map)
+        content = _get_mindmap_content(db, session_id) or ""
+        for node in _build_node_tree(content):
+            node_ids.add(node["node_id"])
+        result: dict[str, str] = {}
+        for node_id in node_ids:
+            result[node_id] = _node_mastery_state_str(
+                is_lit=lit_map.get(node_id, False),
+                mastery=mastery_map.get(node_id),
+            )
+        return result
+
+
+@router.patch("/sessions/{session_id}/node-mastery-states/{node_id}")
+def patch_node_mastery_state(
+    session_id: int,
+    node_id: str,
+    body: NodeMasteryStateIn,
+    user=Depends(get_current_user),
+):
+    with db_session() as db:
+        _assert_session_owner(db, session_id, user["id"])
+        is_lit = body.state in ("mastered", "unlocked")
+        existing = (
+            db.query(MindmapNodeState)
+            .filter_by(user_id=user["id"], session_id=session_id, node_id=node_id)
+            .first()
+        )
+        if existing:
+            existing.is_lit = 1 if is_lit else 0
+        else:
+            db.add(
+                MindmapNodeState(
+                    user_id=user["id"],
+                    session_id=session_id,
+                    node_id=node_id,
+                    is_lit=1 if is_lit else 0,
+                )
+            )
+        mastery = (
+            db.query(NodeMastery)
+            .filter_by(user_id=user["id"], session_id=session_id, node_id=node_id)
+            .first()
+        )
+        level_map = {
+            "locked": 0,
+            "unlocked": 25,
+            "in_progress": 50,
+            "mastered": 100,
+        }
+        target_level = level_map[body.state]
+        if mastery:
+            mastery.mastery_level = target_level
+        else:
+            db.add(
+                NodeMastery(
+                    user_id=user["id"],
+                    session_id=session_id,
+                    node_id=node_id,
+                    mastery_level=target_level,
+                )
+            )
+    return {"ok": True}
+
+
+@router.get("/sessions/{session_id}/node-masteries")
+def get_node_masteries(session_id: int, user=Depends(get_current_user)):
+    with db_session() as db:
+        _assert_session_owner(db, session_id, user["id"])
+        rows = (
+            db.query(NodeMastery)
+            .filter_by(user_id=user["id"], session_id=session_id)
+            .all()
+        )
+        return {row.node_id: _mastery_row_to_dict(row) for row in rows}
+
+
+@router.patch("/sessions/{session_id}/node-masteries/{node_id}")
+def patch_node_mastery(
+    session_id: int,
+    node_id: str,
+    body: NodeMasteryPatchIn,
+    user=Depends(get_current_user),
+):
+    with db_session() as db:
+        _assert_session_owner(db, session_id, user["id"])
+        mastery = (
+            db.query(NodeMastery)
+            .filter_by(user_id=user["id"], session_id=session_id, node_id=node_id)
+            .first()
+        )
+        if mastery is None:
+            mastery = NodeMastery(
+                user_id=user["id"],
+                session_id=session_id,
+                node_id=node_id,
+            )
+            db.add(mastery)
+        if body.correct_count is not None:
+            mastery.correct_count = body.correct_count
+        if body.wrong_count is not None:
+            mastery.wrong_count = body.wrong_count
+        if body.lecture_read_duration is not None:
+            mastery.lecture_read_duration = body.lecture_read_duration
+        total = (mastery.correct_count or 0) + (mastery.wrong_count or 0)
+        if total > 0:
+            mastery.mastery_level = min(
+                100,
+                int(100 * (mastery.correct_count or 0) / total),
+            )
     return {"ok": True}
 
 
@@ -724,8 +986,12 @@ def create_lecture(body: LectureCreateIn, user=Depends(get_current_user)):
     with db_session() as db:
         session = _assert_session_owner(db, body.session_id, user["id"])
         subject_id: int = session.subject_id or 0
+        mindmap_context = _lecture_context_for_node(db, body.session_id, body.node_id)
 
-    node_title = _parse_text_from_node_id(body.node_id)
+    node_title = str(mindmap_context.get("title") or _parse_text_from_node_id(body.node_id))
+    node_depth = int(mindmap_context.get("depth") or 4)
+    resource_scope = dict(body.resource_scope or {})
+    resource_scope["mindmap_context"] = mindmap_context
     svc = LectureGeneratorService()
 
     def _generate():
@@ -735,7 +1001,9 @@ def create_lecture(body: LectureCreateIn, user=Depends(get_current_user)):
             node_title=node_title,
             user_id=user["id"],
             subject_id=subject_id,
-            resource_scope=body.resource_scope,
+            resource_scope=resource_scope,
+            node_depth=node_depth,
+            mindmap_context=mindmap_context,
         )
 
     try:
@@ -761,8 +1029,12 @@ def create_lecture_stream(body: LectureCreateIn, user=Depends(get_current_user))
     with db_session() as db:
         session = _assert_session_owner(db, body.session_id, user["id"])
         subject_id: int = session.subject_id or 0
+        mindmap_context = _lecture_context_for_node(db, body.session_id, body.node_id)
 
-    node_title = _parse_text_from_node_id(body.node_id)
+    node_title = str(mindmap_context.get("title") or _parse_text_from_node_id(body.node_id))
+    node_depth = int(mindmap_context.get("depth") or 4)
+    resource_scope = dict(body.resource_scope or {})
+    resource_scope["mindmap_context"] = mindmap_context
     svc = LectureGeneratorService()
     user_id: int = user["id"]
 
@@ -775,7 +1047,9 @@ def create_lecture_stream(body: LectureCreateIn, user=Depends(get_current_user))
                 subject_id=subject_id,
                 session_id=body.session_id,
                 user_id=user_id,
-                resource_scope=body.resource_scope,
+                resource_scope=resource_scope,
+                node_depth=node_depth,
+                mindmap_context=mindmap_context,
             ):
                 accumulated.append(token)
                 # 换行符转义，避免破坏 SSE 帧格式
@@ -789,7 +1063,7 @@ def create_lecture_stream(body: LectureCreateIn, user=Depends(get_current_user))
                     node_id=body.node_id,
                     session_id=body.session_id,
                     user_id=user_id,
-                    resource_scope=body.resource_scope,
+                    resource_scope=resource_scope,
                 )
         except Exception as e:
             import traceback; traceback.print_exc()

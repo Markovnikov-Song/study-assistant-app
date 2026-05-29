@@ -33,7 +33,7 @@ void main() {
     });
 
     test('multi-level tree outputs correct # counts', () {
-      // Build: Root(1) â†?Child(2) â†?Grandchild(3)
+      // Build: Root(1) ï¿½?Child(2) ï¿½?Grandchild(3)
       final grandchild = TreeNode(
         nodeId: 'gc',
         text: 'Grandchild',

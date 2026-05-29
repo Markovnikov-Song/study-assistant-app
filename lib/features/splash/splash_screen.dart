@@ -66,15 +66,16 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    _highlightColor = ColorTween(
-      begin: const Color(0xFFE8EAF6),
-      end: const Color(0xFFFFD700),
-    ).animate(
-      CurvedAnimation(
-        parent: _ctrl,
-        curve: const Interval(0.70, 0.85, curve: Curves.easeInOut),
-      ),
-    );
+    _highlightColor =
+        ColorTween(
+          begin: const Color(0xFFE8EAF6),
+          end: const Color(0xFFFFD700),
+        ).animate(
+          CurvedAnimation(
+            parent: _ctrl,
+            curve: const Interval(0.70, 0.85, curve: Curves.easeInOut),
+          ),
+        );
 
     _otherDim = Tween<double>(begin: 1.0, end: 0.45).animate(
       CurvedAnimation(
@@ -96,42 +97,33 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
-  static const _baseStyle = TextStyle(
+  TextStyle _dimStyle(double opacity) => TextStyle(
     fontFamily: 'Noto Sans SC',
     fontSize: 48.0,
     fontWeight: FontWeight.w900,
-    color: Color(0xFFE8EAF6),
+    color: Color(0xFFE8EAF6).withValues(alpha: opacity),
     letterSpacing: 6.0,
-    shadows: [Shadow(color: Color(0x40E8EAF6), blurRadius: 20.0)],
+    shadows: [
+      Shadow(
+        color: const Color(0xFFE8EAF6).withValues(alpha: opacity * 0.4),
+        blurRadius: 20.0,
+      ),
+    ],
   );
 
-  TextStyle _dimStyle(double opacity) => TextStyle(
-        fontFamily: 'Noto Sans SC',
-        fontSize: 48.0,
-        fontWeight: FontWeight.w900,
-        color: Color(0xFFE8EAF6).withValues(alpha: opacity),
-        letterSpacing: 6.0,
-        shadows: [
-          Shadow(
-            color: const Color(0xFFE8EAF6).withValues(alpha: opacity * 0.4),
-            blurRadius: 20.0,
-          ),
-        ],
-      );
-
   TextStyle _goldStyle(Color? color) => TextStyle(
-        fontFamily: 'Noto Sans SC',
-        fontSize: 48.0,
-        fontWeight: FontWeight.w900,
-        color: color,
-        letterSpacing: 6.0,
-        shadows: [
-          Shadow(
-            color: (color ?? Colors.white).withValues(alpha: 0.6),
-            blurRadius: 24.0,
-          ),
-        ],
-      );
+    fontFamily: 'Noto Sans SC',
+    fontSize: 48.0,
+    fontWeight: FontWeight.w900,
+    color: color,
+    letterSpacing: 6.0,
+    shadows: [
+      Shadow(
+        color: (color ?? Colors.white).withValues(alpha: 0.6),
+        blurRadius: 24.0,
+      ),
+    ],
+  );
 
   @override
   Widget build(BuildContext context) {

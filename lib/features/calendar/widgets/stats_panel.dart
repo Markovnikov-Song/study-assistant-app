@@ -68,7 +68,7 @@ class StatsPanel extends ConsumerWidget {
 
           // 近 30 天学科占比
           Text(
-            '近 30 天学科占比',
+            '近 30 天科目占比',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,

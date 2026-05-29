@@ -1,4 +1,5 @@
 /// CAS 前端数据模型
+library;
 
 enum RenderType { text, card, navigate, modal, paramFill }
 
@@ -63,12 +64,18 @@ class ParamRequest {
 
   static ParamType _parseParamType(String s) {
     switch (s) {
-      case 'radio':      return ParamType.radio;
-      case 'checkbox':   return ParamType.checkbox;
-      case 'number':     return ParamType.number;
-      case 'date':       return ParamType.date;
-      case 'topic_tree': return ParamType.topicTree;
-      default:           return ParamType.text;
+      case 'radio':
+        return ParamType.radio;
+      case 'checkbox':
+        return ParamType.checkbox;
+      case 'number':
+        return ParamType.number;
+      case 'date':
+        return ParamType.date;
+      case 'topic_tree':
+        return ParamType.topicTree;
+      default:
+        return ParamType.text;
     }
   }
 }
@@ -95,11 +102,16 @@ class ActionResult {
   RenderType get renderType {
     final s = data['render_type'] as String? ?? 'text';
     switch (s) {
-      case 'card':       return RenderType.card;
-      case 'navigate':   return RenderType.navigate;
-      case 'modal':      return RenderType.modal;
-      case 'param_fill': return RenderType.paramFill;
-      default:           return RenderType.text;
+      case 'card':
+        return RenderType.card;
+      case 'navigate':
+        return RenderType.navigate;
+      case 'modal':
+        return RenderType.modal;
+      case 'param_fill':
+        return RenderType.paramFill;
+      default:
+        return RenderType.text;
     }
   }
 
@@ -136,23 +148,20 @@ class ActionResult {
 
   /// 网络失败 / 解析失败时的本地兜底
   factory ActionResult.localFallback({String? message}) => ActionResult(
-        success: false,
-        actionId: 'system_error',
-        data: {
-          'render_type': 'text',
-          'text': message ?? '服务暂时不可用，请稍后再试',
-        },
-        errorCode: 'network_error',
-        fallbackUsed: true,
-      );
+    success: false,
+    actionId: 'system_error',
+    data: {'render_type': 'text', 'text': message ?? '服务暂时不可用，请稍后再试'},
+    errorCode: 'network_error',
+    fallbackUsed: true,
+  );
 
   /// 用户取消参数补全时的本地结果
   factory ActionResult.cancelled() => const ActionResult(
-        success: false,
-        actionId: 'cancelled',
-        data: {'render_type': 'text', 'text': '已取消'},
-        errorCode: 'user_cancelled',
-      );
+    success: false,
+    actionId: 'cancelled',
+    data: {'render_type': 'text', 'text': '已取消'},
+    errorCode: 'user_cancelled',
+  );
 }
 
 /// Action 摘要（用于前端同步注册表）
@@ -168,8 +177,10 @@ class ActionSummary {
   });
 
   factory ActionSummary.fromJson(Map<String, dynamic> json) => ActionSummary(
-        actionId: json['action_id'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        description: json['description'] as String? ?? '',
-      );
+    actionId: json['action_id'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    description: json['description'] as String? ?? '',
+  );
 }
+
+// ignore_for_file: dangling_library_doc_comments

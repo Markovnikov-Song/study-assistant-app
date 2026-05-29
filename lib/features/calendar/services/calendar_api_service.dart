@@ -47,8 +47,8 @@ class CalendarApiService {
       final params = <String, dynamic>{
         'start_date': startDate,
         'end_date': endDate,
-        if (subjectId != null) 'subject_id': subjectId,
-        if (isCompleted != null) 'is_completed': isCompleted,
+        'subject_id': ?subjectId,
+        'is_completed': ?isCompleted,
       };
       final res = await _dio.get('$_base/events', queryParameters: params);
       final map = _asMap(res.data);
@@ -98,9 +98,14 @@ class CalendarApiService {
     }
   }
 
-  Future<Map<String, dynamic>> batchCreateEvents(List<Map<String, dynamic>> events) async {
+  Future<Map<String, dynamic>> batchCreateEvents(
+    List<Map<String, dynamic>> events,
+  ) async {
     try {
-      final res = await _dio.post('$_base/events/batch', data: {'events': events});
+      final res = await _dio.post(
+        '$_base/events/batch',
+        data: {'events': events},
+      );
       return _asMap(res.data);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -123,13 +128,18 @@ class CalendarApiService {
       final res = await _dio.get('$_base/routines');
       final map = _asMap(res.data);
       final list = map['routines'] as List? ?? [];
-      return list.map((e) => CalendarRoutine.fromJson(e as Map<String, dynamic>)).toList();
+      return list
+          .map((e) => CalendarRoutine.fromJson(e as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
   }
 
-  Future<CalendarRoutine> updateRoutine(int id, Map<String, dynamic> data) async {
+  Future<CalendarRoutine> updateRoutine(
+    int id,
+    Map<String, dynamic> data,
+  ) async {
     try {
       final res = await _dio.patch('$_base/routines/$id', data: data);
       return CalendarRoutine.fromJson(_asMap(res.data));
@@ -161,7 +171,10 @@ class CalendarApiService {
 
   Future<CalendarStats> getStats({String period = '7d'}) async {
     try {
-      final res = await _dio.get('$_base/stats', queryParameters: {'period': period});
+      final res = await _dio.get(
+        '$_base/stats',
+        queryParameters: {'period': period},
+      );
       return CalendarStats.fromJson(_asMap(res.data));
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -169,4 +182,6 @@ class CalendarApiService {
   }
 }
 
-final calendarApiServiceProvider = Provider<CalendarApiService>((_) => CalendarApiService());
+final calendarApiServiceProvider = Provider<CalendarApiService>(
+  (_) => CalendarApiService(),
+);

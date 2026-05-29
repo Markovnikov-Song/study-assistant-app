@@ -56,6 +56,29 @@ def test_dispatch_rejects_whitespace_only_images(cas_client):
     assert r.status_code == 400
 
 
+def test_dispatch_rejects_invalid_base64_image(cas_client):
+    client, _ = cas_client
+    r = client.post(
+        "/api/cas/dispatch",
+        json={"text": "", "images": ["not-a-base64-image"]},
+    )
+    assert r.status_code == 400
+    assert "图片数据无效" in r.json()["detail"]
+
+
+def test_dispatch_accepts_data_uri_image(cas_client):
+    client, mock_pipeline = cas_client
+    data_uri = f"data:image/png;base64,{_TINY_PNG_B64}"
+    r = client.post(
+        "/api/cas/dispatch",
+        json={"text": "", "images": [data_uri], "supplement_text": ""},
+    )
+    assert r.status_code == 200, r.text
+
+    kwargs = mock_pipeline.run.await_args.kwargs
+    assert kwargs["images"] == [_TINY_PNG_B64]
+
+
 def test_dispatch_accepts_image_only_without_text(cas_client):
     """有有效 Base64 图片时不应再返回 400「输入不能为空」。"""
     client, mock_pipeline = cas_client

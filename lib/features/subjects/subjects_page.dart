@@ -16,7 +16,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
   Widget build(BuildContext context) {
     final subjectsAsync = ref.watch(subjectsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('学科管理')),
+      appBar: AppBar(title: const Text('科目管理')),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showForm(context),
         child: const Icon(Icons.add),
@@ -28,7 +28,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
           final active = subjects.where((s) => !s.isArchived).toList();
           final archived = subjects.where((s) => s.isArchived).toList();
           if (subjects.isEmpty) {
-            return const Center(child: Text('还没有学科，点击右下角新建'));
+            return const Center(child: Text('还没有科目，点击右下角新建'));
           }
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
@@ -44,7 +44,7 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                         Icon(_showArchived ? Icons.expand_less : Icons.expand_more, size: 18, color: Colors.grey),
                         const SizedBox(width: 4),
                         Text(
-                          _showArchived ? '隐藏已归档学科' : '显示已归档学科（${archived.length}）',
+                          _showArchived ? '隐藏已归档科目' : '显示已归档科目（${archived.length}）',
                           style: const TextStyle(fontSize: 13, color: Colors.grey),
                         ),
                       ],
@@ -193,9 +193,9 @@ class _SubjectFormSheetState extends State<_SubjectFormSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(_isEdit ? '编辑学科' : '新建学科', style: Theme.of(context).textTheme.titleLarge),
+          Text(_isEdit ? '编辑科目' : '新建科目', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
-          TextField(controller: _nameCtrl, decoration: const InputDecoration(labelText: '学科名称 *', border: OutlineInputBorder()), autofocus: true),
+          TextField(controller: _nameCtrl, decoration: const InputDecoration(labelText: '科目名称 *', border: OutlineInputBorder()), autofocus: true),
           const SizedBox(height: 12),
           TextField(controller: _categoryCtrl, decoration: const InputDecoration(labelText: '分类（可选）', border: OutlineInputBorder())),
           const SizedBox(height: 12),

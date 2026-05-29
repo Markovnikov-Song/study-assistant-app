@@ -25,7 +25,7 @@ class ResourcesPage extends ConsumerWidget {
                 children: [
                   Icon(Icons.folder_outlined, size: 64, color: Colors.grey),
                   SizedBox(height: 12),
-                  Text('还没有学科，请先在学科管理中新建', style: TextStyle(color: Colors.grey)),
+                  Text('还没有科目，请先在科目管理中新建', style: TextStyle(color: Colors.grey)),
                 ],
               ),
             );

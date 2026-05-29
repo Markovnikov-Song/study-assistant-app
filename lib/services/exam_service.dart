@@ -9,7 +9,10 @@ class ExamService {
 
   Future<List<PastExamFile>> getPastExams(int subjectId) async {
     try {
-      final res = await _dio.get(ApiConstants.pastExams, queryParameters: {'subject_id': subjectId});
+      final res = await _dio.get(
+        ApiConstants.pastExams,
+        queryParameters: {'subject_id': subjectId},
+      );
       return (res.data as List).map((e) => PastExamFile.fromJson(e)).toList();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -32,7 +35,10 @@ class ExamService {
   }) async {
     try {
       final formData = FormData.fromMap({
-        'file': MultipartFile.fromBytes(List<int>.from(fileBytes), filename: filename),
+        'file': MultipartFile.fromBytes(
+          List<int>.from(fileBytes),
+          filename: filename,
+        ),
         'subject_id': subjectId,
       });
       final res = await _dio.post(ApiConstants.pastExams, data: formData);
@@ -57,9 +63,15 @@ class ExamService {
     }
   }
 
-  Future<String> generatePredictedPaper(int subjectId, {bool useBroad = false}) async {
+  Future<String> generatePredictedPaper(
+    int subjectId, {
+    bool useBroad = false,
+  }) async {
     try {
-      final res = await _dio.post(ApiConstants.examPredicted, data: {'subject_id': subjectId, 'use_broad': useBroad});
+      final res = await _dio.post(
+        ApiConstants.examPredicted,
+        data: {'subject_id': subjectId, 'use_broad': useBroad},
+      );
       final data = res.data is String ? (res.data as String) : null;
       if (data != null) return data;
       final map = res.data as Map<String, dynamic>;
@@ -76,18 +88,23 @@ class ExamService {
     required Map<String, int> typeScores,
     required String difficulty,
     String? topic,
+    String sourceMode = 'material',
     bool useBroad = false,
   }) async {
     try {
-      final res = await _dio.post(ApiConstants.examCustom, data: {
-        'subject_id': subjectId,
-        'question_types': questionTypes,
-        'type_counts': typeCounts,
-        'type_scores': typeScores,
-        'difficulty': difficulty,
-        if (topic != null) 'topic': topic,
-        'use_broad': useBroad,
-      });
+      final res = await _dio.post(
+        ApiConstants.examCustom,
+        data: {
+          'subject_id': subjectId,
+          'question_types': questionTypes,
+          'type_counts': typeCounts,
+          'type_scores': typeScores,
+          'difficulty': difficulty,
+          'topic': ?topic,
+          'source_mode': sourceMode,
+          'use_broad': useBroad,
+        },
+      );
       final data = res.data is String ? (res.data as String) : null;
       if (data != null) return data;
       final map = res.data as Map<String, dynamic>;

@@ -1,12 +1,13 @@
-import 'dart:async';
-import '../network/dio_client.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../services/error_service.dart';
 
 /// 全局错误处理器
 /// 自动捕获未处理的异常并记录到日志
 class GlobalErrorHandler {
-  static void setup() {
-    // 捕获 Flutter 框架层面的未处理异常
+  /// 在 main() 里、runApp 之前调用。
+  static void setupFlutterErrorHandler() {
+    final defaultOnError = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {
       ErrorService.instance.record(
         message: details.exceptionAsString(),
@@ -14,26 +15,21 @@ class GlobalErrorHandler {
         stackTrace: details.stack?.toString(),
         context: 'Flutter Framework Error',
       );
-
-      // 保留原始处理（调试模式下打印到控制台）
-      FlutterError.dumpErrorToConsole(details);
+      defaultOnError?.call(details);
+      if (kDebugMode) {
+        FlutterError.dumpErrorToConsole(details);
+      }
     };
+  }
 
-    // 捕获 Dart 层面的未处理异常
-    runZonedGuarded(
-      () {},
-      (error, stackTrace) {
-        ErrorService.instance.record(
-          message: error.toString(),
-          level: ErrorLevel.error,
-          stackTrace: stackTrace.toString(),
-          context: 'Dart Unhandled Error',
-        );
-      },
+  /// runZonedGuarded 的 error 回调。
+  static void handleZoneError(Object error, StackTrace stackTrace) {
+    ErrorService.instance.record(
+      message: error.toString(),
+      level: ErrorLevel.error,
+      stackTrace: stackTrace.toString(),
+      context: 'Dart Unhandled Error',
     );
-
-    // 捕获异步错误
-    // 在 main() 中调用 runZonedGuarded 来包裹整个 app
   }
 
   /// 处理 Dio 请求错误
@@ -41,20 +37,21 @@ class GlobalErrorHandler {
     String message = '网络请求失败';
     int? statusCode;
 
-    if (error is DioError) {
+    if (error is DioException) {
       switch (error.type) {
-        case DioErrorType.connectTimeout:
-        case DioErrorType.sendTimeout:
-        case DioErrorType.receiveTimeout:
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.receiveTimeout:
           message = '请求超时';
           break;
-        case DioErrorType.response:
+        case DioExceptionType.badResponse:
           statusCode = error.response?.statusCode;
-          message = error.response?.data?['message']?.toString() ??
+          message =
+              error.response?.data?['message']?.toString() ??
               error.response?.statusMessage ??
               'HTTP 错误 $statusCode';
           break;
-        case DioErrorType.cancel:
+        case DioExceptionType.cancel:
           message = '请求已取消';
           break;
         default:
