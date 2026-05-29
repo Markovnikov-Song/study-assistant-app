@@ -16,12 +16,18 @@ class SubjectService {
     }
   }
 
-  Future<Subject> createSubject(String name, {String? category, String? description}) async {
+  Future<Subject> createSubject(
+    String name, {
+    String? category,
+    String? description,
+    int? colorIndex,
+  }) async {
     try {
       final res = await _dio.post(ApiConstants.subjects, data: {
         'name': name,
         'category': ?category,
         'description': ?description,
+        if (colorIndex != null) 'color_index': colorIndex,
       });
       return Subject.fromJson(res.data);
     } on DioException catch (e) {
@@ -29,12 +35,19 @@ class SubjectService {
     }
   }
 
-  Future<Subject> updateSubject(int id, {required String name, String? category, String? description}) async {
+  Future<Subject> updateSubject(
+    int id, {
+    required String name,
+    String? category,
+    String? description,
+    int? colorIndex,
+  }) async {
     try {
       final res = await _dio.put('${ApiConstants.subjects}/$id', data: {
         'name': name,
         'category': category,
         'description': description,
+        if (colorIndex != null) 'color_index': colorIndex,
       });
       return Subject.fromJson(res.data);
     } on DioException catch (e) {

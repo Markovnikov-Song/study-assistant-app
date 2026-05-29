@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/theme/subject_gradients.dart';
 import '../../models/subject.dart';
+import '../../providers/library_provider.dart';
 import '../../providers/subject_provider.dart';
+import '../../widgets/subject_color_picker.dart';
 
 class SubjectsPage extends ConsumerStatefulWidget {
   const SubjectsPage({super.key});
@@ -75,13 +78,43 @@ class _SubjectCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final accent = SubjectGradients.primaryFor(
+      colorIndex: subject.colorIndex,
+      name: subject.name,
+    );
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        leading: subject.isPinned ? const Icon(Icons.push_pin, size: 18, color: Colors.orange) : null,
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: SubjectGradients.colorsFor(
+                colorIndex: subject.colorIndex,
+                name: subject.name,
+              ),
+            ),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            subject.name.isNotEmpty ? subject.name[0] : '?',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
+          ),
+        ),
         title: Text(subject.name, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: subject.category != null ? Text(subject.category!) : null,
-        trailing: PopupMenuButton<String>(
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (subject.isPinned)
+              Icon(Icons.push_pin, size: 16, color: accent),
+            PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, size: 20),
           onSelected: (v) => _onAction(v, context, ref),
           itemBuilder: (_) => [
@@ -89,6 +122,8 @@ class _SubjectCard extends ConsumerWidget {
             PopupMenuItem(value: 'pin', child: Text(subject.isPinned ? '取消置顶' : '置顶')),
             PopupMenuItem(value: 'archive', child: Text(archived ? '取消归档' : '归档')),
             const PopupMenuItem(value: 'delete', child: Text('删除', style: TextStyle(color: Colors.red))),
+          ],
+        ),
           ],
         ),
       ),
@@ -143,6 +178,7 @@ class _SubjectFormSheetState extends State<_SubjectFormSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _categoryCtrl;
   late final TextEditingController _descCtrl;
+  late int _colorIndex;
   bool _loading = false;
 
   bool get _isEdit => widget.subject != null;
@@ -150,9 +186,14 @@ class _SubjectFormSheetState extends State<_SubjectFormSheet> {
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.subject?.name ?? '');
-    _categoryCtrl = TextEditingController(text: widget.subject?.category ?? '');
-    _descCtrl = TextEditingController(text: widget.subject?.description ?? '');
+    final subject = widget.subject;
+    _nameCtrl = TextEditingController(text: subject?.name ?? '');
+    _categoryCtrl = TextEditingController(text: subject?.category ?? '');
+    _descCtrl = TextEditingController(text: subject?.description ?? '');
+    _colorIndex = SubjectGradients.resolveIndex(
+      colorIndex: subject?.colorIndex,
+      name: subject?.name ?? '',
+    );
   }
 
   @override
@@ -167,21 +208,29 @@ class _SubjectFormSheetState extends State<_SubjectFormSheet> {
     if (_nameCtrl.text.trim().isEmpty) return;
     setState(() => _loading = true);
     final actions = widget.ref.read(subjectActionsProvider);
+    final name = _nameCtrl.text.trim();
+    final category =
+        _categoryCtrl.text.trim().isEmpty ? null : _categoryCtrl.text.trim();
+    final description =
+        _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim();
     if (_isEdit) {
       await actions.update(
         widget.subject!.id,
-        name: _nameCtrl.text.trim(),
-        category: _categoryCtrl.text.trim().isEmpty ? null : _categoryCtrl.text.trim(),
-        description: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+        name: name,
+        category: category,
+        description: description,
+        colorIndex: _colorIndex,
       );
     } else {
       await actions.create(
-        _nameCtrl.text.trim(),
-        category: _categoryCtrl.text.trim().isEmpty ? null : _categoryCtrl.text.trim(),
-        description: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+        name,
+        category: category,
+        description: description,
+        colorIndex: SubjectGradients.indexFromName(name),
       );
     }
     widget.ref.invalidate(subjectsProvider);
+    widget.ref.invalidate(schoolSubjectsProvider);
     if (mounted) Navigator.pop(context);
   }
 
@@ -200,6 +249,14 @@ class _SubjectFormSheetState extends State<_SubjectFormSheet> {
           TextField(controller: _categoryCtrl, decoration: const InputDecoration(labelText: '分类（可选）', border: OutlineInputBorder())),
           const SizedBox(height: 12),
           TextField(controller: _descCtrl, decoration: const InputDecoration(labelText: '描述（可选）', border: OutlineInputBorder()), maxLines: 2),
+          if (_isEdit) ...[
+            const SizedBox(height: 16),
+            SubjectColorPicker(
+              selectedIndex: _colorIndex,
+              previewName: _nameCtrl.text,
+              onSelected: (index) => setState(() => _colorIndex = index),
+            ),
+          ],
           const SizedBox(height: 16),
           FilledButton(
             onPressed: _loading ? null : _submit,

@@ -93,6 +93,7 @@ class Subject(Base):
     is_pinned = Column(Integer, default=0, nullable=False)   # 1=置顶 0=普通
     is_archived = Column(Integer, default=0, nullable=False) # 1=归档 0=正常
     sort_order = Column(Integer, default=0, nullable=False)  # 手动排序
+    color_index = Column(Integer, nullable=True)  # 卡片配色索引，null 时前端按名称哈希
     created_at = Column(DateTime, default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="subjects")

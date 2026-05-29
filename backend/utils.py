@@ -6,6 +6,18 @@ from __future__ import annotations
 
 from database import Subject, get_session
 
+SUBJECT_COLOR_PALETTE_SIZE = 12
+
+
+def color_index_for_name(name: str) -> int:
+    """Stable hash for API-only clients; Flutter uses name.hashCode with same modulus."""
+    h = 0
+    for ch in name:
+        h = (31 * h + ord(ch)) & 0xFFFFFFFF
+    if h >= 0x80000000:
+        h -= 0x100000000
+    return abs(h) % SUBJECT_COLOR_PALETTE_SIZE
+
 
 def get_user_subjects(user_id: int, include_archived: bool = False) -> list[dict]:
     with get_session() as db:
@@ -24,14 +36,23 @@ def get_subject(subject_id: int, user_id: int) -> dict | None:
         return _to_dict(s) if s else None
 
 
-def create_subject(user_id: int, name: str, category: str = "", description: str = "") -> dict:
+def create_subject(
+    user_id: int,
+    name: str,
+    category: str = "",
+    description: str = "",
+    color_index: int | None = None,
+) -> dict:
     try:
+        idx = color_index if color_index is not None else color_index_for_name(name)
+        idx = max(0, min(idx, SUBJECT_COLOR_PALETTE_SIZE - 1))
         with get_session() as db:
             s = Subject(
                 user_id=user_id,
                 name=name,
                 category=category or None,
                 description=description or None,
+                color_index=idx,
             )
             db.add(s)
             db.flush()
@@ -41,7 +62,14 @@ def create_subject(user_id: int, name: str, category: str = "", description: str
         return {"success": False, "error": str(e)}
 
 
-def update_subject(subject_id: int, user_id: int, name: str, category: str = "", description: str = "") -> dict:
+def update_subject(
+    subject_id: int,
+    user_id: int,
+    name: str,
+    category: str = "",
+    description: str = "",
+    color_index: int | None = None,
+) -> dict:
     try:
         with get_session() as db:
             s = db.query(Subject).filter(
@@ -52,6 +80,8 @@ def update_subject(subject_id: int, user_id: int, name: str, category: str = "",
             s.name = name
             s.category = category or None
             s.description = description or None
+            if color_index is not None:
+                s.color_index = max(0, min(color_index, SUBJECT_COLOR_PALETTE_SIZE - 1))
         return {"success": True}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -107,6 +137,7 @@ def _to_dict(s: Subject) -> dict:
         "description": s.description,
         "is_pinned": bool(s.is_pinned),
         "is_archived": bool(s.is_archived),
+        "color_index": s.color_index,
         "created_at": s.created_at,
     }
 

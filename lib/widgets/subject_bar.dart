@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/theme/subject_gradients.dart';
 import '../models/subject.dart';
 import '../providers/current_subject_provider.dart';
 import '../providers/subject_provider.dart';
@@ -172,9 +173,11 @@ class _CreateSubjectSheetState extends ConsumerState<CreateSubjectSheet> {
   Future<void> _submit() async {
     if (_nameCtrl.text.trim().isEmpty) return;
     setState(() => _loading = true);
+    final name = _nameCtrl.text.trim();
     final subject = await ref.read(subjectActionsProvider).createAndReturn(
-      _nameCtrl.text.trim(),
+      name,
       category: _categoryCtrl.text.trim().isEmpty ? null : _categoryCtrl.text.trim(),
+      colorIndex: SubjectGradients.indexFromName(name),
     );
     ref.invalidate(subjectsProvider);
     if (subject != null) ref.read(currentSubjectProvider.notifier).state = subject;

@@ -36,6 +36,7 @@ class SubjectProgressOut(BaseModel):
     name: str
     category: Optional[str]
     is_pinned: int
+    color_index: Optional[int] = None
     session_count: int
     total_nodes: int
     lit_nodes: int
@@ -281,6 +282,7 @@ def get_subjects(user=Depends(get_current_user)):
                 name=subj.name,
                 category=subj.category,
                 is_pinned=subj.is_pinned,
+                color_index=subj.color_index,
                 session_count=len(sess_list),
                 total_nodes=total_nodes,
                 lit_nodes=lit_nodes,

@@ -13,17 +13,51 @@ class SubjectActions {
   final SubjectService _service;
   SubjectActions(this._service);
 
-  Future<void> create(String name, {String? category, String? description}) =>
-      _service.createSubject(name, category: category, description: description);
+  Future<void> create(
+    String name, {
+    String? category,
+    String? description,
+    int? colorIndex,
+  }) =>
+      _service.createSubject(
+        name,
+        category: category,
+        description: description,
+        colorIndex: colorIndex,
+      );
 
-  Future<Subject?> createAndReturn(String name, {String? category, String? description}) async {
+  Future<Subject?> createAndReturn(
+    String name, {
+    String? category,
+    String? description,
+    int? colorIndex,
+  }) async {
     try {
-      return await _service.createSubject(name, category: category, description: description);
-    } catch (_) { return null; }
+      return await _service.createSubject(
+        name,
+        category: category,
+        description: description,
+        colorIndex: colorIndex,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
-  Future<void> update(int id, {required String name, String? category, String? description}) =>
-      _service.updateSubject(id, name: name, category: category, description: description);
+  Future<void> update(
+    int id, {
+    required String name,
+    String? category,
+    String? description,
+    int? colorIndex,
+  }) =>
+      _service.updateSubject(
+        id,
+        name: name,
+        category: category,
+        description: description,
+        colorIndex: colorIndex,
+      );
 
   Future<void> delete(int id) => _service.deleteSubject(id);
 

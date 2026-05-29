@@ -17,6 +17,7 @@ class SubjectOut(BaseModel):
     description: Optional[str]
     is_pinned: bool
     is_archived: bool
+    color_index: Optional[int] = None
     created_at: str
 
     @classmethod
@@ -26,6 +27,7 @@ class SubjectOut(BaseModel):
             category=d.get("category"), description=d.get("description"),
             is_pinned=bool(d.get("is_pinned", False)),
             is_archived=bool(d.get("is_archived", False)),
+            color_index=d.get("color_index"),
             created_at=d["created_at"].isoformat(),
         )
 
@@ -33,6 +35,7 @@ class SubjectIn(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     category: Optional[str] = None
     description: Optional[str] = None
+    color_index: Optional[int] = Field(default=None, ge=0, le=11)
 
 @router.get("", response_model=List[SubjectOut])
 def list_subjects(include_archived: bool = False, user=Depends(get_current_user)):
@@ -40,7 +43,10 @@ def list_subjects(include_archived: bool = False, user=Depends(get_current_user)
 
 @router.post("", response_model=SubjectOut, status_code=201)
 def create(body: SubjectIn, user=Depends(get_current_user)):
-    r = create_subject(user["id"], body.name, body.category or "", body.description or "")
+    r = create_subject(
+        user["id"], body.name, body.category or "", body.description or "",
+        color_index=body.color_index,
+    )
     if not r["success"]:
         raise HTTPException(400, r["error"])
     return SubjectOut.from_dict(r["subject"])
@@ -54,7 +60,10 @@ def get_one(subject_id: int, user=Depends(get_current_user)):
 
 @router.put("/{subject_id}", response_model=SubjectOut)
 def update(subject_id: int, body: SubjectIn, user=Depends(get_current_user)):
-    r = update_subject(subject_id, user["id"], body.name, body.category or "", body.description or "")
+    r = update_subject(
+        subject_id, user["id"], body.name, body.category or "", body.description or "",
+        color_index=body.color_index,
+    )
     if not r["success"]:
         raise HTTPException(400, r["error"])
     return SubjectOut.from_dict(get_subject(subject_id, user["id"]))

@@ -5,6 +5,7 @@ class Subject {
   final String? description;
   final bool isPinned;
   final bool isArchived;
+  final int? colorIndex;
   final DateTime createdAt;
 
   const Subject({
@@ -14,6 +15,7 @@ class Subject {
     this.description,
     this.isPinned = false,
     this.isArchived = false,
+    this.colorIndex,
     required this.createdAt,
   });
 
@@ -31,6 +33,9 @@ class Subject {
         description: json['description'] as String?,
         isPinned: json['is_pinned'] == true || json['is_pinned'] == 1,
         isArchived: json['is_archived'] == true || json['is_archived'] == 1,
+        colorIndex: json['color_index'] != null
+            ? _toInt(json['color_index'])
+            : null,
         createdAt: json['created_at'] != null
             ? DateTime.parse(json['created_at'] as String)
             : DateTime.now(),
