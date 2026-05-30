@@ -22,7 +22,11 @@ class R {
   static const spec = '/spec';
 
   // Course space
-  static String courseSpaceSubject(int subjectId) => '/course-space/$subjectId';
+  static String courseSpaceSubject(int subjectId, {bool generate = false}) {
+    if (generate) return '/course-space/$subjectId?generate=1';
+    return '/course-space/$subjectId';
+  }
+
   static String mindmap(int subjectId, int sessionId) =>
       '/course-space/$subjectId/mindmap/$sessionId';
   static String lecture(int subjectId, int sessionId, String nodeId) =>
@@ -38,6 +42,7 @@ class R {
   static const toolkitQuiz = '/toolkit/quiz';
   static const toolkitMemoryDrill = '/toolkit/memory-drill';
   static const toolkitSettings = '/toolkit/settings';
+  static const toolkitMindmapWorkshop = '/toolkit/mindmap-workshop';
 
   // Profile
   static const profileEdit = '/profile/edit';
@@ -60,8 +65,13 @@ class R {
   static const workshopBuilder = '/workshop/builder';
   static String workshopApp(String id) => '/workshop/apps/$id';
   static const mindmapEntry = '/mindmap-entry';
-  static String mindmapEntryForSubject(int subjectId) =>
-      '/mindmap-entry?subject=$subjectId';
+  static const mindmapGenerate = '/mindmap-entry?generate=1';
+  static String mindmapEntryForSubject(int subjectId, {bool generate = false}) {
+    return Uri(
+      path: mindmapEntry,
+      queryParameters: {'subject': '$subjectId', if (generate) 'generate': '1'},
+    ).toString();
+  }
 
   // Calendar planner
   static const toolkitCalendar = '/toolkit/calendar';
@@ -79,7 +89,8 @@ class R {
       lecture(subjectId, sessionId, nodeId);
   static String subjectDetailPath(int id) => subjectDetail(id);
   static String courseSpacePath(int id) => courseSpaceSubject(id);
-  static String courseSpaceById(int id) => courseSpaceSubject(id);
+  static String courseSpaceById(int id, {bool generate = false}) =>
+      courseSpaceSubject(id, generate: generate);
   static String editableMindMap(int subjectId, int sessionId) =>
       mindmap(subjectId, sessionId);
   static String lecturePage(int subjectId, int sessionId, String nodeId) =>

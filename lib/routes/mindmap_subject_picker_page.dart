@@ -6,7 +6,9 @@ import '../providers/library_provider.dart';
 import 'app_routes.dart';
 
 class MindmapSubjectPickerPage extends ConsumerWidget {
-  const MindmapSubjectPickerPage({super.key});
+  final bool generateOnSelect;
+
+  const MindmapSubjectPickerPage({super.key, this.generateOnSelect = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -65,8 +67,12 @@ class MindmapSubjectPickerPage extends ConsumerWidget {
                 ),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
-                  onTap: () =>
-                      context.push(AppRoutes.courseSpaceById(item.subject.id)),
+                  onTap: () => context.push(
+                    AppRoutes.courseSpaceById(
+                      item.subject.id,
+                      generate: generateOnSelect,
+                    ),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,

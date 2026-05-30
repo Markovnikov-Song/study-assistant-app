@@ -24,13 +24,24 @@ int _parseId(dynamic v) {
 // ─── 发送消息的返回结果 ──────────────────────────────────────
 // 把多个返回值打包成一个类，类似 Python 的 NamedTuple 或 dataclass
 class ChatSendResult {
-  final ChatMessage message;    // AI 回复的消息
-  final int sessionId;          // 本次对话的会话 ID（服务器分配）
+  final ChatMessage message; // AI 回复的消息
+  final int sessionId; // 本次对话的会话 ID（服务器分配）
   final bool needsConfirmation; // 是否需要用户确认（strict 模式找不到资料时）
 
   // {} 里的参数是"命名参数"，调用时必须写参数名
   // this.needsConfirmation = false 表示默认值是 false（可以不传）
-  ChatSendResult({required this.message, required this.sessionId, this.needsConfirmation = false});
+  ChatSendResult({
+    required this.message,
+    required this.sessionId,
+    this.needsConfirmation = false,
+  });
+}
+
+class MindMapGenerateResult {
+  final String content;
+  final int sessionId;
+
+  MindMapGenerateResult({required this.content, required this.sessionId});
 }
 
 // ─── OCR 识别结果 ────────────────────────────────────────────
@@ -60,7 +71,9 @@ class ChatService {
       // as List：强制类型转换，告诉编译器这是个列表
       // .map((e) => ...)：对列表每个元素做转换，类似 Python 的 map()
       // .toList()：把 Iterable 转成 List
-      return (res.data as List).map((e) => ConversationSession.fromJson(e)).toList();
+      return (res.data as List)
+          .map((e) => ConversationSession.fromJson(e))
+          .toList();
     } on DioException catch (e) {
       // on XxxException catch (e)：捕获特定类型的异常
       // 类似 Python 的 except DioException as e:
@@ -82,13 +95,13 @@ class ChatService {
   // ─── 发送消息（核心方法）─────────────────────────────────
   // {} 里是命名参数，required 表示必传，没有 required 的有默认值
   Future<ChatSendResult> sendMessage(
-    String message, {          // 用户输入的文本（位置参数，必须第一个传）
-    required int subjectId,    // 当前学科 ID
-    int? sessionId,            // 会话 ID，? 表示可为 null（新对话时不传）
+    String message, { // 用户输入的文本（位置参数，必须第一个传）
+    required int subjectId, // 当前学科 ID
+    int? sessionId, // 会话 ID，? 表示可为 null（新对话时不传）
     required SessionType mode, // 模式：qa/solve/mindmap/exam
-    bool useBroad = false,     // 是否用 broad 模式（知识库+通用知识混合）
-    bool useHybrid = false,    // 是否用 hybrid 模式（知识库优先，失败降级）
-    CancelToken? cancelToken,  // 取消令牌，用于中途取消请求
+    bool useBroad = false, // 是否用 broad 模式（知识库+通用知识混合）
+    bool useHybrid = false, // 是否用 hybrid 模式（知识库优先，失败降级）
+    CancelToken? cancelToken, // 取消令牌，用于中途取消请求
   }) async {
     try {
       // 根据参数决定实际发给后端的 mode 字符串
@@ -96,13 +109,14 @@ class ChatService {
       if (useHybrid) {
         modeStr = 'hybrid'; // 勾选"结合通用知识"时用这个
       } else if (useBroad) {
-        modeStr = 'broad';  // 旧的 broad 模式（保留兼容）
+        modeStr = 'broad'; // 旧的 broad 模式（保留兼容）
       } else {
         modeStr = mode.name; // 枚举转字符串：SessionType.qa.name == "qa"
       }
 
       // POST /api/chat/query，发送 JSON 请求体
-      final res = await _dio.post(ApiConstants.chatQuery,
+      final res = await _dio.post(
+        ApiConstants.chatQuery,
         data: {
           'message': message,
           'subject_id': subjectId,
@@ -178,11 +192,16 @@ class ChatService {
   /// SessionType → 后端 mode 字符串映射
   String _toBackendMode(SessionType mode) {
     switch (mode) {
-      case SessionType.qa:      return 'strict';
-      case SessionType.solve:   return 'solve';
-      case SessionType.mindmap: return 'strict';
-      case SessionType.exam:    return 'strict';
-      case SessionType.feynman: return 'feynman';
+      case SessionType.qa:
+        return 'strict';
+      case SessionType.solve:
+        return 'solve';
+      case SessionType.mindmap:
+        return 'strict';
+      case SessionType.exam:
+        return 'strict';
+      case SessionType.feynman:
+        return 'feynman';
     }
   }
 
@@ -193,14 +212,26 @@ class ChatService {
       return null;
     }
   }
-  Future<String> generateMindMap(int subjectId, {int? sessionId, int? docId}) async {
+
+  Future<MindMapGenerateResult> generateMindMap(
+    int subjectId, {
+    int? sessionId,
+    int? docId,
+  }) async {
     try {
-      final res = await _dio.post(ApiConstants.chatMindmap, data: {
-        'subject_id': subjectId,
-        'session_id': ?sessionId, // null 时不包含这个键
-        'doc_id': ?docId,
-      });
-      return (res.data as Map<String, dynamic>)['content'] as String? ?? ''; // 返回 markmap 格式的 Markdown 文本
+      final res = await _dio.post(
+        ApiConstants.chatMindmap,
+        data: {
+          'subject_id': subjectId,
+          'session_id': ?sessionId, // null 时不包含这个键
+          'doc_id': ?docId,
+        },
+      );
+      final data = (res.data as Map).cast<String, dynamic>();
+      return MindMapGenerateResult(
+        content: data['content'] as String? ?? '',
+        sessionId: _parseId(data['session_id']),
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -209,10 +240,10 @@ class ChatService {
   // ─── 生成自定义思维导图（用户输入主题，不依赖资料库）────
   Future<String> generateCustomMindMap(String topic, {int? subjectId}) async {
     try {
-      final res = await _dio.post(ApiConstants.chatMindmapCustom, data: {
-        'topic': topic,
-        'subject_id': ?subjectId,
-      });
+      final res = await _dio.post(
+        ApiConstants.chatMindmapCustom,
+        data: {'topic': topic, 'subject_id': ?subjectId},
+      );
       return (res.data as Map<String, dynamic>)['content'] as String? ?? '';
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -233,8 +264,13 @@ class ChatService {
   Future<OcrResult> recognizeImage(String imageBase64) async {
     try {
       // 把 base64 编码的图片发给后端，后端调用视觉模型识别文字
-      final res = await _dio.post(ApiConstants.ocrImage, data: {'image': imageBase64});
-      return OcrResult(text: (res.data as Map<String, dynamic>)['text'] as String? ?? '');
+      final res = await _dio.post(
+        ApiConstants.ocrImage,
+        data: {'image': imageBase64},
+      );
+      return OcrResult(
+        text: (res.data as Map<String, dynamic>)['text'] as String? ?? '',
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

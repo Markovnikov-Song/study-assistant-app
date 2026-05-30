@@ -122,6 +122,15 @@ actions:
     param_schema: []
     executor_ref: open_course_space
 
+  # ── 生成思维导图 ────────────────────────────────────────────────────────────
+  - action_id: generate_mindmap
+    version: "1.0.0"
+    name: 生成思维导图
+    description: 跳转到思维导图生成入口，选择学科资料后生成知识结构图
+    fallback_text: 无法打开思维导图生成页，请手动进入脑图工坊
+    param_schema: []
+    executor_ref: generate_mindmap
+
   - action_id: create_mini_app
     version: "1.0.0"
     name: Create learning mini app

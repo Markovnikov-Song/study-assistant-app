@@ -35,9 +35,12 @@ class CapabilityLaunchService {
     return switch (context.capabilityId) {
       'memory.drill' => appendCapabilityQuery(R.toolkitMemoryDrill, context),
       'quiz.generate' => appendCapabilityQuery(R.toolkitQuiz, context),
-      'lecture.view' => subjectId != null
-          ? R.courseSpaceSubject(subjectId)
-          : R.mindmapEntry,
+      'lecture.view' =>
+        subjectId != null ? R.courseSpaceSubject(subjectId) : R.mindmapEntry,
+      'mindmap.build' =>
+        subjectId != null
+            ? R.courseSpaceSubject(subjectId, generate: true)
+            : R.mindmapGenerate,
       _ => R.toolkit,
     };
   }

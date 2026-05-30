@@ -32,13 +32,47 @@ class RuleBasedIntentDetector implements IntentDetector {
     'mini-app',
     'workshop',
   ];
+  static const _mindmapGenerateKeywords = [
+    '生成思维导图',
+    '创建思维导图',
+    '新建思维导图',
+    '建思维导图',
+    '做思维导图',
+    '生成导图',
+    '创建导图',
+    '新建导图',
+    '建导图',
+    '做导图',
+    '脑图',
+    '知识地图',
+  ];
   static const _specKeywords = ['系统学习', '完整计划', '从零开始', '全面掌握', '系统掌握', '完整课程'];
-  static const _planningKeywords = ['备考', '复习计划', '考试', '学习目标', '期末', '期中', '冲刺', '学习计划'];
-  static const _calendarKeywords = ['加到日历', '添加计划', '安排学习', '记到日历', '下周', '明天', '提醒我'];
+  static const _planningKeywords = [
+    '备考',
+    '复习计划',
+    '考试',
+    '学习目标',
+    '期末',
+    '期中',
+    '冲刺',
+    '学习计划',
+  ];
+  static const _calendarKeywords = [
+    '加到日历',
+    '添加计划',
+    '安排学习',
+    '记到日历',
+    '下周',
+    '明天',
+    '提醒我',
+  ];
   static const _toolKeywords = ['笔记', '错题', '记录', '整理', '收藏', '保存到笔记'];
 
   @override
-  Future<DetectedIntent> detect(String userInput, {List<Subject>? subjects}) async {
+  Future<DetectedIntent> detect(
+    String userInput, {
+    List<Subject>? subjects,
+  }) async {
     final input = userInput.toLowerCase();
 
     if (_containsAny(input, _miniAppKeywords)) {
@@ -49,6 +83,21 @@ class RuleBasedIntentDetector implements IntentDetector {
           'render_type': 'navigate',
           'route':
               '/workshop/builder?request=${Uri.encodeQueryComponent(userInput)}',
+        },
+      );
+    }
+
+    if (_containsAny(input, _mindmapGenerateKeywords)) {
+      final subject = _findSubject(input, subjects);
+      return DetectedIntent(
+        type: IntentType.tool,
+        params: {
+          'actionId': 'generate_mindmap',
+          'render_type': 'navigate',
+          'route': subject == null
+              ? '/mindmap-entry?generate=1'
+              : '/course-space/${subject.id}?generate=1',
+          if (subject != null) 'subjectId': subject.id,
         },
       );
     }
@@ -115,7 +164,9 @@ class RuleBasedIntentDetector implements IntentDetector {
     if (timeMatch != null) {
       final hour = int.tryParse(timeMatch.group(1) ?? '');
       if (hour != null) {
-        final adjustedHour = input.contains('下午') && hour < 12 ? hour + 12 : hour;
+        final adjustedHour = input.contains('下午') && hour < 12
+            ? hour + 12
+            : hour;
         params['time'] = '${adjustedHour.toString().padLeft(2, '0')}:00';
       }
     }
@@ -125,5 +176,16 @@ class RuleBasedIntentDetector implements IntentDetector {
 
   bool _containsAny(String input, List<String> keywords) {
     return keywords.any((kw) => input.contains(kw));
+  }
+
+  Subject? _findSubject(String input, List<Subject>? subjects) {
+    if (subjects == null) return null;
+    for (final subject in subjects) {
+      if (subject.name.isNotEmpty &&
+          input.contains(subject.name.toLowerCase())) {
+        return subject;
+      }
+    }
+    return null;
   }
 }

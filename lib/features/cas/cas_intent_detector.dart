@@ -21,10 +21,12 @@ class CasIntentDetector implements IntentDetector {
       final result = await _casService
           .dispatch(userInput)
           .timeout(const Duration(seconds: 10));
-      return _toDetectedIntent(result, subjects: subjects);
+      final intent = _toDetectedIntent(result, subjects: subjects);
+      return _withMindmapContext(intent, userInput, subjects);
     } catch (_) {
       // 后端不可用或超时，降级为本地规则
-      return _fallback.detect(userInput, subjects: subjects);
+      final intent = await _fallback.detect(userInput, subjects: subjects);
+      return _withMindmapContext(intent, userInput, subjects);
     }
   }
 
@@ -44,12 +46,14 @@ class CasIntentDetector implements IntentDetector {
       case 'create_mini_app':
         return DetectedIntent(
           type: IntentType.tool,
-          params: {
-            'actionId': actionId,
-            ...result.data,
-          },
+          params: {'actionId': actionId, ...result.data},
         );
       case 'make_quiz':
+        return DetectedIntent(
+          type: IntentType.tool,
+          params: {'actionId': actionId, ...result.data},
+        );
+      case 'generate_mindmap':
         return DetectedIntent(
           type: IntentType.tool,
           params: {'actionId': actionId, ...result.data},
@@ -68,17 +72,29 @@ class CasIntentDetector implements IntentDetector {
       case 'open_notebook':
         return DetectedIntent(
           type: IntentType.tool,
-          params: {'actionId': actionId, 'render_type': 'navigate', 'route': '/toolkit/notebooks'},
+          params: {
+            'actionId': actionId,
+            'render_type': 'navigate',
+            'route': '/toolkit/notebooks',
+          },
         );
       case 'open_course_space':
         return DetectedIntent(
           type: IntentType.tool,
-          params: {'actionId': actionId, 'render_type': 'navigate', 'route': '/course-space'},
+          params: {
+            'actionId': actionId,
+            'render_type': 'navigate',
+            'route': '/course-space',
+          },
         );
       case 'recommend_mistake_practice':
         return DetectedIntent(
           type: IntentType.tool,
-          params: {'actionId': actionId, 'render_type': 'navigate', 'route': '/toolkit/mistake-book'},
+          params: {
+            'actionId': actionId,
+            'render_type': 'navigate',
+            'route': '/toolkit/mistake-book',
+          },
         );
       case 'start_feynman':
         return DetectedIntent(
@@ -94,6 +110,50 @@ class CasIntentDetector implements IntentDetector {
       default:
         return DetectedIntent.none;
     }
+  }
+
+  DetectedIntent _withMindmapContext(
+    DetectedIntent intent,
+    String userInput,
+    List<Subject>? subjects,
+  ) {
+    if (intent.params['actionId'] != 'generate_mindmap') {
+      return intent;
+    }
+
+    final params = <String, dynamic>{...intent.params};
+    final subjectId =
+        _subjectIdFromParams(params) ??
+        _findMentionedSubjectId(userInput, subjects);
+    if (subjectId != null) {
+      params['subjectId'] = subjectId;
+      params['route'] = '/course-space/$subjectId?generate=1';
+    } else {
+      params['route'] = params['route'] ?? '/mindmap-entry?generate=1';
+    }
+    params['render_type'] = 'navigate';
+    return DetectedIntent(type: IntentType.tool, params: params);
+  }
+
+  int? _subjectIdFromParams(Map<String, dynamic> params) {
+    final raw =
+        params['subjectId'] ?? params['subject_id'] ?? params['subject'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    if (raw is String) return int.tryParse(raw);
+    return null;
+  }
+
+  int? _findMentionedSubjectId(String userInput, List<Subject>? subjects) {
+    if (subjects == null) return null;
+    final input = userInput.toLowerCase();
+    for (final subject in subjects) {
+      if (subject.name.isNotEmpty &&
+          input.contains(subject.name.toLowerCase())) {
+        return subject.id;
+      }
+    }
+    return null;
   }
 
   /// 检测规划意图并提取参数
@@ -115,7 +175,7 @@ class CasIntentDetector implements IntentDetector {
     // 简单的本地规则提取
     final params = <String, dynamic>{};
     final missingParams = <String>[];
-    
+
     // 提取学科
     final subjects = ['数学', '语文', '英语', '物理', '化学', '生物', '历史', '地理', '政治'];
     String? foundSubject;
@@ -125,32 +185,35 @@ class CasIntentDetector implements IntentDetector {
         break;
       }
     }
-    
+
     if (foundSubject != null) {
       params['subject'] = foundSubject;
     } else {
       missingParams.add('subject');
     }
-    
+
     // 提取日期
-    if (text.contains('下周') || text.contains('下个月') || text.contains('期末') || text.contains('期中')) {
+    if (text.contains('下周') ||
+        text.contains('下个月') ||
+        text.contains('期末') ||
+        text.contains('期中')) {
       params['exam_date'] = _extractDateFromText(text);
     } else {
       missingParams.add('exam_date');
     }
-    
+
     // 提取范围
     if (text.contains('前') || text.contains('全书') || text.contains('全部')) {
       params['exam_scope'] = _extractScopeFromText(text);
     } else {
       missingParams.add('exam_scope');
     }
-    
+
     // 默认每日2小时
     params['daily_hours'] = 2.0;
-    
+
     final isComplete = missingParams.isEmpty;
-    
+
     return PlanningIntentResult(
       type: isComplete ? IntentType.planning : IntentType.none,
       params: params,
@@ -178,6 +241,7 @@ class CasIntentDetector implements IntentDetector {
     return null;
   }
 }
+
 /// 规划意图识别结果
 class PlanningIntentResult {
   final IntentType type;
@@ -196,7 +260,11 @@ class PlanningIntentResult {
     return PlanningIntentResult(
       type: IntentType.planning,
       params: json['params'] as Map<String, dynamic>? ?? {},
-      missingParams: (json['missing_params'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      missingParams:
+          (json['missing_params'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
       isComplete: json['is_complete'] as bool? ?? false,
     );
   }

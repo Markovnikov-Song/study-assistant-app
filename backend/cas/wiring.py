@@ -101,6 +101,7 @@ def _import_all_executors() -> None:
     import cas.executors.add_calendar_event  # noqa: F401
     import cas.executors.create_mini_app  # noqa: F401
     import cas.executors.explain_concept  # noqa: F401
+    import cas.executors.generate_mindmap  # noqa: F401
     import cas.executors.make_plan  # noqa: F401
     import cas.executors.make_quiz  # noqa: F401
     import cas.executors.open_calendar  # noqa: F401

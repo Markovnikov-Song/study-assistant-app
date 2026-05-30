@@ -303,23 +303,28 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   }
 
   // ─── 生成思维导图 ──────────────────────────────────────────
-  Future<void> generateMindMap({int? docId}) async {
+  Future<int?> generateMindMap({int? docId}) async {
     // 设置加载状态（UI 显示 loading）
     state = const AsyncValue.loading();
     try {
-      final content = await _service.generateMindMap(
+      final result = await _service.generateMindMap(
         _subjectId,
         sessionId: _currentSessionId,
         docId: docId,
       );
+      final isNewSession = _currentSessionId == null;
+      _currentSessionId = result.sessionId;
+      if (isNewSession) onSessionCreated?.call();
       // 思维导图内容用一条 assistant 消息存储（Markdown 格式）
       final msg = ChatMessage.local(
         role: MessageRole.assistant,
-        content: content,
+        content: result.content,
       );
       state = AsyncValue.data([msg]);
+      return result.sessionId;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
+      Error.throwWithStackTrace(e, st);
     }
   }
 

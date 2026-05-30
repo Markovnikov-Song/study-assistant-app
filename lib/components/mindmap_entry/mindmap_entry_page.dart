@@ -8,8 +8,13 @@ import '../../routes/app_router.dart';
 class MindmapEntryPage extends ConsumerWidget {
   /// 从课程空间跳过来时传入，自动跳转到该学科
   final int? initialSubjectId;
+  final bool generateOnSelect;
 
-  const MindmapEntryPage({super.key, this.initialSubjectId});
+  const MindmapEntryPage({
+    super.key,
+    this.initialSubjectId,
+    this.generateOnSelect = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -18,11 +23,18 @@ class MindmapEntryPage extends ConsumerWidget {
     // 如果指定了学科，数据加载完后自动跳转
     subjectsAsync.whenData((subjects) {
       if (initialSubjectId != null) {
-        final match = subjects.where((s) => s.subject.id == initialSubjectId).isNotEmpty;
+        final match = subjects
+            .where((s) => s.subject.id == initialSubjectId)
+            .isNotEmpty;
         if (match) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (context.mounted) {
-              context.pushReplacement(AppRoutes.courseSpaceById(initialSubjectId!));
+              context.pushReplacement(
+                AppRoutes.courseSpaceById(
+                  initialSubjectId!,
+                  generate: generateOnSelect,
+                ),
+              );
             }
           });
         }
@@ -30,10 +42,7 @@ class MindmapEntryPage extends ConsumerWidget {
     });
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('脑图工坊'),
-        centerTitle: false,
-      ),
+      appBar: AppBar(title: const Text('脑图工坊'), centerTitle: false),
       body: subjectsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('加载失败：$e')),
@@ -52,20 +61,32 @@ class MindmapEntryPage extends ConsumerWidget {
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
                 ),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
-                  onTap: () => context.push(AppRoutes.courseSpaceById(item.subject.id)),
+                  onTap: () => context.push(
+                    AppRoutes.courseSpaceById(
+                      item.subject.id,
+                      generate: generateOnSelect,
+                    ),
+                  ),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     child: Row(
                       children: [
                         Container(
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primaryContainer,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
@@ -80,17 +101,26 @@ class MindmapEntryPage extends ConsumerWidget {
                             children: [
                               Text(
                                 item.subject.name,
-                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 '${item.sessionCount} 张导图  ·  进度 $pct%',
-                                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.outline),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.outline),
+                        Icon(
+                          Icons.chevron_right,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
                       ],
                     ),
                   ),
@@ -115,9 +145,16 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.account_tree_outlined, size: 64, color: Colors.grey.shade300),
+            Icon(
+              Icons.account_tree_outlined,
+              size: 64,
+              color: Colors.grey.shade300,
+            ),
             const SizedBox(height: 16),
-            Text('还没有科目', style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
+            Text(
+              '还没有科目',
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+            ),
             const SizedBox(height: 8),
             Text(
               '先去「图书馆」添加科目，\n再回来创建思维导图',

@@ -256,7 +256,8 @@ capabilities:
     version: "1.0.0"
     icon: account_tree
     color: ["#8B5CF6", "#EC5DFF"]
-    mini_app_route: /mindmap-entry
+    action_id: generate_mindmap
+    mini_app_route: /mindmap-entry?generate=1
     standalone: true
     orchestratable: true
     schedulable: true

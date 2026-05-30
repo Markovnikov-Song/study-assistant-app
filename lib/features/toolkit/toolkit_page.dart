@@ -8,6 +8,7 @@ import '../../core/capability/capability_models.dart';
 import '../../core/capability/capability_providers.dart';
 import '../../core/theme/styles/export.dart';
 import '../../routes/app_router.dart';
+import '../../routes/app_navigation.dart';
 import '../../widgets/diy_corner_badge.dart';
 import '../workshop/mini_app_models.dart';
 import '../workshop/mini_app_providers.dart';
@@ -104,7 +105,7 @@ const kDefaultTools = [
     colors: [Color(0xFF8B5CF6), Color(0xFFEC5DFF)],
     label: '脑图工坊',
     description: '把知识整理成结构',
-    route: R.mindmapEntry,
+    route: R.mindmapGenerate,
     iconAsset: '$_iconPackRoot/6.Items/map.svg',
   ),
   ToolItem(
@@ -532,7 +533,7 @@ class _ToolCardState extends State<_ToolCard> {
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(radius),
         child: InkWell(
-          onTap: () => context.push(widget.item.route),
+          onTap: () => navigateAppRoute(context, widget.item.route),
           onTapDown: (_) => setState(() => _pressed = true),
           onTapCancel: () => setState(() => _pressed = false),
           onTapUp: (_) => setState(() => _pressed = false),
@@ -619,11 +620,7 @@ class _ToolCardState extends State<_ToolCard> {
                   ],
                 ),
                 if (showDiyBadge)
-                  const Positioned(
-                    top: 0,
-                    right: 0,
-                    child: DiyCornerBadge(),
-                  ),
+                  const Positioned(top: 0, right: 0, child: DiyCornerBadge()),
               ],
             ),
           ),

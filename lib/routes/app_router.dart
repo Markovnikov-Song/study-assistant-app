@@ -51,10 +51,21 @@ import 'app_routes.dart';
 import 'mindmap_subject_picker_page.dart';
 export 'app_routes.dart';
 
+/// Root navigator for full-screen routes (course space, mindmap, chat detail, …).
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'root',
+);
+
+/// Nested navigator inside [ShellRoute] (bottom / side tabs).
+final GlobalKey<NavigatorState> shellNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'shell',
+);
+
 // Router provider.
 final routerProvider = Provider<GoRouter>((ref) {
   final notifier = _RouterNotifier(ref);
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/splash',
     refreshListenable: notifier,
     redirect: (context, state) {
@@ -73,15 +84,28 @@ final routerProvider = Provider<GoRouter>((ref) {
         Scaffold(body: Center(child: Text('页面不存在: ${state.uri}'))),
     routes: [
       // ── Splash（开屏动画）──────────────────────────────────────────────────
-      GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
+      GoRoute(
+        path: '/splash',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, _) => const SplashScreen(),
+      ),
 
       // ── Auth ──────────────────────────────────────────────────────────────
-      GoRoute(path: R.login, builder: (_, _) => const LoginPage()),
-      GoRoute(path: R.register, builder: (_, _) => const RegisterPage()),
+      GoRoute(
+        path: R.login,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, _) => const LoginPage(),
+      ),
+      GoRoute(
+        path: R.register,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, _) => const RegisterPage(),
+      ),
 
       // ── 独立全屏页面（push 覆盖 shell）────────────────────────────────────
       GoRoute(
         path: R.spec,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) => SpecPage(
           prefilledSubjectIds: (state.uri.queryParameters['subjects'] ?? '')
               .split(',')
@@ -92,62 +116,102 @@ final routerProvider = Provider<GoRouter>((ref) {
           prefilledContext: state.uri.queryParameters['context'],
         ),
       ),
-      GoRoute(path: R.profileEdit, builder: (_, _) => const EditProfilePage()),
-      GoRoute(path: R.profileMemory, builder: (_, _) => const MemoryPage()),
-      GoRoute(path: R.profileSubjects, builder: (_, _) => const SubjectsPage()),
+      GoRoute(
+        path: R.profileEdit,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, _) => const EditProfilePage(),
+      ),
+      GoRoute(
+        path: R.profileMemory,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, _) => const MemoryPage(),
+      ),
+      GoRoute(
+        path: R.profileSubjects,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, _) => const SubjectsPage(),
+      ),
       GoRoute(
         path: R.profileTokenUsage,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, _) => const TokenUsagePage(),
       ),
       GoRoute(
         path: R.profileTokenDetail,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, _) => const TokenDetailPage(),
       ),
       GoRoute(
         path: R.profileNotifications,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, _) => const NotificationSettingsPage(),
       ),
       GoRoute(
         path: R.profileApiConfig,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, _) => const ApiConfigPage(),
       ),
-      GoRoute(path: R.profileLogs, builder: (_, _) => const LogsPage()),
-      GoRoute(path: R.profileSettings, builder: (_, _) => const SettingsPage()),
+      GoRoute(
+        path: R.profileLogs,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, _) => const LogsPage(),
+      ),
+      GoRoute(
+        path: R.profileSettings,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, _) => const SettingsPage(),
+      ),
       GoRoute(
         path: R.profileResources,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, _) => const ResourcesPage(),
       ),
-      GoRoute(path: R.profileHistory, builder: (_, _) => const HistoryPage()),
+      GoRoute(
+        path: R.profileHistory,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, _) => const HistoryPage(),
+      ),
       GoRoute(
         path: R.skillMarketplace,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, _) => const MarketplacePage(),
       ),
       GoRoute(
         path: R.skillDialogCreate,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, _) => const DialogCreationPage(),
       ),
-      GoRoute(path: R.workshop, builder: (_, _) => const WorkshopPage()),
+      GoRoute(
+        path: R.workshop,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, _) => const WorkshopPage(),
+      ),
       GoRoute(
         path: R.workshopBuilder,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) => WorkshopBuilderPage(
           initialRequest: state.uri.queryParameters['request'],
         ),
       ),
       GoRoute(
         path: '/workshop/apps/:appId',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) =>
             MiniAppRunPage(appId: state.pathParameters['appId']!),
       ),
       GoRoute(
         path: R.mindmapEntry,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) => MindmapEntryPage(
           initialSubjectId: int.tryParse(
             state.uri.queryParameters['subject'] ?? '',
           ),
+          generateOnSelect: state.uri.queryParameters['generate'] == '1',
         ),
       ),
       GoRoute(
         path: '/profile/resources/:id',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) => SubjectDetailPage(
           subjectId: int.parse(state.pathParameters['id']!),
         ),
@@ -156,6 +220,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Chat 子路由（独立全屏，不在 shell 内）
       GoRoute(
         path: '/chat/:chatId',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) => ChatPage(chatId: state.pathParameters['chatId']),
         routes: [
           GoRoute(
@@ -177,6 +242,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // 费曼学习对话路由
       GoRoute(
         path: '/chat/feynman',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) => ChatPage(
           chatId: 'feynman_${DateTime.now().millisecondsSinceEpoch}',
           feynmanTopic: state.uri.queryParameters['topic'],
@@ -204,6 +270,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: R.toolkitMemoryDrill,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) => MemoryDrillPage(
           execution: CapabilityExecutionContext.fromQuery(
             state.uri.queryParameters,
@@ -213,11 +280,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: R.toolkitSettings,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, _) => const ToolkitSettingsPage(),
       ),
-      GoRoute(path: '/my-skills', builder: (_, _) => const MySkillsPage()),
+      GoRoute(
+        path: '/my-skills',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, _) => const MySkillsPage(),
+      ),
       GoRoute(
         path: R.toolkitCalendar,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) => CalendarPage(
           renderMode: state.uri.queryParameters['mode'] ?? 'full',
           sceneSource: state.uri.queryParameters['source'] ?? 'user_active',
@@ -240,21 +313,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
-        path: '/toolkit/mindmap-workshop',
+        path: R.toolkitMindmapWorkshop,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) {
           final subjectId = int.tryParse(
             state.uri.queryParameters['subject'] ?? '',
           );
+          final generateOnSelect = state.uri.queryParameters['generate'] == '1';
           if (subjectId != null) {
             // 直接进指定学科的详情页
-            return CourseSpacePage(subjectId: subjectId);
+            return CourseSpacePage(
+              subjectId: subjectId,
+              openGenerateOnStart: generateOnSelect,
+            );
           }
           // 没有指定学科，显示学科选择页
-          return const MindmapSubjectPickerPage();
+          return MindmapSubjectPickerPage(generateOnSelect: generateOnSelect);
         },
       ),
       GoRoute(
         path: R.toolkitNotebooks,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, _) => const NotebookListPage(),
         routes: [
           GoRoute(
@@ -278,8 +357,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // 课程空间子路由（独立全屏）
       GoRoute(
         path: '/course-space/:subjectId',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) => CourseSpacePage(
           subjectId: int.parse(state.pathParameters['subjectId']!),
+          openGenerateOnStart: state.uri.queryParameters['generate'] == '1',
         ),
         routes: [
           GoRoute(
@@ -304,6 +385,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // ── Shell（底部 4 Tab / 桌面侧边栏）────────────────────────────────
       ShellRoute(
+        navigatorKey: shellNavigatorKey,
         builder: (context, state, child) {
           final location = state.uri.path.isEmpty ? '/' : state.uri.path;
           return ResponsiveShell(location: location, child: child);

@@ -16,9 +16,34 @@ import '../../routes/app_router.dart';
 ///   ① 知识树区块   — 该学科下所有导图列表，点击进入 EditableMindMapPage
 ///   ② 知识关联图   — 占位（后续扩展）
 ///   ③ 学习进度     — 聚合所有 session 的节点点亮进度
-class CourseSpacePage extends ConsumerWidget {
+class CourseSpacePage extends ConsumerStatefulWidget {
   final int subjectId;
-  const CourseSpacePage({super.key, required this.subjectId});
+  final bool openGenerateOnStart;
+
+  const CourseSpacePage({
+    super.key,
+    required this.subjectId,
+    this.openGenerateOnStart = false,
+  });
+
+  @override
+  ConsumerState<CourseSpacePage> createState() => _CourseSpacePageState();
+}
+
+class _CourseSpacePageState extends ConsumerState<CourseSpacePage> {
+  bool _openedGenerateSheet = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openGenerateOnStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _openedGenerateSheet) return;
+        _openedGenerateSheet = true;
+        _showGenerateSheet(context, ref, widget.subjectId);
+      });
+    }
+  }
 
   void _showGenerateSheet(BuildContext context, WidgetRef ref, int subjectId) {
     showModalBottomSheet(
@@ -30,11 +55,14 @@ class CourseSpacePage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final subjectId = widget.subjectId;
     final sessionsAsync = ref.watch(courseSessionsProvider(subjectId));
 
     // 从 schoolSubjectsProvider 取学科名
-    final subjectName = ref.watch(schoolSubjectsProvider).maybeWhen(
+    final subjectName = ref
+        .watch(schoolSubjectsProvider)
+        .maybeWhen(
           data: (list) =>
               list
                   .where((s) => s.subject.id == subjectId)
@@ -53,7 +81,8 @@ class CourseSpacePage extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.folder_outlined),
             tooltip: '资料库',
-            onPressed: () => context.push(AppRoutes.subjectDetailPath(subjectId)),
+            onPressed: () =>
+                context.push(AppRoutes.subjectDetailPath(subjectId)),
           ),
           FilledButton.tonal(
             onPressed: () => _showGenerateSheet(context, ref, subjectId),
@@ -79,24 +108,25 @@ class CourseSpacePage extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               if (sessions.isEmpty)
-                _EmptyMindmapCard(subjectId: subjectId)
+                _EmptyMindmapCard(
+                  onGenerate: () => _showGenerateSheet(context, ref, subjectId),
+                )
               else
-                ...sessions.map((s) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _MindmapSessionCard(
-                        session: s,
-                        subjectId: subjectId,
-                        ref: ref,
-                      ),
-                    )),
+                ...sessions.map(
+                  (s) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _MindmapSessionCard(
+                      session: s,
+                      subjectId: subjectId,
+                      ref: ref,
+                    ),
+                  ),
+                ),
 
               const SizedBox(height: 24),
 
               // ── ③ 学习进度 ────────────────────────────────────────────
-              _SectionHeader(
-                icon: Icons.bar_chart_outlined,
-                title: '学习进度',
-              ),
+              _SectionHeader(icon: Icons.bar_chart_outlined, title: '学习进度'),
               const SizedBox(height: 8),
               _ProgressSection(subjectId: subjectId, sessions: sessions),
             ],
@@ -128,12 +158,13 @@ class _SectionHeader extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: cs.primary),
         const SizedBox(width: 6),
-        Text(title,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
         if (subtitle != null) ...[
           const SizedBox(width: 6),
-          Text(subtitle!,
-              style: TextStyle(fontSize: 12, color: cs.outline)),
+          Text(subtitle!, style: TextStyle(fontSize: 12, color: cs.outline)),
         ],
       ],
     );
@@ -171,7 +202,8 @@ class _MindmapSessionCard extends ConsumerWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => context.push(AppRoutes.editableMindMap(subjectId, session.id)),
+        onTap: () =>
+            context.push(AppRoutes.editableMindMap(subjectId, session.id)),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
           child: Row(
@@ -184,8 +216,11 @@ class _MindmapSessionCard extends ConsumerWidget {
                   color: cs.primaryContainer,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.account_tree_outlined,
-                    color: cs.onPrimaryContainer, size: 20),
+                child: Icon(
+                  Icons.account_tree_outlined,
+                  color: cs.onPrimaryContainer,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               // 内容
@@ -200,11 +235,15 @@ class _MindmapSessionCard extends ConsumerWidget {
                           const SizedBox(width: 4),
                         ],
                         Expanded(
-                          child: Text(title,
-                              style: const TextStyle(
-                                  fontSize: 14, fontWeight: FontWeight.w600),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
@@ -224,8 +263,10 @@ class _MindmapSessionCard extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Text('$pct%',
-                            style: TextStyle(fontSize: 11, color: cs.outline)),
+                        Text(
+                          '$pct%',
+                          style: TextStyle(fontSize: 11, color: cs.outline),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 2),
@@ -270,8 +311,9 @@ class _MindmapSessionCard extends ConsumerWidget {
           .updateMeta(session.id, isPinned: !session.isPinned);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('操作失败：$e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('操作失败：$e')));
       }
     }
   }
@@ -287,11 +329,15 @@ class _MindmapSessionCard extends ConsumerWidget {
           autofocus: true,
           maxLength: 64,
           decoration: const InputDecoration(
-              hintText: '输入新名称', border: OutlineInputBorder()),
+            hintText: '输入新名称',
+            border: OutlineInputBorder(),
+          ),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () async {
               final title = ctrl.text.trim();
@@ -314,13 +360,17 @@ class _MindmapSessionCard extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('删除导图'),
         content: Text(
-            '确认删除「${session.title?.isNotEmpty == true ? session.title : '未命名大纲'}」？\n此操作不可撤销。'),
+          '确认删除「${session.title?.isNotEmpty == true ? session.title : '未命名大纲'}」？\n此操作不可撤销。',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
             onPressed: () async {
               Navigator.pop(ctx);
               await ref
@@ -336,8 +386,8 @@ class _MindmapSessionCard extends ConsumerWidget {
 }
 
 class _EmptyMindmapCard extends StatelessWidget {
-  final int subjectId;
-  const _EmptyMindmapCard({required this.subjectId});
+  final VoidCallback onGenerate;
+  const _EmptyMindmapCard({required this.onGenerate});
 
   @override
   Widget build(BuildContext context) {
@@ -352,13 +402,10 @@ class _EmptyMindmapCard extends StatelessWidget {
         children: [
           Icon(Icons.account_tree_outlined, size: 40, color: cs.outlineVariant),
           const SizedBox(height: 8),
-          Text('还没有思维导图',
-              style: TextStyle(fontSize: 14, color: cs.outline)),
+          Text('还没有思维导图', style: TextStyle(fontSize: 14, color: cs.outline)),
           const SizedBox(height: 12),
           FilledButton.icon(
-            onPressed: () => context.push(
-              '/chat/${DateTime.now().millisecondsSinceEpoch}/subject/$subjectId',
-            ),
+            onPressed: onGenerate,
             icon: const Icon(Icons.auto_awesome, size: 16),
             label: const Text('去生成'),
           ),
@@ -384,7 +431,9 @@ class _ProgressSection extends ConsumerWidget {
     final pinned = sessions.where((s) => s.isPinned).toList()
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     if (pinned.isNotEmpty) return pinned.first;
-    return (sessions.toList()..sort((a, b) => a.sortOrder.compareTo(b.sortOrder))).first;
+    return (sessions.toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)))
+        .first;
   }
 
   @override
@@ -401,7 +450,10 @@ class _ProgressSection extends ConsumerWidget {
           border: Border.all(color: cs.outlineVariant),
         ),
         child: Center(
-          child: Text('暂无学习数据', style: TextStyle(color: cs.outline, fontSize: 13)),
+          child: Text(
+            '暂无学习数据',
+            style: TextStyle(color: cs.outline, fontSize: 13),
+          ),
         ),
       );
     }
@@ -431,13 +483,16 @@ class _ProgressSection extends ConsumerWidget {
     final pct = totalNodes == 0 ? 0 : (litNodes / totalNodes * 100).floor();
 
     // 是否有三层进度数据
-    final hasThreeDim = progress.overallProgress != null ||
+    final hasThreeDim =
+        progress.overallProgress != null ||
         progress.readProgress != null ||
         progress.practiceProgress != null;
 
     // 置顶标签
     final isPinned = target.isPinned;
-    final sessionTitle = target.title?.isNotEmpty == true ? target.title! : '未命名大纲';
+    final sessionTitle = target.title?.isNotEmpty == true
+        ? target.title!
+        : '未命名大纲';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -463,11 +518,18 @@ class _ProgressSection extends ConsumerWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('已点亮 $litNodes / $totalNodes 个节点',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-            Text('$pct%',
-                style: TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold, color: cs.primary)),
+            Text(
+              '已点亮 $litNodes / $totalNodes 个节点',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            Text(
+              '$pct%',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: cs.primary,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 10),
@@ -579,10 +641,7 @@ class _DimensionRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 4),
-        Text(
-          weight,
-          style: TextStyle(fontSize: 10, color: cs.outline),
-        ),
+        Text(weight, style: TextStyle(fontSize: 10, color: cs.outline)),
       ],
     );
   }
@@ -601,8 +660,7 @@ class _GenerateMindmapSheet extends ConsumerStatefulWidget {
       _GenerateMindmapSheetState();
 }
 
-class _GenerateMindmapSheetState
-    extends ConsumerState<_GenerateMindmapSheet> {
+class _GenerateMindmapSheetState extends ConsumerState<_GenerateMindmapSheet> {
   final Set<int> _selectedDocIds = {};
   bool _generating = false;
 
@@ -638,12 +696,15 @@ class _GenerateMindmapSheetState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('AI 生成思维导图',
-                          style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        'AI 生成思维导图',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       const SizedBox(height: 2),
-                      Text('选择资料范围，AI 自动提取知识点生成导图',
-                          style:
-                              TextStyle(fontSize: 12, color: cs.outline)),
+                      Text(
+                        '选择资料范围，AI 自动提取知识点生成导图',
+                        style: TextStyle(fontSize: 12, color: cs.outline),
+                      ),
                     ],
                   ),
                 ),
@@ -655,8 +716,7 @@ class _GenerateMindmapSheetState
           // 资料列表
           Expanded(
             child: docsAsync.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('加载失败：$e')),
               data: (docs) {
                 final completed = docs
@@ -669,15 +729,18 @@ class _GenerateMindmapSheetState
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.folder_open_outlined,
-                              size: 48, color: cs.outlineVariant),
+                          Icon(
+                            Icons.folder_open_outlined,
+                            size: 48,
+                            color: cs.outlineVariant,
+                          ),
                           const SizedBox(height: 12),
-                          Text('暂无可用资料',
-                              style: TextStyle(color: cs.outline)),
+                          Text('暂无可用资料', style: TextStyle(color: cs.outline)),
                           const SizedBox(height: 6),
-                          Text('请先在资料库上传并处理完成资料',
-                              style: TextStyle(
-                                  fontSize: 12, color: cs.outline)),
+                          Text(
+                            '请先在资料库上传并处理完成资料',
+                            style: TextStyle(fontSize: 12, color: cs.outline),
+                          ),
                         ],
                       ),
                     ),
@@ -687,16 +750,14 @@ class _GenerateMindmapSheetState
                   children: [
                     // 全选/清空
                     Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                       child: Row(
                         children: [
                           Text(
                             _selectedDocIds.isEmpty
                                 ? '全部资料（默认）'
                                 : '已选 ${_selectedDocIds.length} 个资料',
-                            style: TextStyle(
-                                fontSize: 13, color: cs.outline),
+                            style: TextStyle(fontSize: 13, color: cs.outline),
                           ),
                           const Spacer(),
                           TextButton(
@@ -708,8 +769,8 @@ class _GenerateMindmapSheetState
                             child: const Text('全选'),
                           ),
                           TextButton(
-                            onPressed: () => setState(
-                                () => _selectedDocIds.clear()),
+                            onPressed: () =>
+                                setState(() => _selectedDocIds.clear()),
                             child: const Text('清空'),
                           ),
                         ],
@@ -721,15 +782,15 @@ class _GenerateMindmapSheetState
                         itemCount: completed.length,
                         itemBuilder: (_, i) {
                           final doc = completed[i];
-                          final selected =
-                              _selectedDocIds.contains(doc.id);
+                          final selected = _selectedDocIds.contains(doc.id);
                           return CheckboxListTile(
                             value: selected,
-                            title: Text(doc.filename,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis),
-                            controlAffinity:
-                                ListTileControlAffinity.trailing,
+                            title: Text(
+                              doc.filename,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            controlAffinity: ListTileControlAffinity.trailing,
                             onChanged: (v) => setState(() {
                               if (v ?? false) {
                                 _selectedDocIds.add(doc.id);
@@ -753,13 +814,17 @@ class _GenerateMindmapSheetState
             child: FilledButton.icon(
               onPressed: _generating ? null : _generate,
               style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48)),
+                minimumSize: const Size.fromHeight(48),
+              ),
               icon: _generating
                   ? const SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Icon(Icons.auto_awesome),
               label: Text(_generating ? '生成中…' : '开始生成'),
             ),
@@ -772,14 +837,12 @@ class _GenerateMindmapSheetState
   Future<void> _generate() async {
     setState(() => _generating = true);
     final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
     try {
-      final docId =
-          _selectedDocIds.length == 1 ? _selectedDocIds.first : null;
+      final docId = _selectedDocIds.length == 1 ? _selectedDocIds.first : null;
       // 用 subjectId 作为 chatKey，mode = mindmap
-      await ref
-          .read(chatProvider(
-                  (widget.subjectId.toString(), 'mindmap'))
-              .notifier)
+      final sessionId = await ref
+          .read(chatProvider((widget.subjectId.toString(), 'mindmap')).notifier)
           .generateMindMap(docId: docId);
 
       // 生成完成后刷新 session 列表
@@ -789,17 +852,16 @@ class _GenerateMindmapSheetState
 
       if (mounted) {
         Navigator.pop(context);
-        messenger.showSnackBar(
-          const SnackBar(content: Text('思维导图已生成，已添加到知识树')),
-        );
+        messenger.showSnackBar(const SnackBar(content: Text('思维导图已生成，正在打开')));
+        if (sessionId != null && sessionId > 0) {
+          router.push(AppRoutes.editableMindMap(widget.subjectId, sessionId));
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _generating = false);
         messenger.showSnackBar(
-          SnackBar(
-              content: Text('生成失败：$e'),
-              backgroundColor: Colors.red),
+          SnackBar(content: Text('生成失败：$e'), backgroundColor: Colors.red),
         );
       }
     }

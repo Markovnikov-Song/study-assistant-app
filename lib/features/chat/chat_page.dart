@@ -35,6 +35,7 @@ import '../../core/network/dio_client.dart';
 import '../../core/storage/storage_service.dart';
 import '../../providers/solve_prefill_provider.dart';
 import '../../routes/app_router.dart';
+import '../../routes/app_navigation.dart';
 
 // ─── ChatPage（参数化，支持通用/学科/任务三种场景）────────────
 
@@ -206,8 +207,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       ref.read(chatProvider(_key).notifier).deleteMessage(msgs.length - 1);
     }
 
-    // 仅通用对话做 CAS 意图识别，navigate 类型直接跳转，不发给 AI
-    if (widget.subjectId == null && widget.taskId == null) {
+    // 普通助教/学科助教都做 CAS 意图识别；明确的工具导航不再发给 AI 问答。
+    final shouldDetectCas =
+        widget.taskId == null && widget.feynmanTopic == null;
+    if (shouldDetectCas) {
       final subjects = ref.read(subjectsProvider).valueOrNull;
       final intent = await _intentDetector.detect(text, subjects: subjects);
       if (!mounted) return;
@@ -215,8 +218,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       final actionId = intent.params['actionId'] as String?;
       final renderType = intent.params['render_type'] as String?;
 
-      // navigate 类型：直接跳转，只在消息列表里显示用户消息，不调 AI
-      if (actionId != null && renderType == 'navigate') {
+      // navigate/param_fill 类型：直接进入对应工具，不调 AI。
+      if (actionId != null &&
+          (renderType == 'navigate' || renderType == 'param_fill')) {
         ref
             .read(chatProvider(_key).notifier)
             .appendMessage(
@@ -235,7 +239,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             text,
             mode: SessionType.qa,
             useHybrid: _useHybrid,
-            overrideSubjectId: _autoDetectedSubjectId,
+            overrideSubjectId: widget.subjectId ?? _autoDetectedSubjectId,
           );
       _scrollToBottom();
       await _handleIntentAfterSend(intent, text);
@@ -325,8 +329,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     switch (renderType) {
       case 'navigate':
         if (route != null) {
+          final targetRoute = actionId == 'open_course_space'
+              ? _courseSpaceRoute()
+              : actionId == 'generate_mindmap'
+              ? _mindmapGenerateRoute(route)
+              : route;
           // 先插入确认气泡，再跳转（气泡留在对话流里）
-          final confirmText = _navigateConfirmText(actionId, route);
+          final confirmText = _navigateConfirmText(actionId, targetRoute);
           ref
               .read(chatProvider(_key).notifier)
               .appendMessage(
@@ -337,7 +346,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               );
           // 短暂延迟让气泡渲染后再跳转，避免页面切换时气泡闪烁
           Future.delayed(const Duration(milliseconds: 150), () {
-            if (mounted) context.push(route);
+            if (mounted) navigateAppRoute(context, targetRoute);
           });
         }
       case 'text':
@@ -393,6 +402,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return '已为您打开 [笔记本]($route) ✓';
       case 'open_course_space':
         return '已为您打开 [课程空间]($route) ✓';
+      case 'generate_mindmap':
+        return '已为您打开 [生成思维导图]($route) ✓';
       case 'make_quiz':
         return '已为您跳转到 [出题页面]($route) ✓';
       case 'recommend_mistake_practice':
@@ -428,6 +439,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   /// 从路由路径推断显示名称
   String _routeDisplayName(String route) {
     if (route.contains('workshop')) return '学习小软件工坊';
+    if (route.contains('mindmap') || route.contains('generate=1')) {
+      return '生成思维导图';
+    }
     if (route.contains('calendar')) return '学习日历';
     if (route.contains('notebook')) return '笔记本';
     if (route.contains('course-space')) return '课程空间';
@@ -448,12 +462,43 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       'add_calendar_event': '/toolkit/calendar',
       'recommend_mistake_practice': '/toolkit/mistake-book',
       'open_notebook': '/toolkit/notebooks',
-      'open_course_space': '/course-space',
+      'open_course_space': _courseSpaceRoute(),
+      'generate_mindmap': _mindmapGenerateRoute(R.mindmapGenerate),
       'start_feynman': '/chat/feynman',
       'solve_problem': '/toolkit/solve',
     };
     final route = routeMap[actionId];
-    if (route != null) context.push(route);
+    if (route != null) navigateAppRoute(context, route);
+  }
+
+  String _courseSpaceRoute() {
+    if (widget.subjectId != null) {
+      return AppRoutes.courseSpaceSubject(widget.subjectId!);
+    }
+    return R.mindmapEntry;
+  }
+
+  String _mindmapGenerateRoute(String fallbackRoute) {
+    if (widget.subjectId != null) {
+      return AppRoutes.courseSpaceSubject(widget.subjectId!, generate: true);
+    }
+    final subjectId = _extractSubjectIdFromRoute(fallbackRoute);
+    if (subjectId != null) {
+      return AppRoutes.courseSpaceSubject(subjectId, generate: true);
+    }
+    return fallbackRoute.contains('generate=1')
+        ? fallbackRoute
+        : R.mindmapGenerate;
+  }
+
+  int? _extractSubjectIdFromRoute(String route) {
+    final uri = Uri.tryParse(route);
+    if (uri == null) return null;
+    final subjectQuery = uri.queryParameters['subject'];
+    if (subjectQuery != null) return int.tryParse(subjectQuery);
+    final match = RegExp(r'^/course-space/(\d+)').firstMatch(uri.path);
+    if (match != null) return int.tryParse(match.group(1) ?? '');
+    return null;
   }
 
   /// CAS card 类型：将结构化卡片数据转为 Markdown 气泡 + 跳转链接
@@ -696,15 +741,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required List<String> images,
     required String supplementText,
   }) async {
-    final validImages =
-        images.map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    final validImages = images
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
     final text = supplementText.trim();
 
     if (validImages.isEmpty && text.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('图片处理失败，请重新拍照或换一张更清晰的图')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('图片处理失败，请重新拍照或换一张更清晰的图')));
       }
       return;
     }
@@ -776,12 +823,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
     } catch (e) {
       if (mounted) {
-        ref.read(chatProvider(_key).notifier).replaceLastAssistantWithError(
-              '解题失败，请稍后重试',
-            );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('解题失败，请稍后重试')),
-        );
+        ref
+            .read(chatProvider(_key).notifier)
+            .replaceLastAssistantWithError('解题失败，请稍后重试');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('解题失败，请稍后重试')));
       }
     } finally {
       if (mounted) setState(() => _solveSending = false);
@@ -1180,7 +1227,7 @@ void _handleSceneCardConfirm(
       }
     case SceneType.tool:
       final route = data.payload['toolRoute'] as String?;
-      if (route != null) context.push(route);
+      if (route != null) navigateAppRoute(context, route);
     case SceneType.spec:
       // context.push('/spec') is the fallback route when no prefilled context exists.
       final original = data.payload['context'] as String?;
@@ -1566,15 +1613,15 @@ class _Bubble extends ConsumerWidget {
               ],
               isUser
                   ? (message.content.trim().isEmpty
-                      ? const SizedBox.shrink()
-                      : Text(
-                          message.content,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            height: 1.5,
-                            fontSize: 15,
-                          ),
-                        ))
+                        ? const SizedBox.shrink()
+                        : Text(
+                            message.content,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              height: 1.5,
+                              fontSize: 15,
+                            ),
+                          ))
                   : forceRawText
                   ? Text(
                       message.content,
