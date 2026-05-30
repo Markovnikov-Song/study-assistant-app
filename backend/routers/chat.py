@@ -17,7 +17,7 @@ class QueryIn(BaseModel):
     subject_id: Optional[int] = None
     message: str
     session_id: Optional[int] = None
-    mode: Literal["strict", "broad", "hybrid", "solve"] = "strict"
+    mode: Literal["strict", "broad", "hybrid", "solve", "feynman"] = "strict"
 
 
 class SourceOut(BaseModel):

@@ -29,12 +29,17 @@ class ApiException implements Exception {
           if (detail is String) {
             msg = detail;
           } else if (detail is List && detail.isNotEmpty) {
-            // FastAPI 422 错误：detail 是验证错误列表
+            // FastAPI 422 验证错误
             final first = detail[0];
             if (first is Map && first['msg'] is String) {
-              msg = first['msg']!;
+              final raw = first['msg'] as String;
+              if (raw.contains('literal_error') || raw.contains('Input should be')) {
+                msg = '请求参数有误，请更新应用后重试';
+              } else {
+                msg = raw;
+              }
             } else {
-              msg = first.toString();
+              msg = '请求参数有误，请更新应用后重试';
             }
           } else {
             msg = '请求失败（状态码 $code）';

@@ -17,6 +17,7 @@ import 'dart:async'; // Dart 异步库
 import 'package:dio/dio.dart'; // HTTP 库（用到 CancelToken、DioException）
 import 'package:flutter/foundation.dart'; // VoidCallback
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 状态管理
+import '../core/network/api_exception.dart';
 import '../models/chat_message.dart';
 import '../providers/history_provider.dart';
 import '../services/chat_service.dart';
@@ -400,32 +401,58 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
 
   // ─── 格式化错误消息，提供友好的用户提示 ───────────────────
   String _formatErrorMessage(Object e) {
-    final errorStr = e.toString();
-
-    // 检查是否是已知的错误类型
-    if (errorStr.contains("API 配置错误") || errorStr.contains("API Key")) {
-      return "API 配置错误\n\n请进入「我的」→「AI 模型配置」检查您的 API 配置。";
+    if (e is ApiException) {
+      return '${e.message}\n\n请稍后重试。';
     }
 
-    if (errorStr.contains("余额不足") || errorStr.contains("insufficient")) {
-      return "账户余额不足\n\n请检查您的 API 账户余额或切换其他配置。";
+    var errorStr = e.toString();
+    if (errorStr.startsWith('Exception: ')) {
+      errorStr = errorStr.substring('Exception: '.length);
     }
 
-    if (errorStr.contains("请求过于频繁") || errorStr.contains("RateLimit")) {
-      return "请求过于频繁\n\n请稍等片刻再试。";
+    if (errorStr.contains('HTTP 422') ||
+        errorStr.contains('literal_error') ||
+        errorStr.contains('Input should be')) {
+      return '请求参数有误\n\n请更新应用后重试；若使用费曼学习，请确认已安装最新版本。';
     }
 
-    if (errorStr.contains("网络") ||
-        errorStr.contains("连接") ||
-        errorStr.contains("timeout")) {
-      return "网络连接异常\n\n请检查网络连接后重试。";
+    if (errorStr.contains('HTTP 401') || errorStr.contains('401')) {
+      return '登录已过期\n\n请重新登录后再试。';
     }
 
-    if (errorStr.contains("AI 服务")) {
-      return "AI 服务暂时不可用\n\n请稍后重试。";
+    if (errorStr.contains('HTTP 502') ||
+        errorStr.contains('HTTP 503') ||
+        errorStr.contains('HTTP 500')) {
+      return '服务器繁忙\n\n请稍后重试。';
     }
 
-    // 其他未知错误，提供通用提示
-    return "服务暂时不可用\n\n请稍后重试或联系客服。";
+    if (errorStr.contains('API 配置错误') || errorStr.contains('API Key')) {
+      return 'API 配置错误\n\n请进入「我的」→「AI 模型配置」检查您的 API 配置。';
+    }
+
+    if (errorStr.contains('余额不足') || errorStr.contains('insufficient')) {
+      return '账户余额不足\n\n请检查您的 API 账户余额或切换其他配置。';
+    }
+
+    if (errorStr.contains('请求过于频繁') || errorStr.contains('RateLimit')) {
+      return '请求过于频繁\n\n请稍等片刻再试。';
+    }
+
+    if (errorStr.contains('网络') ||
+        errorStr.contains('连接') ||
+        errorStr.contains('timeout') ||
+        errorStr.contains('Timeout')) {
+      return '网络连接异常\n\n请检查网络连接后重试。';
+    }
+
+    if (errorStr.contains('AI 服务') || errorStr.contains('[ERROR]')) {
+      return 'AI 服务暂时不可用\n\n请稍后重试，或检查「我的」→「AI 模型配置」。';
+    }
+
+    if (errorStr.length > 200) {
+      return '请求失败\n\n请稍后重试。';
+    }
+
+    return '$errorStr\n\n请稍后重试。';
   }
 }

@@ -59,7 +59,7 @@ _STRICT_SYSTEM = (
     "若资料中没有相关信息，请如实告知用户。"
 )
 
-_BROAD_SYSTEM = (
+_BROAD_BASE = (
     "你是一位学科辅导助手。"
     "请结合以下提供的资料内容以及你自身的通用知识回答用户问题。"
     "回答要求：用流畅的自然语言，段落清晰；"
@@ -67,10 +67,38 @@ _BROAD_SYSTEM = (
     "公式中的变量含义必须在同一句话里用括号说明，例如：$F = -kx$（其中 $k$ 为弹性系数，$x$ 为形变量），"
     "禁止用「- 变量名」的列表格式逐行解释变量；"
     "不要滥用加粗，只对最关键的术语或结论加粗；不要用标题层级（##）拆分简短回答。"
-    "在回答中，必须明确区分每段内容的来源：\n"
-    "- 来自上传资料的内容，请在段落前标注【来自上传资料】\n"
-    "- 来自通用知识的内容，请在段落前标注【来自通用知识】"
 )
+
+_BROAD_WITH_SOURCES_SUFFIX = (
+    "在回答中，必须明确区分每段内容的来源：\n"
+    "- 仅当段落确实引用了上方「参考资料」中的内容时，才在段首标注【来自上传资料】\n"
+    "- 其余基于模型通用知识的段落，请标注【来自通用知识】\n"
+    "禁止在没有参考资料时标注【来自上传资料】或声称引用了用户上传的文件。"
+)
+
+_BROAD_NO_SOURCES_SUFFIX = (
+    "当前学科没有可用的上传资料（参考资料为空）。"
+    "请完全基于通用知识回答，段首可标注【来自通用知识】；"
+    "禁止标注【来自上传资料】，禁止声称引用了用户上传的文件或教材。"
+)
+
+
+def _broad_system_prompt(has_uploaded_sources: bool) -> str:
+    if has_uploaded_sources:
+        return _BROAD_BASE + _BROAD_WITH_SOURCES_SUFFIX
+    return _BROAD_BASE + _BROAD_NO_SOURCES_SUFFIX
+
+
+def _resolve_system_prompt(mode: str, has_context: bool, subject_id: Optional[int]) -> str:
+    if mode == "solve":
+        return _SOLVE_SYSTEM
+    if mode == "strict":
+        return _STRICT_SYSTEM
+    if mode in ("broad", "hybrid"):
+        return _broad_system_prompt(has_context)
+    if not subject_id:
+        return _broad_system_prompt(has_context)
+    return _STRICT_SYSTEM
 
 _SOLVE_SYSTEM = (
     "你是一位专业的解题辅导助手。"
@@ -101,7 +129,7 @@ _FEYNMAN_SYSTEM = (
 
 _SYSTEM_PROMPTS = {
     "strict": _STRICT_SYSTEM,
-    "broad": _BROAD_SYSTEM,
+    "broad": _broad_system_prompt(True),
     "solve": _SOLVE_SYSTEM,
 }
 
@@ -500,7 +528,7 @@ class RAGPipeline:
             )
         context = "\n\n".join(context_parts)
 
-        system_prompt = _SYSTEM_PROMPTS.get(mode, _BROAD_SYSTEM if not subject_id else _STRICT_SYSTEM)
+        system_prompt = _resolve_system_prompt(mode, bool(context), subject_id)
         if context:
             user_content = f"参考资料：\n{context}\n\n问题：{question}"
         else:
@@ -597,6 +625,7 @@ def _patch_rag_pipeline():
 
             # 阶段 1：向量粗筛 Top-RECALL_TOP_K
             recall_docs = vector_store.similarity_search_with_score(question, k=cfg.RECALL_TOP_K)
+            recall_docs = self._filter_recall_docs(recall_docs, subject_id)
 
             # 阶段 2：Reranker 精排
             from services.rerank_service import RerankService, RerankUnavailableError
@@ -709,7 +738,7 @@ def _patch_rag_pipeline():
             messages = [{"role": "system", "content": system_prompt}]
             messages.append({"role": "user", "content": question})
         else:
-            system_prompt = _SYSTEM_PROMPTS.get(mode, _STRICT_SYSTEM)
+            system_prompt = _resolve_system_prompt(mode, bool(context), subject_id)
             messages = [{"role": "system", "content": system_prompt}]
             if context:
                 messages.append({"role": "user", "content": f"参考资料：\n{context}\n\n问题：{question}"})
