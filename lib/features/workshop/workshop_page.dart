@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../routes/app_router.dart';
+import '../../widgets/diy_corner_badge.dart';
 import 'mini_app_models.dart';
 import 'mini_app_providers.dart';
 
@@ -22,6 +23,10 @@ class WorkshopPage extends ConsumerWidget {
         title: const Text('学习小软件工坊'),
         centerTitle: false,
         actions: [
+          const Padding(
+            padding: EdgeInsets.only(right: 4),
+            child: Center(child: DiyCornerBadge()),
+          ),
           IconButton(
             onPressed: () => ref.invalidate(miniAppsProvider),
             icon: const Icon(Icons.refresh_rounded),
@@ -180,68 +185,78 @@ class _MiniAppCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: cs.outlineVariant),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF0F766E), Color(0xFF2563EB)],
+                  Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF0F766E), Color(0xFF2563EB)],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(_icon(app.appType), color: Colors.white),
                       ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(_icon(app.appType), color: Colors.white),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          app.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                          ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              app.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _typeLabel(app.appType),
+                              style: TextStyle(
+                                color: cs.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _typeLabel(app.appType),
-                          style: TextStyle(
-                            color: cs.primary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                      const Icon(Icons.play_circle_outline_rounded),
+                    ],
                   ),
-                  const Icon(Icons.play_circle_outline_rounded),
+                  const SizedBox(height: 14),
+                  Text(
+                    app.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: cs.onSurfaceVariant, height: 1.35),
+                  ),
+                  const Spacer(),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _Badge(label: app.status),
+                      _Badge(label: app.validation.ok ? '校验通过' : '需要修订'),
+                      if (app.validation.warnings.isNotEmpty)
+                        _Badge(label: '${app.validation.warnings.length} 条提示'),
+                    ],
+                  ),
                 ],
               ),
-              const SizedBox(height: 14),
-              Text(
-                app.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: cs.onSurfaceVariant, height: 1.35),
-              ),
-              const Spacer(),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _Badge(label: app.status),
-                  _Badge(label: app.validation.ok ? '校验通过' : '需要修订'),
-                  if (app.validation.warnings.isNotEmpty)
-                    _Badge(label: '${app.validation.warnings.length} 条提示'),
-                ],
+              const Positioned(
+                top: 0,
+                right: 0,
+                child: DiyCornerBadge(),
               ),
             ],
           ),

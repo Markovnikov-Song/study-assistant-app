@@ -74,7 +74,7 @@ class CourseSpacePage extends ConsumerWidget {
               // ── ① 知识树 ──────────────────────────────────────────────
               _SectionHeader(
                 icon: Icons.account_tree_outlined,
-                title: '知识树',
+                title: '知识树（思维导图）',
                 subtitle: '${sessions.length} 份思维导图',
               ),
               const SizedBox(height: 8),

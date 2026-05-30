@@ -8,6 +8,7 @@ import '../../core/capability/capability_models.dart';
 import '../../core/capability/capability_providers.dart';
 import '../../core/theme/styles/export.dart';
 import '../../routes/app_router.dart';
+import '../../widgets/diy_corner_badge.dart';
 import '../workshop/mini_app_models.dart';
 import '../workshop/mini_app_providers.dart';
 
@@ -521,6 +522,8 @@ class _ToolCardState extends State<_ToolCard> {
     final cardColor = isClay
         ? Color.lerp(cs.surface, cs.surfaceContainerHighest, 0.30)!
         : cs.surface.withValues(alpha: 0.86);
+    final showDiyBadge =
+        widget.item.userCreated || widget.item.id == kWorkshopTool.id;
 
     return AnimatedScale(
       scale: _pressed ? 0.97 : 1,
@@ -567,49 +570,60 @@ class _ToolCardState extends State<_ToolCard> {
                   ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: widget.item.colors),
-                    borderRadius: BorderRadius.circular(isClay ? 18 : 16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: widget.item.colors.first.withValues(
-                          alpha: isClay ? 0.28 : 0.36,
-                        ),
-                        blurRadius: isClay ? 16 : 18,
-                        offset: const Offset(0, 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: widget.item.colors),
+                        borderRadius: BorderRadius.circular(isClay ? 18 : 16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: widget.item.colors.first.withValues(
+                              alpha: isClay ? 0.28 : 0.36,
+                            ),
+                            blurRadius: isClay ? 16 : 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: _ToolIcon(item: widget.item, size: 25),
+                      child: _ToolIcon(item: widget.item, size: 25),
+                    ),
+                    const Spacer(),
+                    Text(
+                      widget.item.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      widget.item.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.35,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
-                const Spacer(),
-                Text(
-                  widget.item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: cs.onSurface,
+                if (showDiyBadge)
+                  const Positioned(
+                    top: 0,
+                    right: 0,
+                    child: DiyCornerBadge(),
                   ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  widget.item.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.35,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
               ],
             ),
           ),
