@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../components/library/library_page.dart';
+import '../../core/motion/app_motion.dart';
 import '../../core/theme/styles/export.dart';
 import '../../providers/hint_provider.dart';
 import '../../providers/subject_provider.dart';
@@ -41,16 +42,24 @@ class ResponsiveShell extends ConsumerStatefulWidget {
 class _ResponsiveShellState extends ConsumerState<ResponsiveShell> {
   static const _routes = ['/', '/course-space', '/toolkit', '/profile'];
 
+  late final PageController _pageCtrl;
   int _currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _pageCtrl = PageController(initialPage: _currentIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshHints();
       _checkForUpdate();
       _runPendingOnboardingDemo();
     });
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _checkForUpdate() async {
@@ -101,19 +110,39 @@ class _ResponsiveShellState extends ConsumerState<ResponsiveShell> {
       final route = _routes[i];
       if (route == '/') {
         if (widget.location == '/') {
-          if (_currentIndex != i) setState(() => _currentIndex = i);
+          _setCurrentIndex(i, animate: true);
           return;
         }
       } else if (widget.location.startsWith(route)) {
-        if (_currentIndex != i) setState(() => _currentIndex = i);
+        _setCurrentIndex(i, animate: true);
         return;
       }
     }
   }
 
   void _onDestinationSelected(int index) {
-    setState(() => _currentIndex = index);
+    _setCurrentIndex(index, animate: true);
     context.go(_routes[index]);
+  }
+
+  void _setCurrentIndex(int index, {required bool animate}) {
+    if (_currentIndex == index) return;
+    setState(() => _currentIndex = index);
+    if (!animate) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_pageCtrl.hasClients) return;
+      final reduceMotion =
+          MediaQuery.maybeOf(context)?.disableAnimations == true;
+      if (reduceMotion) {
+        _pageCtrl.jumpToPage(index);
+        return;
+      }
+      _pageCtrl.animateToPage(
+        index,
+        duration: AppMotion.standard,
+        curve: AppMotion.emphasizedCurve,
+      );
+    });
   }
 
   @override
@@ -124,6 +153,7 @@ class _ResponsiveShellState extends ConsumerState<ResponsiveShell> {
     if (!isDesktop) {
       return _MobileShell(
         currentIndex: _currentIndex,
+        pageController: _pageCtrl,
         onDestinationSelected: _onDestinationSelected,
         isDark: isDark,
       );
@@ -141,11 +171,13 @@ class _ResponsiveShellState extends ConsumerState<ResponsiveShell> {
 
 class _MobileShell extends StatelessWidget {
   final int currentIndex;
+  final PageController pageController;
   final ValueChanged<int> onDestinationSelected;
   final bool isDark;
 
   const _MobileShell({
     required this.currentIndex,
+    required this.pageController,
     required this.onDestinationSelected,
     required this.isDark,
   });
@@ -160,8 +192,9 @@ class _MobileShell extends StatelessWidget {
           Positioned.fill(
             child: _PageBackground(pageIndex: currentIndex, isDark: isDark),
           ),
-          IndexedStack(
-            index: currentIndex,
+          PageView(
+            controller: pageController,
+            physics: const NeverScrollableScrollPhysics(),
             children: const [
               _KeepAlivePage(
                 child: ResponsiveChatPage(key: PageStorageKey('chat')),
@@ -261,7 +294,7 @@ class _DesktopShell extends ConsumerWidget {
                       sectionLabel: _tabs[currentIndex].$3,
                       styleId: styleId,
                     ),
-                    Expanded(child: _buildDesktopContent()),
+                    Expanded(child: _buildDesktopContent(context)),
                   ],
                 ),
               ],
@@ -272,13 +305,18 @@ class _DesktopShell extends ConsumerWidget {
     );
   }
 
-  Widget _buildDesktopContent() {
+  Widget _buildDesktopContent(BuildContext context) {
     // 仅根路径「/」显示答疑室；其它 Tab（/course-space 等）用 shell 的 child。
     // 勿用 currentIndex==0：从 Shell 内 push 全屏页失败时 index 可能仍为 0，会误显示答疑室。
-    if (location == '/' || location.isEmpty) {
-      return const ResponsiveChatPage();
-    }
-    return child;
+    final content = (location == '/' || location.isEmpty)
+        ? const ResponsiveChatPage()
+        : child;
+    final key = location == '/' || location.isEmpty ? 0 : currentIndex;
+    return AppMotion.shellSwitcher(
+      context: context,
+      index: key,
+      child: content,
+    );
   }
 }
 
@@ -559,54 +597,56 @@ class _DesktopNavItem extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(isClay ? 18 : 8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(isClay ? 18 : 8),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 40),
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? cs.primary.withValues(alpha: isClay ? 0.16 : 0.1)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(isClay ? 18 : 8),
-            border: isSelected
-                ? Border.all(color: cs.primary.withValues(alpha: 0.28))
-                : null,
-            boxShadow: isClay && isSelected
-                ? [
-                    BoxShadow(
-                      color: Theme.of(
-                        context,
-                      ).shadowColor.withValues(alpha: 0.16),
-                      blurRadius: 14,
-                      offset: const Offset(6, 6),
-                    ),
-                    BoxShadow(
-                      color: Colors.white.withValues(alpha: 0.70),
-                      blurRadius: 12,
-                      offset: const Offset(-6, -6),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 22,
-                color: isSelected ? cs.primary : cs.onSurfaceVariant,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? cs.primary : cs.onSurface,
+      child: AppMotion.pressed(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(isClay ? 18 : 8),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? cs.primary.withValues(alpha: isClay ? 0.16 : 0.1)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(isClay ? 18 : 8),
+              border: isSelected
+                  ? Border.all(color: cs.primary.withValues(alpha: 0.28))
+                  : null,
+              boxShadow: isClay && isSelected
+                  ? [
+                      BoxShadow(
+                        color: Theme.of(
+                          context,
+                        ).shadowColor.withValues(alpha: 0.16),
+                        blurRadius: 14,
+                        offset: const Offset(6, 6),
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.70),
+                        blurRadius: 12,
+                        offset: const Offset(-6, -6),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 22,
+                  color: isSelected ? cs.primary : cs.onSurfaceVariant,
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? cs.primary : cs.onSurface,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

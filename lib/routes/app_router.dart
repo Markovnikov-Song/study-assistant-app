@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/motion/app_motion.dart';
 import '../features/auth/login_page.dart';
 import '../features/auth/register_page.dart';
 import '../features/home/responsive_shell.dart';
@@ -89,139 +90,181 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/splash',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const SplashScreen(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const SplashScreen(), root: true),
       ),
       GoRoute(
         path: R.onboarding,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) =>
-            OnboardingPage(replay: state.uri.queryParameters['replay'] == '1'),
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          OnboardingPage(replay: state.uri.queryParameters['replay'] == '1'),
+          motion: AppRouteMotion.modal,
+        ),
       ),
 
       // ── Auth ──────────────────────────────────────────────────────────────
       GoRoute(
         path: R.login,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const LoginPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const LoginPage(), root: true),
       ),
       GoRoute(
         path: R.register,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const RegisterPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const RegisterPage()),
       ),
 
       // ── 独立全屏页面（push 覆盖 shell）────────────────────────────────────
       GoRoute(
         path: R.spec,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) => SpecPage(
-          prefilledSubjectIds: (state.uri.queryParameters['subjects'] ?? '')
-              .split(',')
-              .where((s) => s.isNotEmpty)
-              .map(int.tryParse)
-              .whereType<int>()
-              .toList(),
-          prefilledContext: state.uri.queryParameters['context'],
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          SpecPage(
+            prefilledSubjectIds: (state.uri.queryParameters['subjects'] ?? '')
+                .split(',')
+                .where((s) => s.isNotEmpty)
+                .map(int.tryParse)
+                .whereType<int>()
+                .toList(),
+            prefilledContext: state.uri.queryParameters['context'],
+          ),
+          motion: AppRouteMotion.modal,
         ),
       ),
       GoRoute(
         path: R.profileEdit,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const EditProfilePage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const EditProfilePage()),
       ),
       GoRoute(
         path: R.profileMemory,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const MemoryPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const MemoryPage()),
       ),
       GoRoute(
         path: R.profileSubjects,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const SubjectsPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const SubjectsPage()),
       ),
       GoRoute(
         path: R.profileTokenUsage,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const TokenUsagePage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const TokenUsagePage()),
       ),
       GoRoute(
         path: R.profileTokenDetail,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const TokenDetailPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const TokenDetailPage()),
       ),
       GoRoute(
         path: R.profileNotifications,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const NotificationSettingsPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const NotificationSettingsPage()),
       ),
       GoRoute(
         path: R.profileApiConfig,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const ApiConfigPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const ApiConfigPage()),
       ),
       GoRoute(
         path: R.profileLogs,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const LogsPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const LogsPage()),
       ),
       GoRoute(
         path: R.profileSettings,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const SettingsPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const SettingsPage()),
       ),
       GoRoute(
         path: R.profileResources,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const ResourcesPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const ResourcesPage()),
       ),
       GoRoute(
         path: R.profileHistory,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const HistoryPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const HistoryPage()),
       ),
       GoRoute(
         path: R.skillMarketplace,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const MarketplacePage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const MarketplacePage()),
       ),
       GoRoute(
         path: R.skillDialogCreate,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const DialogCreationPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const DialogCreationPage()),
       ),
       GoRoute(
         path: R.workshop,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const WorkshopPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const WorkshopPage()),
       ),
       GoRoute(
         path: R.workshopBuilder,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) => WorkshopBuilderPage(
-          initialRequest: state.uri.queryParameters['request'],
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          WorkshopBuilderPage(
+            initialRequest: state.uri.queryParameters['request'],
+          ),
+          motion: AppRouteMotion.drillIn,
         ),
       ),
       GoRoute(
         path: '/workshop/apps/:appId',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) =>
-            MiniAppRunPage(appId: state.pathParameters['appId']!),
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          MiniAppRunPage(appId: state.pathParameters['appId']!),
+          motion: AppRouteMotion.drillIn,
+        ),
       ),
       GoRoute(
         path: R.mindmapEntry,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) => MindmapEntryPage(
-          initialSubjectId: int.tryParse(
-            state.uri.queryParameters['subject'] ?? '',
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          MindmapEntryPage(
+            initialSubjectId: int.tryParse(
+              state.uri.queryParameters['subject'] ?? '',
+            ),
+            generateOnSelect: state.uri.queryParameters['generate'] == '1',
           ),
-          generateOnSelect: state.uri.queryParameters['generate'] == '1',
         ),
       ),
       GoRoute(
         path: '/profile/resources/:id',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) => SubjectDetailPage(
-          subjectId: int.parse(state.pathParameters['id']!),
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          SubjectDetailPage(subjectId: int.parse(state.pathParameters['id']!)),
+          motion: AppRouteMotion.drillIn,
         ),
       ),
 
@@ -229,20 +272,37 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/chat/:chatId',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) => ChatPage(chatId: state.pathParameters['chatId']),
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          ChatPage(chatId: state.pathParameters['chatId']),
+          motion: AppRouteMotion.drillIn,
+        ),
         routes: [
           GoRoute(
             path: 'subject/:subjectId',
-            builder: (_, state) => ChatPage(
-              chatId: state.pathParameters['chatId'],
-              subjectId: int.tryParse(state.pathParameters['subjectId'] ?? ''),
+            pageBuilder: (context, state) => _motionPage(
+              context,
+              state,
+              ChatPage(
+                chatId: state.pathParameters['chatId'],
+                subjectId: int.tryParse(
+                  state.pathParameters['subjectId'] ?? '',
+                ),
+              ),
+              motion: AppRouteMotion.drillIn,
             ),
           ),
           GoRoute(
             path: 'task/:taskId',
-            builder: (_, state) => ChatPage(
-              chatId: state.pathParameters['chatId'],
-              taskId: state.pathParameters['taskId'],
+            pageBuilder: (context, state) => _motionPage(
+              context,
+              state,
+              ChatPage(
+                chatId: state.pathParameters['chatId'],
+                taskId: state.pathParameters['taskId'],
+              ),
+              motion: AppRouteMotion.drillIn,
             ),
           ),
         ],
@@ -251,119 +311,182 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/chat/feynman',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) => ChatPage(
-          chatId: 'feynman_${DateTime.now().millisecondsSinceEpoch}',
-          feynmanTopic: state.uri.queryParameters['topic'],
-          subjectId: int.tryParse(
-            state.uri.queryParameters['subject_id'] ?? '',
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          ChatPage(
+            chatId: 'feynman_${DateTime.now().millisecondsSinceEpoch}',
+            feynmanTopic: state.uri.queryParameters['topic'],
+            subjectId: int.tryParse(
+              state.uri.queryParameters['subject_id'] ?? '',
+            ),
           ),
+          motion: AppRouteMotion.drillIn,
         ),
       ),
 
       // 工具箱子路由
       GoRoute(
         path: R.toolkitMistakeBook,
-        builder: (_, _) => const MistakeBookPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const MistakeBookPage()),
       ),
-      GoRoute(path: '/toolkit/review', builder: (_, _) => const MistakeBookPage()),
-      GoRoute(path: R.toolkitSolve, builder: (_, _) => const SolvePage()),
+      GoRoute(
+        path: '/toolkit/review',
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const MistakeBookPage()),
+      ),
+      GoRoute(
+        path: R.toolkitSolve,
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const SolvePage()),
+      ),
       GoRoute(
         path: R.toolkitPractice,
-        builder: (_, state) => PracticePage(
-          execution: CapabilityExecutionContext.fromQuery(
-            state.uri.queryParameters,
-            capabilityId: 'practice.start',
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          PracticePage(
+            execution: CapabilityExecutionContext.fromQuery(
+              state.uri.queryParameters,
+              capabilityId: 'practice.start',
+            ),
           ),
         ),
       ),
       GoRoute(
         path: R.toolkitQuiz,
-        builder: (_, state) => QuizPage(
-          execution: CapabilityExecutionContext.fromQuery(
-            state.uri.queryParameters,
-            capabilityId: 'quiz.generate',
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          QuizPage(
+            execution: CapabilityExecutionContext.fromQuery(
+              state.uri.queryParameters,
+              capabilityId: 'quiz.generate',
+            ),
           ),
         ),
       ),
       GoRoute(
         path: R.toolkitMemoryDrill,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) => MemoryDrillPage(
-          execution: CapabilityExecutionContext.fromQuery(
-            state.uri.queryParameters,
-            capabilityId: 'memory.drill',
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          MemoryDrillPage(
+            execution: CapabilityExecutionContext.fromQuery(
+              state.uri.queryParameters,
+              capabilityId: 'memory.drill',
+            ),
           ),
+          motion: AppRouteMotion.drillIn,
         ),
       ),
       GoRoute(
         path: R.toolkitSettings,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const ToolkitSettingsPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const ToolkitSettingsPage()),
       ),
       GoRoute(
         path: '/my-skills',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const MySkillsPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const MySkillsPage()),
       ),
       GoRoute(
         path: R.toolkitCalendar,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) => CalendarPage(
-          renderMode: state.uri.queryParameters['mode'] ?? 'full',
-          sceneSource: state.uri.queryParameters['source'] ?? 'user_active',
-          subjectId: int.tryParse(state.uri.queryParameters['subject'] ?? ''),
-          prefillDate: state.uri.queryParameters['date'] != null
-              ? DateTime.tryParse(state.uri.queryParameters['date']!)
-              : null,
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          CalendarPage(
+            renderMode: state.uri.queryParameters['mode'] ?? 'full',
+            sceneSource: state.uri.queryParameters['source'] ?? 'user_active',
+            subjectId: int.tryParse(state.uri.queryParameters['subject'] ?? ''),
+            prefillDate: state.uri.queryParameters['date'] != null
+                ? DateTime.tryParse(state.uri.queryParameters['date']!)
+                : null,
+          ),
+          motion: AppRouteMotion.drillIn,
         ),
         routes: [
           GoRoute(
             path: 'task/:taskId',
-            builder: (_, state) =>
-                CalendarPage(taskId: state.pathParameters['taskId']),
+            pageBuilder: (context, state) => _motionPage(
+              context,
+              state,
+              CalendarPage(taskId: state.pathParameters['taskId']),
+              motion: AppRouteMotion.drillIn,
+            ),
           ),
           GoRoute(
             path: 'countdown',
-            builder: (_, _) => const CountdownListPage(),
+            pageBuilder: (context, state) =>
+                _motionPage(context, state, const CountdownListPage()),
           ),
-          GoRoute(path: 'stats', builder: (_, _) => const StatsPanel()),
+          GoRoute(
+            path: 'stats',
+            pageBuilder: (context, state) =>
+                _motionPage(context, state, const StatsPanel()),
+          ),
         ],
       ),
       GoRoute(
         path: R.toolkitMindmapWorkshop,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final subjectId = int.tryParse(
             state.uri.queryParameters['subject'] ?? '',
           );
           final generateOnSelect = state.uri.queryParameters['generate'] == '1';
           if (subjectId != null) {
             // 直接进指定学科的详情页
-            return CourseSpacePage(
-              subjectId: subjectId,
-              openGenerateOnStart: generateOnSelect,
+            return _motionPage(
+              context,
+              state,
+              CourseSpacePage(
+                subjectId: subjectId,
+                openGenerateOnStart: generateOnSelect,
+              ),
+              motion: AppRouteMotion.drillIn,
             );
           }
           // 没有指定学科，显示学科选择页
-          return MindmapSubjectPickerPage(generateOnSelect: generateOnSelect);
+          return _motionPage(
+            context,
+            state,
+            MindmapSubjectPickerPage(generateOnSelect: generateOnSelect),
+          );
         },
       ),
       GoRoute(
         path: R.toolkitNotebooks,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, _) => const NotebookListPage(),
+        pageBuilder: (context, state) =>
+            _motionPage(context, state, const NotebookListPage()),
         routes: [
           GoRoute(
             path: ':notebookId',
-            builder: (_, state) => NotebookDetailPage(
-              notebookId: int.parse(state.pathParameters['notebookId']!),
+            pageBuilder: (context, state) => _motionPage(
+              context,
+              state,
+              NotebookDetailPage(
+                notebookId: int.parse(state.pathParameters['notebookId']!),
+              ),
+              motion: AppRouteMotion.drillIn,
             ),
             routes: [
               GoRoute(
                 path: 'notes/:noteId',
-                builder: (_, state) => NoteDetailPage(
-                  notebookId: int.parse(state.pathParameters['notebookId']!),
-                  noteId: int.parse(state.pathParameters['noteId']!),
+                pageBuilder: (context, state) => _motionPage(
+                  context,
+                  state,
+                  NoteDetailPage(
+                    notebookId: int.parse(state.pathParameters['notebookId']!),
+                    noteId: int.parse(state.pathParameters['noteId']!),
+                  ),
+                  motion: AppRouteMotion.drillIn,
                 ),
               ),
             ],
@@ -375,24 +498,39 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/course-space/:subjectId',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) => CourseSpacePage(
-          subjectId: int.parse(state.pathParameters['subjectId']!),
-          openGenerateOnStart: state.uri.queryParameters['generate'] == '1',
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          CourseSpacePage(
+            subjectId: int.parse(state.pathParameters['subjectId']!),
+            openGenerateOnStart: state.uri.queryParameters['generate'] == '1',
+          ),
+          motion: AppRouteMotion.drillIn,
         ),
         routes: [
           GoRoute(
             path: 'mindmap/:sessionId',
-            builder: (_, state) => EditableMindMapPage(
-              subjectId: int.parse(state.pathParameters['subjectId']!),
-              sessionId: int.parse(state.pathParameters['sessionId']!),
+            pageBuilder: (context, state) => _motionPage(
+              context,
+              state,
+              EditableMindMapPage(
+                subjectId: int.parse(state.pathParameters['subjectId']!),
+                sessionId: int.parse(state.pathParameters['sessionId']!),
+              ),
+              motion: AppRouteMotion.drillIn,
             ),
             routes: [
               GoRoute(
                 path: 'lecture',
-                builder: (_, state) => LecturePage(
-                  subjectId: int.parse(state.pathParameters['subjectId']!),
-                  sessionId: int.parse(state.pathParameters['sessionId']!),
-                  nodeId: state.uri.queryParameters['node_id'] ?? '',
+                pageBuilder: (context, state) => _motionPage(
+                  context,
+                  state,
+                  LecturePage(
+                    subjectId: int.parse(state.pathParameters['subjectId']!),
+                    sessionId: int.parse(state.pathParameters['sessionId']!),
+                    nodeId: state.uri.queryParameters['node_id'] ?? '',
+                  ),
+                  motion: AppRouteMotion.drillIn,
                 ),
               ),
             ],
@@ -408,10 +546,26 @@ final routerProvider = Provider<GoRouter>((ref) {
           return ResponsiveShell(location: location, child: child);
         },
         routes: [
-          GoRoute(path: '/', builder: (_, _) => const ChatPage()),
-          GoRoute(path: R.courseSpace, builder: (_, _) => const LibraryPage()),
-          GoRoute(path: R.toolkit, builder: (_, _) => const ToolkitPage()),
-          GoRoute(path: R.profile, builder: (_, _) => const ProfilePage()),
+          GoRoute(
+            path: '/',
+            pageBuilder: (context, state) =>
+                _motionPage(context, state, const ChatPage(), root: true),
+          ),
+          GoRoute(
+            path: R.courseSpace,
+            pageBuilder: (context, state) =>
+                _motionPage(context, state, const LibraryPage(), root: true),
+          ),
+          GoRoute(
+            path: R.toolkit,
+            pageBuilder: (context, state) =>
+                _motionPage(context, state, const ToolkitPage(), root: true),
+          ),
+          GoRoute(
+            path: R.profile,
+            pageBuilder: (context, state) =>
+                _motionPage(context, state, const ProfilePage(), root: true),
+          ),
         ],
       ),
     ],
@@ -431,4 +585,19 @@ class _RouterNotifier extends ChangeNotifier {
     isLoggedIn = ref.read(authProvider).isAuthenticated;
     isRestoring = ref.read(authProvider).isRestoring;
   }
+}
+
+Page<void> _motionPage(
+  BuildContext context,
+  GoRouterState state,
+  Widget child, {
+  bool root = false,
+  AppRouteMotion motion = AppRouteMotion.standard,
+}) {
+  return AppMotion.page<void>(
+    context,
+    state,
+    child,
+    motion: root ? AppRouteMotion.root : motion,
+  );
 }
