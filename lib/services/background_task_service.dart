@@ -30,8 +30,7 @@ class BackgroundTaskService {
     
     if (_getTotalActiveTasks() == 1) {
       // 第一个任务启动时，启用 WakeLock
-      await WakelockPlus.enable();
-      debugPrint('[BackgroundTask] WakeLock enabled for $type');
+      await _setWakelockEnabled(true, reason: 'enabled for $type');
     }
     
     debugPrint('[BackgroundTask] Task started: $type (active: ${_activeTasks[type]})');
@@ -51,8 +50,7 @@ class BackgroundTaskService {
       
       if (_getTotalActiveTasks() == 0) {
         // 所有任务都结束了，释放 WakeLock
-        await WakelockPlus.disable();
-        debugPrint('[BackgroundTask] WakeLock disabled - all tasks completed');
+        await _setWakelockEnabled(false, reason: 'disabled - all tasks completed');
       }
     }
   }
@@ -64,8 +62,7 @@ class BackgroundTaskService {
       debugPrint('[BackgroundTask] All tasks cancelled: $type');
       
       if (_getTotalActiveTasks() == 0) {
-        await WakelockPlus.disable();
-        debugPrint('[BackgroundTask] WakeLock disabled - all tasks cancelled');
+        await _setWakelockEnabled(false, reason: 'disabled - all tasks cancelled');
       }
     }
   }
@@ -73,11 +70,24 @@ class BackgroundTaskService {
   /// 强制结束所有任务
   Future<void> cancelAll() async {
     _activeTasks.clear();
-    await WakelockPlus.disable();
-    debugPrint('[BackgroundTask] All tasks cancelled, WakeLock disabled');
+    await _setWakelockEnabled(false, reason: 'disabled - all tasks cancelled');
+    debugPrint('[BackgroundTask] All tasks cancelled');
   }
 
   /// 获取当前活跃任务总数
+  Future<void> _setWakelockEnabled(bool enabled, {required String reason}) async {
+    try {
+      if (enabled) {
+        await WakelockPlus.enable();
+      } else {
+        await WakelockPlus.disable();
+      }
+      debugPrint('[BackgroundTask] WakeLock $reason');
+    } catch (e) {
+      debugPrint('[BackgroundTask] WakeLock unavailable: $e');
+    }
+  }
+
   int _getTotalActiveTasks() {
     return _activeTasks.values.fold(0, (sum, count) => sum + count);
   }

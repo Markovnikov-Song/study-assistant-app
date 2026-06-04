@@ -1,5 +1,9 @@
 # 伴学 - AI 智能学习助手
 
+> 当前项目的权威文档入口是 [`docs/README.md`](docs/README.md)。
+> 根目录 README 只保留项目概览和快速入口；功能状态、复原说明、模块地图、平台权限和旧文档审计请以 `docs/` 为准。
+> `.kiro/specs/` 是历史规格，不应作为当前实现事实来源。
+
 [![Flutter](https://img.shields.io/badge/Flutter-3.11+-02569B?style=flat-square&logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.11+-0175C2?style=flat-square&logo=dart)](https://dart.dev)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.95+-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)

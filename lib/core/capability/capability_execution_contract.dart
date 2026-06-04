@@ -20,16 +20,15 @@ class CapabilityExecutionContext {
   factory CapabilityExecutionContext.fromQuery(
     Map<String, String> query, {
     required String capabilityId,
-  }) =>
-      CapabilityExecutionContext(
-        capabilityId: capabilityId,
-        topic: query['topic'] ?? '',
-        count: int.tryParse(query['count'] ?? ''),
-        contentType: query['content_type'],
-        planId: int.tryParse(query['plan_id'] ?? ''),
-        itemId: int.tryParse(query['item_id'] ?? ''),
-        params: Map.of(query),
-      );
+  }) => CapabilityExecutionContext(
+    capabilityId: capabilityId,
+    topic: query['topic'] ?? '',
+    count: int.tryParse(query['count'] ?? ''),
+    contentType: query['content_type'],
+    planId: int.tryParse(query['plan_id'] ?? ''),
+    itemId: int.tryParse(query['item_id'] ?? ''),
+    params: Map.of(query),
+  );
 
   bool get isPlanBound => planId != null && itemId != null;
 
@@ -43,14 +42,13 @@ class CapabilityExecutionContext {
       if (itemId != null) 'item_id': '$itemId',
       if (params['source_mode'] != null)
         'source_mode': '${params['source_mode']}',
+      if (params['subject_id'] != null) 'subject_id': '${params['subject_id']}',
+      if (params['node_id'] != null) 'node_id': '${params['node_id']}',
     };
   }
 }
 
-String appendCapabilityQuery(
-  String route,
-  CapabilityExecutionContext context,
-) {
+String appendCapabilityQuery(String route, CapabilityExecutionContext context) {
   final query = context.toQuery();
   if (query.isEmpty) return route;
   return '$route?${Uri(queryParameters: query).query}';

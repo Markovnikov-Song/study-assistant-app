@@ -4,6 +4,7 @@ import '../models/calendar_models.dart';
 import '../services/calendar_api_service.dart';
 import '../../../core/event_bus/app_event_bus.dart';
 import '../../../core/event_bus/calendar_events.dart';
+import 'focus_guard_provider.dart';
 
 // ── 视图模式 ──────────────────────────────────────────────────────────────────
 
@@ -14,8 +15,8 @@ class CalendarViewModeNotifier extends StateNotifier<ViewMode> {
 
 final calendarViewModeProvider =
     StateNotifierProvider<CalendarViewModeNotifier, ViewMode>(
-  (_) => CalendarViewModeNotifier(),
-);
+      (_) => CalendarViewModeNotifier(),
+    );
 
 // ── 聚焦日期 ──────────────────────────────────────────────────────────────────
 
@@ -27,17 +28,17 @@ class CalendarFocusedDateNotifier extends StateNotifier<DateTime> {
 
 final calendarFocusedDateProvider =
     StateNotifierProvider<CalendarFocusedDateNotifier, DateTime>(
-  (_) => CalendarFocusedDateNotifier(),
-);
+      (_) => CalendarFocusedDateNotifier(),
+    );
 
 // ── 事件列表（按日期范围）────────────────────────────────────────────────────
 
 final calendarEventsProvider =
     FutureProvider.family<List<CalendarEvent>, DateRange>((ref, range) async {
-  ref.keepAlive(); // 已加载的月份数据保留在内存，切 tab 不重复请求
-  final api = ref.watch(calendarApiServiceProvider);
-  return api.getEvents(startDate: range.startIso, endDate: range.endIso);
-});
+      ref.keepAlive(); // 已加载的月份数据保留在内存，切 tab 不重复请求
+      final api = ref.watch(calendarApiServiceProvider);
+      return api.getEvents(startDate: range.startIso, endDate: range.endIso);
+    });
 
 // ── 今日事件 + 完成率 ─────────────────────────────────────────────────────────
 
@@ -48,15 +49,19 @@ final todayEventsProvider = FutureProvider<TodayEventsResult>((ref) async {
 
 // ── 活跃例程列表 ──────────────────────────────────────────────────────────────
 
-final calendarRoutinesProvider = FutureProvider<List<CalendarRoutine>>((ref) async {
+final calendarRoutinesProvider = FutureProvider<List<CalendarRoutine>>((
+  ref,
+) async {
   final api = ref.watch(calendarApiServiceProvider);
   return api.getRoutines();
 });
 
 // ── 统计数据 ──────────────────────────────────────────────────────────────────
 
-final calendarStatsProvider =
-    FutureProvider.family<CalendarStats, String>((ref, period) async {
+final calendarStatsProvider = FutureProvider.family<CalendarStats, String>((
+  ref,
+  period,
+) async {
   ref.keepAlive(); // 统计数据保留，避免切 tab 重复请求
   final api = ref.watch(calendarApiServiceProvider);
   return api.getStats(period: period);
@@ -82,6 +87,7 @@ class PomodoroTimerNotifier extends StateNotifier<PomodoroTimerState> {
       completedPomodoros: state.completedPomodoros,
     );
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+    _ref.read(focusGuardProvider.notifier).activateForSession();
   }
 
   void pause() {
@@ -97,20 +103,19 @@ class PomodoroTimerNotifier extends StateNotifier<PomodoroTimerState> {
 
   Future<void> stop({bool markCompleted = false}) async {
     _ticker?.cancel();
+    await _ref.read(focusGuardProvider.notifier).deactivateForSession();
     final elapsed = state.elapsedSeconds;
     final event = state.currentEvent;
     if (event != null && elapsed > 0) {
       final durationMin = (elapsed / 60).ceil();
       await _writeSession(event, durationMin, 0);
       if (markCompleted) {
-        await _ref.read(calendarApiServiceProvider).updateEvent(
-          event.id,
-          {'is_completed': true},
+        await _ref.read(calendarApiServiceProvider).updateEvent(event.id, {
+          'is_completed': true,
+        });
+        AppEventBus.instance.fire(
+          CalendarEventCompleted(eventId: event.id, subjectId: event.subjectId),
         );
-        AppEventBus.instance.fire(CalendarEventCompleted(
-          eventId: event.id,
-          subjectId: event.subjectId,
-        ));
       }
     }
     state = PomodoroTimerState.idle();
@@ -136,29 +141,29 @@ class PomodoroTimerNotifier extends StateNotifier<PomodoroTimerState> {
     final session = await _writeSession(event, state.durationMinutes, 1);
     final newCompleted = state.completedPomodoros + 1;
 
-    AppEventBus.instance.fire(PomodoroCompleted(
-      eventId: event.id,
-      durationMinutes: state.durationMinutes,
-      sessionId: session.id,
-    ));
+    AppEventBus.instance.fire(
+      PomodoroCompleted(
+        eventId: event.id,
+        durationMinutes: state.durationMinutes,
+        sessionId: session.id,
+      ),
+    );
 
     // 更新实际学习时长
-    final newActual = (event.actualDurationMinutes ?? 0) + state.durationMinutes;
-    await _ref.read(calendarApiServiceProvider).updateEvent(
-      event.id,
-      {'actual_duration_minutes': newActual},
-    );
+    final newActual =
+        (event.actualDurationMinutes ?? 0) + state.durationMinutes;
+    await _ref.read(calendarApiServiceProvider).updateEvent(event.id, {
+      'actual_duration_minutes': newActual,
+    });
 
     // 累计时长达标自动完成
     if (newActual >= event.durationMinutes) {
-      await _ref.read(calendarApiServiceProvider).updateEvent(
-        event.id,
-        {'is_completed': true},
+      await _ref.read(calendarApiServiceProvider).updateEvent(event.id, {
+        'is_completed': true,
+      });
+      AppEventBus.instance.fire(
+        CalendarEventCompleted(eventId: event.id, subjectId: event.subjectId),
       );
-      AppEventBus.instance.fire(CalendarEventCompleted(
-        eventId: event.id,
-        subjectId: event.subjectId,
-      ));
     }
 
     // 进入休息阶段（5 分钟）
@@ -178,7 +183,8 @@ class PomodoroTimerNotifier extends StateNotifier<PomodoroTimerState> {
     int pomodoroCount,
   ) async {
     final now = DateTime.now();
-    final started = _sessionStart ?? now.subtract(Duration(minutes: durationMin));
+    final started =
+        _sessionStart ?? now.subtract(Duration(minutes: durationMin));
     return _ref.read(calendarApiServiceProvider).createStudySession({
       'event_id': event.id,
       'subject_id': event.subjectId,
@@ -198,5 +204,5 @@ class PomodoroTimerNotifier extends StateNotifier<PomodoroTimerState> {
 
 final pomodoroTimerProvider =
     StateNotifierProvider<PomodoroTimerNotifier, PomodoroTimerState>(
-  (ref) => PomodoroTimerNotifier(ref),
-);
+      (ref) => PomodoroTimerNotifier(ref),
+    );

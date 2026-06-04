@@ -1522,7 +1522,8 @@ class _Bubble extends ConsumerWidget {
                 if (!forceRawText && message.content.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   SolveResultActionBar(
-                    isSaved: false,
+                    isSavedToNotebook: false,
+                    isSavedToMistakes: false,
                     onSaveToNotebook: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('请在解题专页中保存结果')),

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from deps import get_current_user
 from services.rag_pipeline import RAGPipeline, RAGStreamContext, RAGNeedsConfirmation
 from services.mindmap_service import MindMapService
-from database import get_session as db_session, ConversationHistory
+from database import Document, get_session as db_session, ConversationHistory
 
 router = APIRouter()
 _rag = RAGPipeline()
@@ -189,13 +189,41 @@ def mindmap(body: MindMapIn, user=Depends(get_current_user)):
     if not session_id:
         session_id = _rag.create_session(user_id=user["id"], subject_id=body.subject_id, session_type="mindmap")
 
+    source_label = "全部资料"
+    source_payload = {"resource_scope_label": source_label, "scope": "all"}
+    if body.doc_id is not None:
+        with db_session() as db:
+            doc = (
+                db.query(Document)
+                .filter_by(
+                    id=body.doc_id,
+                    subject_id=body.subject_id,
+                    user_id=user["id"],
+                )
+                .first()
+            )
+            if not doc:
+                raise HTTPException(404, "资料不存在")
+            source_label = doc.filename
+            source_payload = {
+                "resource_scope_label": source_label,
+                "scope": "document",
+                "doc_id": body.doc_id,
+                "filename": doc.filename,
+            }
+
     try:
         content = _mindmap.generate_from_subject(body.subject_id, body.doc_id)
     except Exception as e:
         raise HTTPException(500, str(e))
 
     with db_session() as db:
-        db.add(ConversationHistory(session_id=session_id, role="user", content="生成思维导图"))
+        db.add(ConversationHistory(
+            session_id=session_id,
+            role="user",
+            content=f"基于{source_label}生成思维导图",
+            sources=source_payload,
+        ))
         db.add(ConversationHistory(session_id=session_id, role="assistant", content=content))
 
     # 异步触发知识关联图生成（不阻塞响应）
@@ -317,7 +345,15 @@ def custom_mindmap(body: CustomMindMapIn, user=Depends(get_current_user)):
                 user_id=user["id"], subject_id=body.subject_id, session_type="mindmap"
             )
         with db_session() as db:
-            db.add(ConversationHistory(session_id=session_id, role="user", content=f"自建导图：{topic[:50]}"))
+            db.add(ConversationHistory(
+                session_id=session_id,
+                role="user",
+                content=f"自建导图：{topic[:50]}",
+                sources={
+                    "resource_scope_label": f"自定义主题：{topic[:30]}",
+                    "scope": "custom",
+                },
+            ))
             db.add(ConversationHistory(session_id=session_id, role="assistant", content=content))
 
     return MindMapOut(session_id=session_id or 0, content=content)

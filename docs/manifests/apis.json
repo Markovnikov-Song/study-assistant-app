@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at": "2026-06-04",
+  "apis": [
+    {"method": "GET", "path": "/api/subjects", "feature": "subjects.resources_rag", "request": "include_archived?", "response": "Subject[]", "tests": ["subject_resource_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/subjects", "feature": "subjects.resources_rag", "request": "name, category?, description?, color_index?", "response": "Subject", "tests": ["subject_resource_flow.spec.ts"]},
+    {"method": "GET", "path": "/api/documents", "feature": "subjects.resources_rag", "request": "subject_id", "response": "StudyDocument[]", "tests": ["subject_resource_flow.spec.ts"]},
+    {"method": "GET", "path": "/api/documents/knowledge-base", "feature": "subjects.resources_rag", "request": "subject_id", "response": "SubjectKnowledgeBase", "tests": ["subject_resource_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/documents/reindex-all", "feature": "subjects.resources_rag", "request": "subject_id", "response": "ok", "tests": ["subject_resource_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/chat/query/stream", "feature": "chat.cas", "request": "message, subject_id, session_id?, mode", "response": "SSE tokens, [SESSION_ID], [SOURCES], [DONE]", "tests": ["chat_provider_sources_test.dart"]},
+    {"method": "POST", "path": "/api/cas/dispatch", "feature": "solve.assistant", "request": "solve action payload", "response": "SSE solve events", "tests": ["solve_flow.spec.ts"]},
+    {"method": "GET", "path": "/api/solve/sessions", "feature": "solve.assistant", "request": "pagination/filter", "response": "SolveSession[]", "tests": ["solve_flow.spec.ts"]},
+    {"method": "GET", "path": "/api/solve/sessions/{id}", "feature": "solve.assistant", "request": "session id", "response": "SolveSession detail", "tests": ["solve_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/notes", "feature": "notes.notebooks", "request": "notebook_id, role, original_content, title?, sources?", "response": "Note", "tests": ["solve_flow.spec.ts"]},
+    {"method": "GET", "path": "/api/notes/{id}", "feature": "notes.notebooks", "request": "note id", "response": "Note", "tests": ["notebook_flow.spec.ts"]},
+    {"method": "PATCH", "path": "/api/notes/{id}", "feature": "notes.notebooks", "request": "note update fields", "response": "Note", "tests": ["notebook_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/notes/{id}/polish", "feature": "notes.notebooks", "request": "optional style payload", "response": "polished_content", "tests": ["notebook_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/notes/{id}/import-to-rag", "feature": "notes.notebooks", "request": "note id", "response": "doc_id", "tests": ["notebook_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/exam/custom", "feature": "quiz.generation_practice", "request": "subject_id, source_mode, topic, question_types, type_counts, difficulty", "response": "questions", "tests": ["quiz_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/quiz/generate", "feature": "quiz.generation_practice", "request": "node_id, node_title, subject_id?, question_count", "response": "questions", "tests": ["practice_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/quiz/submit-answer", "feature": "quiz.generation_practice", "request": "question_id, user_answer, node_id, node_title, subject_id?", "response": "correct, added_to_mistake_book?, review_card_id?", "tests": ["practice_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/review/mistakes/from-practice", "feature": "review.mistakes", "request": "subject_id?, title?, content, node_id?, question_text?, user_answer?, correct_answer?", "response": "Mistake", "tests": ["solve_flow.spec.ts", "test_review_note_contracts.py"]},
+    {"method": "GET", "path": "/api/review/mistakes", "feature": "review.mistakes", "request": "status?, subject_id?, limit?", "response": "Mistake[]", "tests": ["mistake_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/review/review/submit", "feature": "review.mistakes", "request": "note_id, quality, review_content?, practice_correct?", "response": "ReviewSubmitResult", "tests": ["mistake_flow.spec.ts"]},
+    {"method": "GET", "path": "/api/calendar/events", "feature": "calendar.learning_calendar", "request": "date range", "response": "CalendarEvent[]", "tests": ["calendar_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/calendar/events", "feature": "calendar.learning_calendar", "request": "title, event_date, start_time, duration_minutes, reminder settings", "response": "CalendarEvent", "tests": ["calendar_flow.spec.ts"]},
+    {"method": "POST", "path": "/api/calendar/sessions", "feature": "calendar.pomodoro_focus_guard", "request": "event_id?, duration_minutes, pomodoro_count", "response": "StudySession", "tests": ["calendar_flow.spec.ts"]},
+    {"method": "GET", "path": "/api/mini-apps", "feature": "workshop.mini_apps", "request": "user scope", "response": "MiniApp[]", "tests": ["p1_shell_flow.spec.ts"]}
+  ],
+  "known_gaps": [
+    "尚未为所有 API 补齐错误响应、权限和分页说明。",
+    "真实后端 E2E 需要独立测试数据库和清理脚本。"
+  ]
+}

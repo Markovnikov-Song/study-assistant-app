@@ -9,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 
-import '../../core/constants/api_constants.dart';
 import '../../core/network/dio_client.dart';
 import '../../core/storage/storage_service.dart';
 import '../../features/solve/models/solve_session.dart';
@@ -17,9 +16,12 @@ import '../../features/solve/services/solve_history_service.dart';
 import '../../features/solve/widgets/solve_history_sheet.dart';
 import '../../models/notebook.dart';
 import '../../models/solve_session_model.dart';
+import '../../models/subject.dart';
 import '../../providers/notebook_provider.dart';
 import '../../providers/solve_prefill_provider.dart';
+import '../../providers/subject_provider.dart';
 import '../../services/notebook_service.dart';
+import '../../services/review_service.dart';
 import '../../services/solve_sse_client.dart';
 import '../../widgets/cot_collapsible_view.dart';
 import '../../widgets/markdown_latex_view.dart';
@@ -190,11 +192,19 @@ class _SolveSessionNotifier extends StateNotifier<SolveSessionModel> {
     state = state.copyWith(isThinkingExpanded: !state.isThinkingExpanded);
   }
 
-  /// 将指定消息标记为已入库
-  void markSaved(int messageIndex) {
+  /// 将指定消息标记为已收藏到笔记本
+  void markSavedToNotebook(int messageIndex) {
     if (messageIndex < 0 || messageIndex >= state.messages.length) return;
     final msgs = List<SolveMessage>.from(state.messages);
-    msgs[messageIndex] = msgs[messageIndex].copyWith(isSaved: true);
+    msgs[messageIndex] = msgs[messageIndex].copyWith(isSavedToNotebook: true);
+    state = state.copyWith(messages: msgs);
+  }
+
+  /// 将指定消息标记为已加入错题本
+  void markSavedToMistakes(int messageIndex) {
+    if (messageIndex < 0 || messageIndex >= state.messages.length) return;
+    final msgs = List<SolveMessage>.from(state.messages);
+    msgs[messageIndex] = msgs[messageIndex].copyWith(isSavedToMistakes: true);
     state = state.copyWith(messages: msgs);
   }
 
@@ -398,18 +408,26 @@ class _SolvePageState extends ConsumerState<SolvePage> {
                         final isStreamingThis =
                             session.isStreaming &&
                             i == session.messages.length - 1;
+                        final sourceMessage = _previousUserMessage(
+                          session.messages,
+                          i,
+                        );
                         return _AiBubble(
                           key: ValueKey('ai_$i'),
                           message: msg,
+                          sourceMessage: sourceMessage,
                           messageIndex: i,
                           isStreaming: isStreamingThis,
                           isThinkingExpanded: session.isThinkingExpanded,
                           onToggleThinking: () => ref
                               .read(_solveSessionProvider.notifier)
                               .toggleThinking(),
-                          onMarkSaved: () => ref
+                          onSavedToNotebook: () => ref
                               .read(_solveSessionProvider.notifier)
-                              .markSaved(i),
+                              .markSavedToNotebook(i),
+                          onSavedToMistakes: () => ref
+                              .read(_solveSessionProvider.notifier)
+                              .markSavedToMistakes(i),
                         );
                       }
                     },
@@ -424,6 +442,13 @@ class _SolvePageState extends ConsumerState<SolvePage> {
         ],
       ),
     );
+  }
+
+  SolveMessage? _previousUserMessage(List<SolveMessage> messages, int index) {
+    for (var i = index - 1; i >= 0; i--) {
+      if (messages[i].role == 'user') return messages[i];
+    }
+    return null;
   }
 }
 
@@ -555,20 +580,24 @@ class _ImageThumbnailGrid extends StatelessWidget {
 
 class _AiBubble extends ConsumerWidget {
   final SolveMessage message;
+  final SolveMessage? sourceMessage;
   final int messageIndex;
   final bool isStreaming;
   final bool isThinkingExpanded;
   final VoidCallback onToggleThinking;
-  final VoidCallback onMarkSaved;
+  final VoidCallback onSavedToNotebook;
+  final VoidCallback onSavedToMistakes;
 
   const _AiBubble({
     super.key,
     required this.message,
+    required this.sourceMessage,
     required this.messageIndex,
     required this.isStreaming,
     required this.isThinkingExpanded,
     required this.onToggleThinking,
-    required this.onMarkSaved,
+    required this.onSavedToNotebook,
+    required this.onSavedToMistakes,
   });
 
   /// 解析 <think>...</think> 块，返回 (thinkingContent, mainContent)
@@ -666,7 +695,8 @@ class _AiBubble extends ConsumerWidget {
             if (!isStreaming && mainContent.isNotEmpty) ...[
               const SizedBox(height: 12),
               SolveResultActionBar(
-                isSaved: message.isSaved,
+                isSavedToNotebook: message.isSavedToNotebook,
+                isSavedToMistakes: message.isSavedToMistakes,
                 onSaveToNotebook: () => _saveToNotebook(context, ref),
                 onSaveToMistakes: () => _saveToMistakes(context, ref),
               ),
@@ -702,11 +732,13 @@ class _AiBubble extends ConsumerWidget {
       await NotebookService().createNotes([
         {
           'notebook_id': selectedNotebook.id,
+          'role': 'assistant',
           'original_content': message.content,
           'title': '解题记录',
+          'sources': {'type': 'solve', 'message_index': messageIndex},
         },
       ]);
-      onMarkSaved();
+      onSavedToNotebook();
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
@@ -723,33 +755,43 @@ class _AiBubble extends ConsumerWidget {
 
   /// 加入错题本
   Future<void> _saveToMistakes(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
+    final subjects = await ref.read(subjectsProvider.future);
+    if (!context.mounted) return;
+
+    final options = await showDialog<_MistakeSaveOptions>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('加入错题本'),
-        content: const Text('确认将此题加入错题本？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('确认'),
-          ),
-        ],
+      builder: (ctx) => _MistakeSaveDialog(
+        subjects: subjects.where((s) => !s.isArchived).toList(),
       ),
     );
 
-    if (confirmed != true || !context.mounted) return;
+    if (options == null || !context.mounted) return;
 
     try {
-      final dio = DioClient.instance.dio;
-      await dio.post(
-        ApiConstants.reviewMistakes,
-        data: {'content': message.content, 'title': '解题错题'},
+      final sourceText = sourceMessage?.content.trim() ?? '';
+      final hasSourceImages =
+          (sourceMessage?.imageBase64List?.isNotEmpty ?? false);
+      final questionText = sourceText.isNotEmpty
+          ? sourceText
+          : hasSourceImages
+          ? '图片题（原图见解题历史）'
+          : '解题助手记录';
+      final mistakeContent = [
+        '题目/追问：',
+        questionText,
+        '',
+        '解题解析：',
+        message.content,
+      ].join('\n');
+
+      await ReviewService().createMistakeFromPractice(
+        subjectId: options.subjectId,
+        title: '解题错题',
+        content: mistakeContent,
+        questionText: questionText,
+        mistakeCategory: options.category,
       );
-      onMarkSaved();
+      onSavedToMistakes();
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
@@ -818,6 +860,107 @@ class _NotebookPickerDialogState extends State<_NotebookPickerDialog> {
               ? null
               : () => Navigator.pop(context, _selected),
           child: const Text('确认'),
+        ),
+      ],
+    );
+  }
+}
+
+class _MistakeSaveOptions {
+  final int? subjectId;
+  final String category;
+
+  const _MistakeSaveOptions({required this.subjectId, required this.category});
+}
+
+class _MistakeSaveDialog extends StatefulWidget {
+  final List<Subject> subjects;
+
+  const _MistakeSaveDialog({required this.subjects});
+
+  @override
+  State<_MistakeSaveDialog> createState() => _MistakeSaveDialogState();
+}
+
+class _MistakeSaveDialogState extends State<_MistakeSaveDialog> {
+  int? _subjectId;
+  String _category = 'complete';
+
+  static const _categories = [
+    ('complete', '完全不会'),
+    ('concept', '概念模糊'),
+    ('calculation', '计算错误'),
+    ('careless', '粗心'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.subjects.isNotEmpty) {
+      _subjectId = widget.subjects.first.id;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: const Text('加入错题本'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownButtonFormField<int?>(
+            value: _subjectId,
+            decoration: const InputDecoration(
+              labelText: '关联科目',
+              helperText: '选择科目后会创建复习卡',
+            ),
+            items: [
+              const DropdownMenuItem<int?>(value: null, child: Text('暂不关联科目')),
+              ...widget.subjects.map(
+                (subject) => DropdownMenuItem<int?>(
+                  value: subject.id,
+                  child: Text(subject.name),
+                ),
+              ),
+            ],
+            onChanged: (value) => setState(() => _subjectId = value),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: _category,
+            decoration: const InputDecoration(labelText: '错因'),
+            items: [
+              for (final item in _categories)
+                DropdownMenuItem(value: item.$1, child: Text(item.$2)),
+            ],
+            onChanged: (value) {
+              if (value != null) setState(() => _category = value);
+            },
+          ),
+          if (widget.subjects.isEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              '还没有科目，将先保存到错题本；创建科目后可再补关联。',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(
+            context,
+            _MistakeSaveOptions(subjectId: _subjectId, category: _category),
+          ),
+          child: const Text('保存'),
         ),
       ],
     );

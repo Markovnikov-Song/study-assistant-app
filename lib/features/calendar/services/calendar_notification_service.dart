@@ -11,7 +11,8 @@ import '../models/calendar_models.dart';
 /// 负责为日历事件安排系统通知
 class CalendarNotificationService {
   CalendarNotificationService._();
-  static final CalendarNotificationService instance = CalendarNotificationService._();
+  static final CalendarNotificationService instance =
+      CalendarNotificationService._();
 
   final _notificationService = NotificationService.instance;
 
@@ -25,14 +26,18 @@ class CalendarNotificationService {
       // 解析事件开始时间
       final timeParts = event.startTime.split(':');
       if (timeParts.length != 2) {
-        debugPrint('[CalendarNotification] Invalid time format: ${event.startTime}');
+        debugPrint(
+          '[CalendarNotification] Invalid time format: ${event.startTime}',
+        );
         return;
       }
 
       final hour = int.tryParse(timeParts[0]);
       final minute = int.tryParse(timeParts[1]);
       if (hour == null || minute == null) {
-        debugPrint('[CalendarNotification] Invalid time values: ${event.startTime}');
+        debugPrint(
+          '[CalendarNotification] Invalid time values: ${event.startTime}',
+        );
         return;
       }
 
@@ -45,11 +50,15 @@ class CalendarNotificationService {
         minute,
       );
 
-      final reminderTime = eventDateTime.subtract(Duration(minutes: reminderMinutesBefore));
+      final reminderTime = eventDateTime.subtract(
+        Duration(minutes: reminderMinutesBefore),
+      );
 
       // 如果提醒时间已经过去，不安排通知
       if (reminderTime.isBefore(DateTime.now())) {
-        debugPrint('[CalendarNotification] Reminder time is in the past, skipping');
+        debugPrint(
+          '[CalendarNotification] Reminder time is in the past, skipping',
+        );
         return;
       }
 
@@ -61,7 +70,7 @@ class CalendarNotificationService {
       final body = '$reminderMinutesBefore 分钟后开始 · ${event.startTime}';
 
       // 安排通知
-      await _notificationService.scheduleReviewReminder(
+      await _notificationService.scheduleCalendarReminder(
         id: notificationId,
         title: title,
         body: body,
@@ -69,7 +78,9 @@ class CalendarNotificationService {
         payload: 'route:/toolkit/calendar',
       );
 
-      debugPrint('[CalendarNotification] Scheduled notification for event ${event.id} at $reminderTime');
+      debugPrint(
+        '[CalendarNotification] Scheduled notification for event ${event.id} at $reminderTime',
+      );
     } catch (e, st) {
       debugPrint('[CalendarNotification] Failed to schedule notification: $e');
       debugPrint(st.toString());
@@ -80,7 +91,9 @@ class CalendarNotificationService {
   Future<void> cancelEventNotification(int eventId) async {
     final notificationId = 10000 + eventId;
     await _notificationService.cancel(notificationId);
-    debugPrint('[CalendarNotification] Cancelled notification for event $eventId');
+    debugPrint(
+      '[CalendarNotification] Cancelled notification for event $eventId',
+    );
   }
 
   /// 批量安排事件通知
@@ -89,7 +102,10 @@ class CalendarNotificationService {
     int reminderMinutesBefore = 15,
   }) async {
     for (final event in events) {
-      await scheduleEventNotification(event, reminderMinutesBefore: reminderMinutesBefore);
+      await scheduleEventNotification(
+        event,
+        reminderMinutesBefore: reminderMinutesBefore,
+      );
     }
   }
 
@@ -112,6 +128,9 @@ class CalendarNotificationService {
     }
 
     // 重新安排
-    await scheduleMultipleEvents(events, reminderMinutesBefore: reminderMinutesBefore);
+    await scheduleMultipleEvents(
+      events,
+      reminderMinutesBefore: reminderMinutesBefore,
+    );
   }
 }

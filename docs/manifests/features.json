@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at": "2026-06-04",
+  "status_values": ["planned", "prototype", "partial", "implemented", "blocked", "deprecated"],
+  "features": [
+    {
+      "id": "onboarding.demo_pack",
+      "name": "引导页与示例资源包",
+      "status": "partial",
+      "doc": "docs/features/onboarding_demo.md",
+      "entry_routes": ["/onboarding"],
+      "user_goal": "让新用户下载示例资源，创建科目，并体验思维导图、讲义和练习闭环。",
+      "platforms": {"android": "partial", "ios": "partial", "web": "partial"},
+      "known_gaps": ["示例资源包版本、素材来源和自动导入流程仍需更细合同"]
+    },
+    {
+      "id": "subjects.resources_rag",
+      "name": "科目、资料库与 RAG 来源",
+      "status": "implemented",
+      "doc": "docs/features/subjects_resources_rag.md",
+      "entry_routes": ["/profile/subjects", "/profile/resources", "/profile/resources/:id"],
+      "user_goal": "管理科目、查看资料库状态、重建索引，并在资料问答中看到引用来源。",
+      "platforms": {"android": "implemented", "ios": "implemented", "web": "implemented"},
+      "known_gaps": ["真实文件选择器上传需 L3/L5 验收", "单文档三点菜单需补语义 key 后稳定自动化"]
+    },
+    {
+      "id": "course_space.mindmap_lecture",
+      "name": "科目空间、思维导图与讲义",
+      "status": "partial",
+      "doc": "docs/features/course_space_mindmap.md",
+      "entry_routes": ["/course-space", "/course-space/:subjectId", "/course-space/:subjectId/mindmap/:sessionId"],
+      "user_goal": "围绕一个科目组织资料、导图、讲义和学习进度。",
+      "platforms": {"android": "partial", "ios": "partial", "web": "partial"},
+      "known_gaps": ["知识关联图仍是扩展方向", "导图生成真实资料 E2E 仍需加强"]
+    },
+    {
+      "id": "chat.cas",
+      "name": "对话与能力调度",
+      "status": "partial",
+      "doc": "docs/features/chat_and_cas.md",
+      "entry_routes": ["/", "/chat/:chatId", "/chat/:chatId/subject/:subjectId"],
+      "user_goal": "从自然语言入口识别学习意图，并跳转或调用对应能力。",
+      "platforms": {"android": "partial", "ios": "partial", "web": "partial"},
+      "known_gaps": ["能力注册表和 action schema 仍需细化", "CAS 调度错误态需补测试"]
+    },
+    {
+      "id": "calendar.learning_calendar",
+      "name": "学习日历与提醒",
+      "status": "partial",
+      "doc": "docs/features/calendar.md",
+      "entry_routes": ["/toolkit/calendar", "/toolkit/calendar/countdown", "/toolkit/calendar/stats"],
+      "user_goal": "把学习计划落到具体日期、时间、提醒和统计。",
+      "platforms": {"android": "partial", "ios": "partial", "web": "blocked"},
+      "known_gaps": ["锁屏通知表现需真机验收", "iOS 通知样式由系统控制"]
+    },
+    {
+      "id": "calendar.pomodoro_focus_guard",
+      "name": "番茄钟与专注防打扰",
+      "status": "partial",
+      "doc": "docs/features/pomodoro_focus_guard.md",
+      "entry_routes": ["/toolkit/calendar"],
+      "user_goal": "从今日任务启动微观学习计时，并在 Android 上通过白名单减少分心应用干扰。",
+      "platforms": {"android": "partial", "ios": "blocked", "web": "blocked"},
+      "permissions": {
+        "android": ["PACKAGE_USAGE_STATS", "SYSTEM_ALERT_WINDOW", "FOREGROUND_SERVICE", "POST_NOTIFICATIONS"],
+        "ios": ["Screen Time entitlement", "FamilyControls", "ManagedSettings", "DeviceActivity"]
+      },
+      "known_gaps": ["Android 厂商权限需真机验收", "iOS 需 Apple 授权后才能真正锁应用"]
+    },
+    {
+      "id": "solve.assistant",
+      "name": "解题助手",
+      "status": "implemented",
+      "doc": "docs/features/solve_assistant.md",
+      "entry_routes": ["/toolkit/solve"],
+      "user_goal": "输入题目或图片后获得分步解析，并可沉淀为笔记或错题。",
+      "platforms": {"android": "implemented", "ios": "implemented", "web": "implemented"},
+      "known_gaps": ["Python 沙箱安全审计仍需加强", "OCR 真机性能需继续验证"]
+    },
+    {
+      "id": "quiz.generation_practice",
+      "name": "出题与去练习",
+      "status": "implemented",
+      "doc": "docs/features/quiz_generation.md",
+      "entry_routes": ["/toolkit/quiz", "/toolkit/practice"],
+      "user_goal": "按科目、知识点或计划生成题目并提交答案，错误进入错题体系。",
+      "platforms": {"android": "implemented", "ios": "implemented", "web": "implemented"},
+      "known_gaps": ["真实后端 E2E 题库数据仍需补充", "更多题型 UI 可继续增强"]
+    },
+    {
+      "id": "review.mistakes",
+      "name": "错题本与复习队列",
+      "status": "implemented",
+      "doc": "docs/features/mistakes_review.md",
+      "entry_routes": ["/toolkit/mistake-book", "/toolkit/review"],
+      "user_goal": "把错题作为复习对象归档、复盘并通过后端队列调度下次复习。",
+      "platforms": {"android": "implemented", "ios": "implemented", "web": "implemented"},
+      "known_gaps": ["复盘类似题练习仍可继续做深", "SM-2 参数解释可补更完整"]
+    },
+    {
+      "id": "notes.notebooks",
+      "name": "笔记系统",
+      "status": "implemented",
+      "doc": "docs/features/notes.md",
+      "entry_routes": ["/toolkit/notebooks", "/toolkit/notebooks/:notebookId", "/toolkit/notebooks/:notebookId/notes/:noteId"],
+      "user_goal": "保存学习内容、查看详情、AI 润色，并导入资料库供 RAG 使用。",
+      "platforms": {"android": "implemented", "ios": "implemented", "web": "implemented"},
+      "known_gaps": ["批量整理、标签和跨功能引用仍可增强"]
+    },
+    {
+      "id": "workshop.mini_apps",
+      "name": "软件工坊",
+      "status": "partial",
+      "doc": "docs/features/software_workshop.md",
+      "entry_routes": ["/workshop", "/workshop/builder", "/workshop/apps/:appId"],
+      "user_goal": "让用户用积木和资料生成小学习软件。",
+      "platforms": {"android": "partial", "ios": "partial", "web": "partial"},
+      "known_gaps": ["核心构建、发布、运行和安全边界仍是最大未完成域"]
+    }
+  ]
+}

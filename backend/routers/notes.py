@@ -68,6 +68,7 @@ class NoteOut(BaseModel):
 class NoteCreateItem(BaseModel):
     role: str
     original_content: str
+    title: Optional[str] = Field(default=None, max_length=64)
     source_session_id: Optional[int] = None
     source_message_id: Optional[int] = None
     sources: Optional[Any] = None
@@ -140,6 +141,7 @@ def batch_create_notes(body: BatchCreateNotesIn, user=Depends(get_current_user))
                 source_message_id=item.source_message_id,
                 role=item.role,
                 original_content=item.original_content,
+                title=item.title,
                 sources=item.sources,
             )
             db.add(note)

@@ -5,11 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/auth/login_page.dart';
 import '../features/auth/register_page.dart';
 import '../features/home/responsive_shell.dart';
+import '../features/onboarding/onboarding_page.dart';
 import '../features/chat/chat_page.dart';
 import '../screens/splash_screen.dart';
 import '../features/spec/spec_page.dart';
 import '../features/toolkit/toolkit_page.dart';
 import '../features/toolkit/toolkit_settings_page.dart';
+import '../features/practice/practice_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/profile/edit_profile_page.dart';
 import '../features/profile/memory_page.dart';
@@ -36,7 +38,6 @@ import '../components/notebook/notebook_detail_page.dart';
 import '../components/notebook/note_detail_page.dart';
 import '../components/solve/solve_page.dart';
 import '../components/quiz/quiz_page.dart';
-import '../components/review/review_page.dart';
 import '../components/mindmap_entry/mindmap_entry_page.dart';
 import '../core/capability/capability_execution_contract.dart';
 import '../features/memory_drill/memory_drill_page.dart';
@@ -74,8 +75,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
       final isAuth = loc == R.login || loc == R.register;
       final isSplash = loc == '/splash';
+      final isOnboarding = loc == R.onboarding;
       // Splash 页面和恢复中不做登录检查
-      if (isSplash || isRestoring) return null;
+      if (isSplash || isOnboarding || isRestoring) return null;
       if (!loggedIn && !isAuth) return R.login;
       if (loggedIn && isAuth) return R.chat;
       return null;
@@ -88,6 +90,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/splash',
         parentNavigatorKey: rootNavigatorKey,
         builder: (_, _) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: R.onboarding,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, state) =>
+            OnboardingPage(replay: state.uri.queryParameters['replay'] == '1'),
       ),
 
       // ── Auth ──────────────────────────────────────────────────────────────
@@ -257,8 +265,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: R.toolkitMistakeBook,
         builder: (_, _) => const MistakeBookPage(),
       ),
-      GoRoute(path: '/toolkit/review', builder: (_, _) => const ReviewPage()),
+      GoRoute(path: '/toolkit/review', builder: (_, _) => const MistakeBookPage()),
       GoRoute(path: R.toolkitSolve, builder: (_, _) => const SolvePage()),
+      GoRoute(
+        path: R.toolkitPractice,
+        builder: (_, state) => PracticePage(
+          execution: CapabilityExecutionContext.fromQuery(
+            state.uri.queryParameters,
+            capabilityId: 'practice.start',
+          ),
+        ),
+      ),
       GoRoute(
         path: R.toolkitQuiz,
         builder: (_, state) => QuizPage(

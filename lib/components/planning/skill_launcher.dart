@@ -11,13 +11,13 @@ class SkillLauncher {
     int? subjectId,
   }) async {
     final route = _getRoute(skillId, subjectId);
-    
+
     // 传递参数
     if (context.mounted) {
       context.push('$route?node=$nodeId');
     }
   }
-  
+
   static String _getRoute(String skillId, int? subjectId) {
     switch (skillId) {
       case 'mindmap_learning':
@@ -26,14 +26,14 @@ class SkillLauncher {
       case 'quiz':
       case 'comprehensive_test':
       case 'drill':
-        return '/toolkit/quiz';
+        return '/toolkit/practice';
       case 'mistake_review':
         return '/toolkit/mistake-book';
       case 'feynman_technique':
         return '/feynman';
       case 'lecture':
-        return subjectId != null 
-            ? '/course-space/$subjectId/lecture' 
+        return subjectId != null
+            ? '/course-space/$subjectId/lecture'
             : '/course-space';
       default:
         return '/toolkit';
@@ -47,7 +47,7 @@ class SkillRecommendationCard extends StatelessWidget {
   final String skillName;
   final String reason;
   final VoidCallback onLaunch;
-  
+
   const SkillRecommendationCard({
     super.key,
     required this.skillId,
@@ -55,11 +55,11 @@ class SkillRecommendationCard extends StatelessWidget {
     required this.reason,
     required this.onLaunch,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Card(
       child: InkWell(
         onTap: onLaunch,
@@ -112,7 +112,7 @@ class SkillRecommendationCard extends StatelessWidget {
       ),
     );
   }
-  
+
   IconData _getSkillIcon(String skillId) {
     switch (skillId) {
       case 'mindmap_learning':

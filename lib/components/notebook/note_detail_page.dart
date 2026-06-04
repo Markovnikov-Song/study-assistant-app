@@ -301,6 +301,16 @@ class _NoteDetailPageState extends ConsumerState<NoteDetailPage> {
       appBar: AppBar(
         title: Text(note.hasTitleSet ? note.title! : '笔记预览'),
         actions: [
+          IconButton(
+            onPressed: _polishContent,
+            icon: const Icon(Icons.auto_fix_high),
+            tooltip: 'AI 润色',
+          ),
+          IconButton(
+            onPressed: note.isImported ? null : () => _importToRag(note),
+            icon: const Icon(Icons.upload_file),
+            tooltip: note.isImported ? '已导入资料库' : '导入资料库',
+          ),
           TextButton(onPressed: () => setState(() => _isEditing = true), child: const Text('编辑')),
         ],
       ),

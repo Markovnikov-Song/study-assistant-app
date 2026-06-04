@@ -1,5 +1,11 @@
 # Learning OS 技术文档
 
+> **历史架构说明，不作为当前实现事实。**
+>
+> 本文写于早期“架构骨架”阶段，仍然保留了大量 Phase、stub、待实现等旧状态描述。当前项目已经新增了示例资源包、解题闭环、日历提醒、番茄钟悬浮球、防打扰入口、Playwright 验收清单等后续实现。
+>
+> AI 或开发者需要判断当前状态时，应优先阅读 `docs/README.md`、`docs/project_blueprint.md`、`docs/testing/playwright_acceptance_plan.md`、`docs/features/feature_manifest.json` 以及对应功能文档。本文只用于理解早期设计意图；与当前代码或权威文档冲突时，以当前代码、测试和权威文档为准。
+
 > 版本：架构第一阶段（骨架完成）
 > 最后更新：2026-04-17
 

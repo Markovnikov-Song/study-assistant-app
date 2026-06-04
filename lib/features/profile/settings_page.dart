@@ -60,6 +60,15 @@ class SettingsPage extends ConsumerWidget {
             onTap: () => context.push(R.profileNotifications),
             isDark: isDark,
           ),
+          _buildMenuTile(
+            context,
+            icon: Icons.play_circle_outline_rounded,
+            iconColor: const Color(0xFF0891B2),
+            title: '使用教学',
+            subtitle: '重新查看高等数学上手流程',
+            onTap: () => context.push(R.onboardingReplay),
+            isDark: isDark,
+          ),
           // AI
           _buildMenuTile(
             context,

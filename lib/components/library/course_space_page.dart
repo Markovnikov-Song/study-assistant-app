@@ -7,6 +7,7 @@ import '../../providers/chat_provider.dart';
 import '../../providers/document_provider.dart';
 import '../../providers/history_provider.dart';
 import '../../providers/library_provider.dart';
+import '../../providers/shared_preferences_provider.dart';
 import '../../routes/app_router.dart';
 
 /// CourseSpacePage — 学科详情页
@@ -202,8 +203,7 @@ class _MindmapSessionCard extends ConsumerWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () =>
-            context.push(AppRoutes.editableMindMap(subjectId, session.id)),
+        onTap: () => _openMindmap(context, widgetRef),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
           child: Row(
@@ -281,11 +281,13 @@ class _MindmapSessionCard extends ConsumerWidget {
               PopupMenuButton<String>(
                 icon: Icon(Icons.more_vert, size: 18, color: cs.outline),
                 onSelected: (v) {
+                  if (v == 'detail') _showDetailSheet(context, widgetRef);
                   if (v == 'rename') _showRenameDialog(context, widgetRef);
                   if (v == 'pin') _togglePin(context, widgetRef);
                   if (v == 'delete') _showDeleteDialog(context, widgetRef);
                 },
                 itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'detail', child: Text('详细')),
                   const PopupMenuItem(value: 'rename', child: Text('重命名')),
                   PopupMenuItem(
                     value: 'pin',
@@ -303,6 +305,135 @@ class _MindmapSessionCard extends ConsumerWidget {
 
   String _formatDate(DateTime dt) =>
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+
+  String _formatDateTime(DateTime dt) {
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return '${_formatDate(dt)} ${dt.hour.toString().padLeft(2, '0')}:$minute';
+  }
+
+  String get _title =>
+      session.title?.isNotEmpty == true ? session.title! : '未命名大纲';
+
+  String get _resourceLabel {
+    final label = session.resourceScopeLabel?.trim();
+    if (label != null && label.isNotEmpty) return label;
+    return '全部资料';
+  }
+
+  String get _lastAccessKey => 'mindmap_session.last_access.${session.id}';
+
+  DateTime? _readLocalLastAccess(WidgetRef ref) {
+    final raw = ref.read(sharedPreferencesProvider).getString(_lastAccessKey);
+    if (raw == null || raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
+  }
+
+  DateTime _latestVisitedAt(WidgetRef ref) {
+    final local = _readLocalLastAccess(ref);
+    final remote = session.lastVisitedAt;
+    if (local == null && remote == null) return session.createdAt;
+    if (local == null) return remote!;
+    if (remote == null) return local;
+    return local.isAfter(remote) ? local : remote;
+  }
+
+  Future<void> _openMindmap(BuildContext context, WidgetRef ref) async {
+    await ref
+        .read(sharedPreferencesProvider)
+        .setString(_lastAccessKey, DateTime.now().toIso8601String());
+    if (!context.mounted) return;
+    context.push(AppRoutes.editableMindMap(subjectId, session.id));
+  }
+
+  void _showDetailSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        final lastVisitedAt = _latestVisitedAt(ref);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: cs.primaryContainer,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.account_tree_outlined,
+                      color: cs.onPrimaryContainer,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${session.litNodes}/${session.totalNodes} 个知识点',
+                          style: TextStyle(
+                            color: cs.onSurfaceVariant,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              _MindmapDetailRow(
+                icon: Icons.source_outlined,
+                label: '资料来源',
+                value: _resourceLabel,
+              ),
+              _MindmapDetailRow(
+                icon: Icons.calendar_today_outlined,
+                label: '创建时间',
+                value: _formatDateTime(session.createdAt),
+              ),
+              _MindmapDetailRow(
+                icon: Icons.history_rounded,
+                label: '最近访问',
+                value: _formatDateTime(lastVisitedAt),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _openMindmap(context, ref);
+                  },
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  label: const Text('打开思维导图'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Future<void> _togglePin(BuildContext context, WidgetRef ref) async {
     try {
@@ -378,6 +509,54 @@ class _MindmapSessionCard extends ConsumerWidget {
                   .deleteSession(session.id);
             },
             child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MindmapDetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _MindmapDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: cs.primary),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 74,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: cs.onSurfaceVariant,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: cs.onSurface,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),

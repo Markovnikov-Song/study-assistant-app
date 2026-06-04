@@ -9,8 +9,10 @@ import '../../components/library/library_page.dart';
 import '../../core/theme/styles/export.dart';
 import '../../providers/hint_provider.dart';
 import '../../providers/subject_provider.dart';
+import '../../routes/app_routes.dart';
 import '../../services/update_service.dart';
 import '../chat/responsive_chat_page.dart';
+import '../onboarding/onboarding_demo_service.dart';
 import '../profile/profile_page.dart';
 import '../toolkit/toolkit_page.dart';
 import '../update/update_dialog.dart';
@@ -47,6 +49,7 @@ class _ResponsiveShellState extends ConsumerState<ResponsiveShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshHints();
       _checkForUpdate();
+      _runPendingOnboardingDemo();
     });
   }
 
@@ -54,6 +57,21 @@ class _ResponsiveShellState extends ConsumerState<ResponsiveShell> {
     final result = await UpdateService.instance.checkForUpdate();
     if (!result.hasUpdate || !mounted) return;
     await showUpdateDialog(context, result.info!, isForced: result.isForced);
+  }
+
+  Future<void> _runPendingOnboardingDemo() async {
+    try {
+      final result = await ref
+          .read(onboardingDemoServiceProvider)
+          .runPendingDemoSetup();
+      if (!mounted || result == null || result.subjectId == null) return;
+      context.go(R.courseSpaceSubject(result.subjectId!, generate: true));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已为你创建高等数学示例课程，并导入入门讲义。')));
+    } catch (e) {
+      debugPrint('[ResponsiveShell] onboarding demo setup failed: $e');
+    }
   }
 
   Future<void> _refreshHints() async {
@@ -255,7 +273,11 @@ class _DesktopShell extends ConsumerWidget {
   }
 
   Widget _buildDesktopContent() {
-    if (currentIndex == 0) return const ResponsiveChatPage();
+    // 仅根路径「/」显示答疑室；其它 Tab（/course-space 等）用 shell 的 child。
+    // 勿用 currentIndex==0：从 Shell 内 push 全屏页失败时 index 可能仍为 0，会误显示答疑室。
+    if (location == '/' || location.isEmpty) {
+      return const ResponsiveChatPage();
+    }
     return child;
   }
 }

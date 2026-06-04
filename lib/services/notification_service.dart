@@ -7,12 +7,14 @@ import 'package:timezone/timezone.dart' as tz;
 // ── 通知 ID 常量 ──────────────────────────────────────────────────────────────
 
 class NotificationIds {
-  static const int dailyStudyReminder = 1001;   // 每日学习提醒
-  static const int reviewDueReminder  = 1002;   // 复习到期提醒
-  static const int planIncomplete     = 1003;   // 今日计划未完成
-  static const int streakWarning      = 1004;   // 连续学习中断警告
-  static const int planGenerated      = 1005;   // 计划生成完成（一次性）
-  static const int level2Reminder     = 1006;   // Level 2 学习提醒（完成率低/闲置）
+  static const int dailyStudyReminder = 1001; // 每日学习提醒
+  static const int reviewDueReminder = 1002; // 复习到期提醒
+  static const int planIncomplete = 1003; // 今日计划未完成
+  static const int streakWarning = 1004; // 连续学习中断警告
+  static const int planGenerated = 1005; // 计划生成完成（一次性）
+  static const int level2Reminder = 1006; // Level 2 学习提醒（完成率低/闲置）
+  static const int calendarTestImmediate = 19001;
+  static const int calendarTestScheduled = 19002;
 }
 
 // ── 通知设置（用户可配置）────────────────────────────────────────────────────
@@ -20,18 +22,22 @@ class NotificationIds {
 class NotificationSettings {
   /// 每日学习提醒是否开启
   final bool dailyReminderEnabled;
+
   /// 每日提醒时间（小时）
   final int dailyReminderHour;
+
   /// 每日提醒时间（分钟）
   final int dailyReminderMinute;
 
   /// 复习到期提醒是否开启
   final bool reviewReminderEnabled;
+
   /// 复习提醒时间（小时）
   final int reviewReminderHour;
 
   /// 计划未完成提醒是否开启
   final bool planReminderEnabled;
+
   /// 计划未完成提醒时间（小时，默认 20:00）
   final int planReminderHour;
 
@@ -51,42 +57,42 @@ class NotificationSettings {
     this.streakWarningDays = 3,
   });
 
-  static const _kDailyEnabled    = 'notif_daily_enabled';
-  static const _kDailyHour       = 'notif_daily_hour';
-  static const _kDailyMinute     = 'notif_daily_minute';
-  static const _kReviewEnabled   = 'notif_review_enabled';
-  static const _kReviewHour      = 'notif_review_hour';
-  static const _kPlanEnabled     = 'notif_plan_enabled';
-  static const _kPlanHour        = 'notif_plan_hour';
-  static const _kStreakEnabled   = 'notif_streak_enabled';
-  static const _kStreakDays      = 'notif_streak_days';
+  static const _kDailyEnabled = 'notif_daily_enabled';
+  static const _kDailyHour = 'notif_daily_hour';
+  static const _kDailyMinute = 'notif_daily_minute';
+  static const _kReviewEnabled = 'notif_review_enabled';
+  static const _kReviewHour = 'notif_review_hour';
+  static const _kPlanEnabled = 'notif_plan_enabled';
+  static const _kPlanHour = 'notif_plan_hour';
+  static const _kStreakEnabled = 'notif_streak_enabled';
+  static const _kStreakDays = 'notif_streak_days';
 
   static Future<NotificationSettings> load() async {
     final p = await SharedPreferences.getInstance();
     return NotificationSettings(
       dailyReminderEnabled: p.getBool(_kDailyEnabled) ?? true,
-      dailyReminderHour:    p.getInt(_kDailyHour)    ?? 19,
-      dailyReminderMinute:  p.getInt(_kDailyMinute)  ?? 0,
+      dailyReminderHour: p.getInt(_kDailyHour) ?? 19,
+      dailyReminderMinute: p.getInt(_kDailyMinute) ?? 0,
       reviewReminderEnabled: p.getBool(_kReviewEnabled) ?? true,
-      reviewReminderHour:   p.getInt(_kReviewHour)   ?? 9,
-      planReminderEnabled:  p.getBool(_kPlanEnabled)  ?? true,
-      planReminderHour:     p.getInt(_kPlanHour)      ?? 20,
+      reviewReminderHour: p.getInt(_kReviewHour) ?? 9,
+      planReminderEnabled: p.getBool(_kPlanEnabled) ?? true,
+      planReminderHour: p.getInt(_kPlanHour) ?? 20,
       streakWarningEnabled: p.getBool(_kStreakEnabled) ?? true,
-      streakWarningDays:    p.getInt(_kStreakDays)    ?? 3,
+      streakWarningDays: p.getInt(_kStreakDays) ?? 3,
     );
   }
 
   Future<void> save() async {
     final p = await SharedPreferences.getInstance();
-    await p.setBool(_kDailyEnabled,   dailyReminderEnabled);
-    await p.setInt(_kDailyHour,       dailyReminderHour);
-    await p.setInt(_kDailyMinute,     dailyReminderMinute);
-    await p.setBool(_kReviewEnabled,  reviewReminderEnabled);
-    await p.setInt(_kReviewHour,      reviewReminderHour);
-    await p.setBool(_kPlanEnabled,    planReminderEnabled);
-    await p.setInt(_kPlanHour,        planReminderHour);
-    await p.setBool(_kStreakEnabled,  streakWarningEnabled);
-    await p.setInt(_kStreakDays,      streakWarningDays);
+    await p.setBool(_kDailyEnabled, dailyReminderEnabled);
+    await p.setInt(_kDailyHour, dailyReminderHour);
+    await p.setInt(_kDailyMinute, dailyReminderMinute);
+    await p.setBool(_kReviewEnabled, reviewReminderEnabled);
+    await p.setInt(_kReviewHour, reviewReminderHour);
+    await p.setBool(_kPlanEnabled, planReminderEnabled);
+    await p.setInt(_kPlanHour, planReminderHour);
+    await p.setBool(_kStreakEnabled, streakWarningEnabled);
+    await p.setInt(_kStreakDays, streakWarningDays);
   }
 
   NotificationSettings copyWith({
@@ -100,16 +106,29 @@ class NotificationSettings {
     bool? streakWarningEnabled,
     int? streakWarningDays,
   }) => NotificationSettings(
-    dailyReminderEnabled:  dailyReminderEnabled  ?? this.dailyReminderEnabled,
-    dailyReminderHour:     dailyReminderHour     ?? this.dailyReminderHour,
-    dailyReminderMinute:   dailyReminderMinute   ?? this.dailyReminderMinute,
+    dailyReminderEnabled: dailyReminderEnabled ?? this.dailyReminderEnabled,
+    dailyReminderHour: dailyReminderHour ?? this.dailyReminderHour,
+    dailyReminderMinute: dailyReminderMinute ?? this.dailyReminderMinute,
     reviewReminderEnabled: reviewReminderEnabled ?? this.reviewReminderEnabled,
-    reviewReminderHour:    reviewReminderHour    ?? this.reviewReminderHour,
-    planReminderEnabled:   planReminderEnabled   ?? this.planReminderEnabled,
-    planReminderHour:      planReminderHour      ?? this.planReminderHour,
-    streakWarningEnabled:  streakWarningEnabled  ?? this.streakWarningEnabled,
-    streakWarningDays:     streakWarningDays     ?? this.streakWarningDays,
+    reviewReminderHour: reviewReminderHour ?? this.reviewReminderHour,
+    planReminderEnabled: planReminderEnabled ?? this.planReminderEnabled,
+    planReminderHour: planReminderHour ?? this.planReminderHour,
+    streakWarningEnabled: streakWarningEnabled ?? this.streakWarningEnabled,
+    streakWarningDays: streakWarningDays ?? this.streakWarningDays,
   );
+}
+
+class NotificationPermissionStatus {
+  final bool notificationsEnabled;
+  final bool exactAlarmsEnabled;
+
+  const NotificationPermissionStatus({
+    required this.notificationsEnabled,
+    required this.exactAlarmsEnabled,
+  });
+
+  bool get canShowNow => notificationsEnabled;
+  bool get canScheduleExactly => notificationsEnabled && exactAlarmsEnabled;
 }
 
 // ── NotificationService ───────────────────────────────────────────────────────
@@ -121,6 +140,8 @@ class NotificationService {
 
   final _plugin = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  bool _permissionRequested = false;
+  bool _permissionGranted = false;
 
   // ── 初始化 ────────────────────────────────────────────────────────────────
 
@@ -147,6 +168,7 @@ class NotificationService {
         onDidReceiveNotificationResponse: _onNotificationTap,
       );
       _initialized = true;
+      await ensurePermission();
     } catch (e) {
       // Avoid app boot blocking if notification icon/resource init fails.
       debugPrint('[NotificationService] 初始化失败，已降级跳过通知能力: $e');
@@ -175,28 +197,107 @@ class NotificationService {
   // ── 权限请求 ──────────────────────────────────────────────────────────────
 
   Future<bool> requestPermission() async {
-    final android = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    if (!_initialized) await init();
+    var grantedResult = true;
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     if (android != null) {
       final granted = await android.requestNotificationsPermission();
-      return granted ?? false;
+      await _ensureExactAlarmPermission(android);
+      grantedResult = granted ?? false;
+    } else {
+      final ios = _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
+      if (ios != null) {
+        final granted = await ios.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        grantedResult = granted ?? false;
+      }
     }
-    final ios = _plugin.resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>();
-    if (ios != null) {
-      final granted = await ios.requestPermissions(alert: true, badge: true, sound: true);
-      return granted ?? false;
+    _permissionRequested = true;
+    _permissionGranted = grantedResult;
+    return grantedResult;
+  }
+
+  Future<bool> ensurePermission() async {
+    if (_permissionRequested) return _permissionGranted;
+    _permissionRequested = true;
+    try {
+      _permissionGranted = await requestPermission();
+      return _permissionGranted;
+    } catch (e) {
+      debugPrint('[NotificationService] 权限请求失败: $e');
+      _permissionGranted = false;
+      return false;
     }
-    return true;
+  }
+
+  Future<NotificationPermissionStatus> getPermissionStatus() async {
+    if (!_initialized) await init();
+    bool notificationsEnabled = true;
+    bool exactAlarmsEnabled = true;
+
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (android != null) {
+      notificationsEnabled = await android.areNotificationsEnabled() ?? false;
+      exactAlarmsEnabled =
+          await android.canScheduleExactNotifications() ?? false;
+      return NotificationPermissionStatus(
+        notificationsEnabled: notificationsEnabled,
+        exactAlarmsEnabled: exactAlarmsEnabled,
+      );
+    }
+
+    return NotificationPermissionStatus(
+      notificationsEnabled: notificationsEnabled,
+      exactAlarmsEnabled: exactAlarmsEnabled,
+    );
+  }
+
+  Future<bool> _ensureExactAlarmPermission(
+    AndroidFlutterLocalNotificationsPlugin android,
+  ) async {
+    try {
+      final canSchedule = await android.canScheduleExactNotifications();
+      if (canSchedule == true) return true;
+      final granted = await android.requestExactAlarmsPermission();
+      return granted ?? false;
+    } catch (e) {
+      debugPrint('[NotificationService] 精确闹钟权限检查失败: $e');
+      return true;
+    }
+  }
+
+  Future<bool> _ensureReady() async {
+    if (!_initialized) await init();
+    return ensurePermission();
+  }
+
+  Future<AndroidScheduleMode> _scheduleMode() async {
+    final status = await getPermissionStatus();
+    return status.exactAlarmsEnabled
+        ? AndroidScheduleMode.exactAllowWhileIdle
+        : AndroidScheduleMode.inexactAllowWhileIdle;
   }
 
   // ── 通知详情 ──────────────────────────────────────────────────────────────
 
   NotificationDetails _details({
-    String channelId = 'study_reminder',
+    String channelId = 'study_reminder_v2',
     String channelName = '学习提醒',
     String? channelDesc,
-    Importance importance = Importance.high,
+    Importance importance = Importance.max,
+    AndroidNotificationCategory category = AndroidNotificationCategory.reminder,
   }) {
     return NotificationDetails(
       android: AndroidNotificationDetails(
@@ -204,8 +305,12 @@ class NotificationService {
         channelName,
         channelDescription: channelDesc ?? channelName,
         importance: importance,
-        priority: Priority.high,
+        priority: Priority.max,
         icon: _androidNotifIcon,
+        visibility: NotificationVisibility.public,
+        category: category,
+        playSound: true,
+        enableVibration: true,
         styleInformation: const BigTextStyleInformation(''),
       ),
       iOS: const DarwinNotificationDetails(
@@ -224,6 +329,8 @@ class NotificationService {
     required String body,
     String? payload,
   }) async {
+    final ready = await _ensureReady();
+    if (!ready) return;
     await _plugin.show(id, title, body, _details(), payload: payload);
   }
 
@@ -236,6 +343,12 @@ class NotificationService {
     required DateTime scheduledTime,
     String? payload,
   }) async {
+    final ready = await _ensureReady();
+    if (!ready) return;
+    if (scheduledTime.isBefore(DateTime.now())) {
+      debugPrint('[NotificationService] 跳过过期通知: $title @ $scheduledTime');
+      return;
+    }
     final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
     await _plugin.zonedSchedule(
       id,
@@ -243,7 +356,7 @@ class NotificationService {
       body,
       tzTime,
       _details(),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: await _scheduleMode(),
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       payload: payload,
@@ -260,13 +373,15 @@ class NotificationService {
     required int minute,
     String? payload,
   }) async {
+    final ready = await _ensureReady();
+    if (!ready) return;
     await _plugin.zonedSchedule(
       id,
       title,
       body,
       _nextInstanceOf(hour, minute),
       _details(),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: await _scheduleMode(),
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time, // 每天重复
@@ -276,7 +391,14 @@ class NotificationService {
 
   tz.TZDateTime _nextInstanceOf(int hour, int minute) {
     final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+    var scheduled = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      hour,
+      minute,
+    );
     if (scheduled.isBefore(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
     }
@@ -303,6 +425,8 @@ class NotificationService {
     required DateTime scheduledTime,
     String? payload,
   }) async {
+    final ready = await _ensureReady();
+    if (!ready) return;
     final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
     await _plugin.zonedSchedule(
       id,
@@ -310,7 +434,39 @@ class NotificationService {
       body,
       tzTime,
       _details(channelId: 'review_reminder', channelName: '复习提醒'),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: await _scheduleMode(),
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      payload: payload,
+    );
+  }
+
+  Future<void> scheduleCalendarReminder({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledTime,
+    String? payload,
+  }) async {
+    final ready = await _ensureReady();
+    if (!ready) return;
+    if (scheduledTime.isBefore(DateTime.now())) {
+      debugPrint('[NotificationService] 跳过过期日历提醒: $title @ $scheduledTime');
+      return;
+    }
+    final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      tzTime,
+      _details(
+        channelId: 'calendar_learning_reminder_v2',
+        channelName: '日历学习提醒',
+        channelDesc: '课程、学习任务和日历事件开始前提醒',
+        category: AndroidNotificationCategory.event,
+      ),
+      androidScheduleMode: await _scheduleMode(),
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       payload: payload,

@@ -4,10 +4,11 @@ import 'package:uuid/uuid.dart';
 
 /// 解题会话中的单条消息。
 class SolveMessage {
-  final String role;                      // 'user' | 'assistant'
-  final String content;                   // 消息文本内容
-  final List<String>? imageBase64List;    // 仅用户消息携带图片
-  final bool isSaved;                     // 是否已入库（笔记本/错题本）
+  final String role; // 'user' | 'assistant'
+  final String content; // 消息文本内容
+  final List<String>? imageBase64List; // 仅用户消息携带图片
+  final bool isSavedToNotebook; // 是否已收藏到笔记本
+  final bool isSavedToMistakes; // 是否已加入错题本
 
   /// Python 计算引擎生成的图表 Base64（PNG），来自 [CHART] SSE 事件
   final String? chartBase64;
@@ -16,15 +17,19 @@ class SolveMessage {
     required this.role,
     required this.content,
     this.imageBase64List,
-    this.isSaved = false,
+    this.isSavedToNotebook = false,
+    this.isSavedToMistakes = false,
     this.chartBase64,
   });
+
+  bool get isSaved => isSavedToNotebook || isSavedToMistakes;
 
   SolveMessage copyWith({
     String? role,
     String? content,
     List<String>? imageBase64List,
-    bool? isSaved,
+    bool? isSavedToNotebook,
+    bool? isSavedToMistakes,
     String? chartBase64,
     bool clearChart = false,
   }) {
@@ -32,7 +37,8 @@ class SolveMessage {
       role: role ?? this.role,
       content: content ?? this.content,
       imageBase64List: imageBase64List ?? this.imageBase64List,
-      isSaved: isSaved ?? this.isSaved,
+      isSavedToNotebook: isSavedToNotebook ?? this.isSavedToNotebook,
+      isSavedToMistakes: isSavedToMistakes ?? this.isSavedToMistakes,
       chartBase64: clearChart ? null : (chartBase64 ?? this.chartBase64),
     );
   }
@@ -53,11 +59,11 @@ class SolveSessionModel {
   /// null 表示尚未收到后端 session_id（首次解题流式推送中）
   final int? backendSessionId;
 
-  final List<String> imageBase64List;   // 原始图片，追问时复用（不重传）
-  final String ocrText;                 // OCR 结果缓存
-  final List<SolveMessage> messages;    // 对话历史
-  final bool isThinkingExpanded;        // CoT 思维链展开状态（会话内持久化）
-  final bool isStreaming;               // 当前是否正在流式接收
+  final List<String> imageBase64List; // 原始图片，追问时复用（不重传）
+  final String ocrText; // OCR 结果缓存
+  final List<SolveMessage> messages; // 对话历史
+  final bool isThinkingExpanded; // CoT 思维链展开状态（会话内持久化）
+  final bool isStreaming; // 当前是否正在流式接收
 
   const SolveSessionModel({
     required this.sessionId,

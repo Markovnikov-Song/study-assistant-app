@@ -40,14 +40,24 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
   String _color = '#6366F1';
   bool _isCountdown = false;
   String _priority = 'medium';
+  bool _reminderEnabled = true;
+  int _reminderMinutesBefore = 15;
   bool _saving = false;
   String? _titleError;
 
   // 预设颜色
   static const _presetColors = [
-    '#6366F1', '#10B981', '#F59E0B', '#EF4444',
-    '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
+    '#6366F1',
+    '#10B981',
+    '#F59E0B',
+    '#EF4444',
+    '#3B82F6',
+    '#8B5CF6',
+    '#EC4899',
+    '#14B8A6',
   ];
+
+  static const _reminderOptions = [0, 5, 10, 15, 30, 60];
 
   @override
   void initState() {
@@ -58,7 +68,10 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
       _notesCtrl.text = e.notes ?? '';
       _date = e.eventDate;
       final parts = e.startTime.split(':');
-      _startTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+      _startTime = TimeOfDay(
+        hour: int.parse(parts[0]),
+        minute: int.parse(parts[1]),
+      );
       _durationMinutes = e.durationMinutes;
       _subjectId = e.subjectId;
       _color = e.color;
@@ -104,7 +117,10 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
   }
 
   Future<void> _pickTime() async {
-    final picked = await showTimePicker(context: context, initialTime: _startTime);
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _startTime,
+    );
     if (picked != null) setState(() => _startTime = picked);
   }
 
@@ -139,32 +155,44 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
       CalendarEvent event;
       if (widget.initialEvent != null) {
         event = await api.updateEvent(widget.initialEvent!.id, data);
-        AppEventBus.instance.fire(CalendarEventUpdated(
-          eventId: event.id,
-          eventDate: event.eventDate,
-        ));
-        // 更新事件通知
-        await CalendarNotificationService.instance.scheduleEventNotification(event);
+        AppEventBus.instance.fire(
+          CalendarEventUpdated(eventId: event.id, eventDate: event.eventDate),
+        );
+        await _syncEventReminder(event);
       } else {
         event = await api.createEvent(data);
-        AppEventBus.instance.fire(CalendarEventCreated(
-          eventId: event.id,
-          eventDate: event.eventDate,
-          source: 'manual',
-        ));
-        // 为新事件安排通知（提前 15 分钟）
-        await CalendarNotificationService.instance.scheduleEventNotification(event);
+        AppEventBus.instance.fire(
+          CalendarEventCreated(
+            eventId: event.id,
+            eventDate: event.eventDate,
+            source: 'manual',
+          ),
+        );
+        await _syncEventReminder(event);
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存失败：$e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存失败：$e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _syncEventReminder(CalendarEvent event) async {
+    if (!_reminderEnabled) {
+      await CalendarNotificationService.instance.cancelEventNotification(
+        event.id,
+      );
+      return;
+    }
+    await CalendarNotificationService.instance.scheduleEventNotification(
+      event,
+      reminderMinutesBefore: _reminderMinutesBefore,
+    );
   }
 
   Future<void> _delete() async {
@@ -175,13 +203,20 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('删除事件'),
-        content: Text('确定要删除「${e.title}」吗？'
-            '${e.source == 'study-planner' ? '\n\n关联的学习计划任务也会被标记为跳过。' : ''}'),
+        content: Text(
+          '确定要删除「${e.title}」吗？'
+          '${e.source == 'study-planner' ? '\n\n关联的学习计划任务也会被标记为跳过。' : ''}',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
             child: const Text('删除'),
           ),
         ],
@@ -195,17 +230,19 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
       await api.deleteEvent(e.id);
       // 取消事件通知
       await CalendarNotificationService.instance.cancelEventNotification(e.id);
-      AppEventBus.instance.fire(CalendarEventDeleted(
-        eventId: e.id,
-        eventDate: e.eventDate,
-        source: e.source,
-      ));
+      AppEventBus.instance.fire(
+        CalendarEventDeleted(
+          eventId: e.id,
+          eventDate: e.eventDate,
+          source: e.source,
+        ),
+      );
       if (mounted) Navigator.pop(context);
     } catch (err) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除失败：$err')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('删除失败：$err')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -218,7 +255,9 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
     final subjects = subjectsAsync.valueOrNull ?? [];
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: DraggableScrollableSheet(
         initialChildSize: 0.85,
         minChildSize: 0.5,
@@ -265,7 +304,9 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
                     ),
                     maxLength: 50,
                     onChanged: (_) {
-                      if (_titleError != null) setState(() => _titleError = null);
+                      if (_titleError != null) {
+                        setState(() => _titleError = null);
+                      }
                     },
                   ),
                   const SizedBox(height: 12),
@@ -279,7 +320,8 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
                     onTap: _pickDate,
                   ),
 
-                  if (_type == _EventType.event || _type == _EventType.routine) ...[
+                  if (_type == _EventType.event ||
+                      _type == _EventType.routine) ...[
                     // 开始时间
                     ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -323,14 +365,59 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
                         border: OutlineInputBorder(),
                       ),
                       items: [
-                        const DropdownMenuItem(value: null, child: Text('不绑定科目')),
-                        ...subjects.map((s) => DropdownMenuItem(
-                              value: s.id,
-                              child: Text(s.name),
-                            )),
+                        const DropdownMenuItem(
+                          value: null,
+                          child: Text('不绑定科目'),
+                        ),
+                        ...subjects.map(
+                          (s) => DropdownMenuItem(
+                            value: s.id,
+                            child: Text(s.name),
+                          ),
+                        ),
                       ],
                       onChanged: (v) => setState(() => _subjectId = v),
                     ),
+                  const SizedBox(height: 12),
+
+                  if (_type == _EventType.event || _type == _EventType.task)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('学习提醒'),
+                      subtitle: Text(
+                        _reminderEnabled
+                            ? (_reminderMinutesBefore == 0
+                                  ? '开始时提醒，锁屏时也会显示系统通知'
+                                  : '开始前 $_reminderMinutesBefore 分钟提醒，锁屏时也会显示系统通知')
+                            : '不为此事件安排提醒',
+                      ),
+                      value: _reminderEnabled,
+                      onChanged: (v) => setState(() => _reminderEnabled = v),
+                    ),
+
+                  if (_reminderEnabled &&
+                      (_type == _EventType.event || _type == _EventType.task))
+                    DropdownButtonFormField<int>(
+                      initialValue: _reminderMinutesBefore,
+                      decoration: const InputDecoration(
+                        labelText: '提前多久提醒',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _reminderOptions
+                          .map(
+                            (m) => DropdownMenuItem(
+                              value: m,
+                              child: Text(m == 0 ? '开始时' : '提前 $m 分钟'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) {
+                          setState(() => _reminderMinutesBefore = v);
+                        }
+                      },
+                    ),
+
                   const SizedBox(height: 12),
 
                   // 颜色
@@ -350,13 +437,19 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
                             shape: BoxShape.circle,
                             border: selected
                                 ? Border.all(
-                                    color: Theme.of(context).colorScheme.onSurface,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
                                     width: 2,
                                   )
                                 : null,
                           ),
                           child: selected
-                              ? const Icon(Icons.check, size: 16, color: Colors.white)
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 16,
+                                  color: Colors.white,
+                                )
                               : null,
                         ),
                       );
@@ -409,14 +502,17 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : Text(widget.initialEvent != null ? '保存修改' : '保存'),
                   ),
                   // 删除按钮（仅编辑 study-planner / agent 事件时显示）
                   if (widget.initialEvent != null &&
                       (widget.initialEvent!.source == 'study-planner' ||
-                       widget.initialEvent!.source == 'agent'))
+                          widget.initialEvent!.source == 'agent'))
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: OutlinedButton.icon(
@@ -425,7 +521,11 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
                         label: const Text('删除此事件'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Theme.of(context).colorScheme.error,
-                          side: BorderSide(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.5)),
+                          side: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.error.withValues(alpha: 0.5),
+                          ),
                         ),
                       ),
                     ),

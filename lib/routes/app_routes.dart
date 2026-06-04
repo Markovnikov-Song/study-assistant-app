@@ -6,6 +6,8 @@ class R {
   // Auth
   static const login = '/login';
   static const register = '/register';
+  static const onboarding = '/onboarding';
+  static const onboardingReplay = '/onboarding?replay=1';
 
   // Shell tabs
   static const chat = '/';
@@ -40,6 +42,7 @@ class R {
       '/toolkit/notebooks/$nbId/notes/$noteId';
   static const toolkitSolve = '/toolkit/solve';
   static const toolkitQuiz = '/toolkit/quiz';
+  static const toolkitPractice = '/toolkit/practice';
   static const toolkitMemoryDrill = '/toolkit/memory-drill';
   static const toolkitSettings = '/toolkit/settings';
   static const toolkitMindmapWorkshop = '/toolkit/mindmap-workshop';

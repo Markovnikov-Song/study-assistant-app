@@ -3,6 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/onboarding/onboarding_page.dart';
+import '../providers/shared_preferences_provider.dart';
+import '../routes/app_routes.dart';
+
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
@@ -19,6 +23,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   late final Animation<double> _scale;
 
   bool _hasVibrated = false;
+  bool _didNavigate = false;
 
   @override
   void initState() {
@@ -60,9 +65,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       ..forward();
   }
 
-  void _navigateToHome() {
-    if (!mounted) return;
-    context.go('/');
+  Future<void> _navigateToHome() async {
+    if (!mounted || _didNavigate) return;
+    _didNavigate = true;
+    final prefs = ref.read(sharedPreferencesProvider);
+    final hasSeenOnboarding =
+        prefs.getBool(onboardingSeenPreferenceKey) ?? false;
+    context.go(hasSeenOnboarding ? R.chat : R.onboarding);
   }
 
   @override

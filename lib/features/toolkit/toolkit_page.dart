@@ -77,17 +77,17 @@ const kDefaultTools = [
     icon: Icons.extension_rounded,
     colors: [Color(0xFFFFB23F), Color(0xFFFF6B8B)],
     label: '智能出题',
-    description: '按知识点生成练习',
+    description: '生成题单、试卷和专题题',
     route: R.toolkitQuiz,
     iconAsset: '$_iconPackRoot/5.Game/puzzle.svg',
   ),
   ToolItem(
-    id: 'review',
-    icon: Icons.replay_circle_filled_rounded,
+    id: 'practice',
+    icon: Icons.play_circle_fill_rounded,
     colors: [Color(0xFFFF5F6D), Color(0xFFFFC371)],
-    label: '复盘中心',
-    description: '错题、间隔复习、再练',
-    route: '/toolkit/review',
+    label: '去练习',
+    description: '按科目、知识点、计划开练',
+    route: R.toolkitPractice,
     iconAsset: '$_iconPackRoot/5.Game/cards.svg',
   ),
   ToolItem(
@@ -463,7 +463,7 @@ class _ToolkitHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '把拍题、出题、复盘、笔记和计划放进一个学习工作台。',
+                  '把拍题、练习、出题、笔记和计划放进一个学习工作台。',
                   style: TextStyle(
                     fontSize: isDesktop ? 15 : 13,
                     color: isClay

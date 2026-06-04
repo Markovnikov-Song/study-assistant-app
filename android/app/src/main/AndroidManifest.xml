@@ -15,7 +15,12 @@
     <!-- 防止后台被杀和网络中断 -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- 专注防打扰：使用情况访问权限需要用户在系统设置中手动开启 -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"/>
+    <!-- 专注防打扰：在其他应用上方显示拦截浮层 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <application
         android:label="伴学"
         android:name="${applicationName}"
@@ -92,6 +97,15 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <service
+            android:name=".FocusGuardService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Pomodoro focus guard blocks distracting apps during user-started study sessions"/>
+        </service>
 
         <!-- 推送通知：开机自启恢复定时任务 -->
         <receiver

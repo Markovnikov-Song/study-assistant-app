@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at": "2026-06-04",
+  "models": [
+    {
+      "domain": "科目",
+      "dart_models": ["lib/models/subject.dart"],
+      "backend_tables": ["subjects"],
+      "key_fields": ["id", "name", "category", "description", "is_pinned", "is_archived", "color_index", "created_at"],
+      "features": ["subjects.resources_rag", "course_space.mindmap_lecture", "quiz.generation_practice"]
+    },
+    {
+      "domain": "资料库",
+      "dart_models": ["lib/models/document.dart"],
+      "backend_tables": ["documents", "document_chunks"],
+      "key_fields": ["id", "subject_id", "filename", "status", "processing_stage", "progress", "chunk_count", "mindmap_ready", "error"],
+      "features": ["subjects.resources_rag", "course_space.mindmap_lecture", "chat.cas"]
+    },
+    {
+      "domain": "对话与 RAG 来源",
+      "dart_models": ["lib/models/chat_message.dart"],
+      "backend_tables": ["conversation_sessions", "conversation_history"],
+      "key_fields": ["session_type", "role", "content", "sources", "created_at"],
+      "features": ["chat.cas", "subjects.resources_rag", "solve.assistant"]
+    },
+    {
+      "domain": "解题历史",
+      "dart_models": ["lib/features/solve/models/solve_session.dart"],
+      "backend_tables": ["conversation_sessions", "conversation_history"],
+      "key_fields": ["session_type=solve", "sources.images", "session_id"],
+      "features": ["solve.assistant"]
+    },
+    {
+      "domain": "笔记",
+      "dart_models": ["note model in notebook service/provider"],
+      "backend_tables": ["notebooks", "notes"],
+      "key_fields": ["id", "notebook_id", "subject_id", "role", "original_content", "title", "outline", "sources", "imported_to_doc_id"],
+      "features": ["notes.notebooks", "review.mistakes", "subjects.resources_rag"]
+    },
+    {
+      "domain": "错题与复习",
+      "dart_models": ["lib/models/review.dart"],
+      "backend_tables": ["notes", "review_cards", "review_records"],
+      "key_fields": ["mistake_status", "node_id", "question_text", "user_answer", "correct_answer", "review_card_id", "mastery_score", "next_review"],
+      "features": ["review.mistakes", "quiz.generation_practice", "solve.assistant"]
+    },
+    {
+      "domain": "日历与番茄钟",
+      "dart_models": ["lib/features/calendar/models/calendar_models.dart"],
+      "backend_tables": ["calendar_events", "calendar_sessions"],
+      "key_fields": ["title", "event_date", "start_time", "duration_minutes", "is_completed", "reminder_enabled", "event_id", "pomodoro_count"],
+      "features": ["calendar.learning_calendar", "calendar.pomodoro_focus_guard"]
+    },
+    {
+      "domain": "软件工坊 Mini App",
+      "dart_models": ["lib/features/workshop/mini_app_models.dart"],
+      "backend_tables": ["mini_apps"],
+      "key_fields": ["id", "name", "spec", "documents", "runtime_config", "created_at", "updated_at"],
+      "features": ["workshop.mini_apps"]
+    }
+  ],
+  "known_gaps": [
+    "需要补字段级 nullable/default/unique/foreign-key 说明。",
+    "需要补正式迁移工具和空库恢复验证。"
+  ]
+}

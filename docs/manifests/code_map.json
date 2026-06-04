@@ -1,0 +1,214 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at": "2026-06-04",
+  "features": {
+    "subjects.resources_rag": {
+      "frontend_pages": [
+        "lib/features/subjects/subjects_page.dart",
+        "lib/features/resources/resources_page.dart",
+        "lib/features/subject_detail/subject_detail_page.dart",
+        "lib/features/subject_detail/tabs/docs_tab.dart"
+      ],
+      "providers": [
+        "lib/providers/subject_provider.dart",
+        "lib/providers/document_provider.dart",
+        "lib/providers/chat_provider.dart"
+      ],
+      "services": [
+        "lib/services/subject_service.dart",
+        "lib/services/document_service.dart",
+        "lib/services/chat_service.dart"
+      ],
+      "models": [
+        "lib/models/subject.dart",
+        "lib/models/document.dart",
+        "lib/models/chat_message.dart"
+      ],
+      "backend": [
+        "backend/routers/subjects.py",
+        "backend/routers/documents.py",
+        "backend/routers/chat.py",
+        "backend/services/rag_pipeline.py"
+      ],
+      "tests": [
+        "tests/playwright/subject_resource_flow.spec.ts",
+        "test/providers/chat_provider_sources_test.dart"
+      ],
+      "notes": "RAG SSE [SOURCES] 帧由 ChatNotifier 解析并挂到 assistant 消息 sources。"
+    },
+    "calendar.learning_calendar": {
+      "frontend_pages": [
+        "lib/features/calendar/calendar_page.dart",
+        "lib/features/calendar/widgets/event_form_sheet.dart",
+        "lib/features/calendar/widgets/today_panel.dart",
+        "lib/features/calendar/widgets/countdown_list_page.dart",
+        "lib/features/calendar/widgets/stats_panel.dart"
+      ],
+      "providers": ["lib/features/calendar/providers/calendar_providers.dart"],
+      "services": [
+        "lib/services/calendar_service.dart",
+        "lib/services/notification_service.dart",
+        "lib/features/calendar/services/calendar_notification_service.dart"
+      ],
+      "models": ["lib/features/calendar/models/calendar_models.dart"],
+      "backend": ["backend/routers/calendar.py"],
+      "tests": ["tests/playwright/calendar_flow.spec.ts"],
+      "notes": "Web 只能测入口和请求合同；锁屏通知需要真机。"
+    },
+    "calendar.pomodoro_focus_guard": {
+      "frontend_pages": ["lib/features/calendar/widgets/pomodoro_timer.dart"],
+      "providers": [
+        "lib/features/calendar/providers/calendar_providers.dart",
+        "lib/features/calendar/providers/focus_guard_provider.dart"
+      ],
+      "services": [
+        "lib/services/focus_guard_platform_service.dart",
+        "lib/services/background_task_service.dart"
+      ],
+      "native_android": [
+        "android/app/src/main/kotlin/cn/studyassistant/app/MainActivity.kt",
+        "android/app/src/main/kotlin/cn/studyassistant/app/FocusGuardService.kt",
+        "android/app/src/main/AndroidManifest.xml"
+      ],
+      "native_ios": ["ios/Runner/AppDelegate.swift"],
+      "tests": ["tests/playwright/calendar_flow.spec.ts"],
+      "notes": "Android 有 MethodChannel 和前台服务；iOS 目前只返回能力状态。"
+    },
+    "solve.assistant": {
+      "frontend_pages": [
+        "lib/components/solve/solve_page.dart",
+        "lib/features/solve/widgets/solve_history_sheet.dart",
+        "lib/widgets/solve_result_action_bar.dart"
+      ],
+      "services": [
+        "lib/services/solve_sse_client.dart",
+        "lib/features/solve/services/solve_history_service.dart"
+      ],
+      "models": ["lib/features/solve/models/solve_session.dart"],
+      "backend": [
+        "backend/cas/executors/solve_problem.py",
+        "backend/routers/solve.py",
+        "backend/services/ocr_service.py",
+        "backend/services/image_preprocessor.py",
+        "backend/mcp_servers/python_executor_server.py"
+      ],
+      "tests": [
+        "tests/playwright/solve_flow.spec.ts",
+        "backend/tests/test_solve_history.py"
+      ],
+      "notes": "解题结果可保存笔记和加入错题；Python 图表通过 [CHART] SSE 事件返回。"
+    },
+    "quiz.generation_practice": {
+      "frontend_pages": [
+        "lib/components/quiz/quiz_page.dart",
+        "lib/components/quiz/node_practice_sheet.dart",
+        "lib/features/practice/practice_page.dart"
+      ],
+      "providers": [
+        "lib/providers/exam_provider.dart",
+        "lib/core/capability/capability_execution_contract.dart",
+        "lib/features/spec/services/capability_launch_service.dart"
+      ],
+      "services": ["lib/services/exam_service.dart"],
+      "backend": [
+        "backend/routers/quiz.py",
+        "backend/routers/review.py"
+      ],
+      "tests": [
+        "tests/playwright/quiz_flow.spec.ts",
+        "tests/playwright/practice_flow.spec.ts",
+        "backend/tests/test_review_note_contracts.py"
+      ],
+      "notes": "计划里的 quiz.generate 会进入 /toolkit/practice；按科目练习直接打开 NodePracticeSheet。"
+    },
+    "review.mistakes": {
+      "frontend_pages": [
+        "lib/components/mistake_book/mistake_book_page.dart",
+        "lib/components/review/review_session_page.dart"
+      ],
+      "providers": ["lib/providers/review_provider.dart"],
+      "services": ["lib/services/review_service.dart"],
+      "models": ["lib/models/review.dart"],
+      "backend": ["backend/routers/review.py"],
+      "tests": [
+        "tests/playwright/mistake_flow.spec.ts",
+        "backend/tests/test_review_note_contracts.py"
+      ],
+      "notes": "/toolkit/review 是历史兼容入口，打开错题本；复习队列是后端调度机制。"
+    },
+    "notes.notebooks": {
+      "frontend_pages": [
+        "lib/components/notebook/notebook_list_page.dart",
+        "lib/components/notebook/notebook_detail_page.dart",
+        "lib/components/notebook/note_detail_page.dart"
+      ],
+      "providers": ["lib/providers/notebook_provider.dart"],
+      "services": ["lib/services/notebook_service.dart"],
+      "backend": [
+        "backend/routers/notebooks.py",
+        "backend/routers/notes.py"
+      ],
+      "tests": [
+        "tests/playwright/notebook_flow.spec.ts",
+        "backend/tests/test_review_note_contracts.py"
+      ],
+      "notes": "笔记详情提供 AI 润色和导入资料库入口。"
+    },
+    "chat.cas": {
+      "frontend_pages": [
+        "lib/features/chat/chat_page.dart",
+        "lib/features/chat/responsive_chat_page.dart"
+      ],
+      "providers": ["lib/providers/chat_provider.dart"],
+      "services": [
+        "lib/services/chat_service.dart",
+        "lib/services/intent_detector.dart"
+      ],
+      "backend": [
+        "backend/routers/chat.py",
+        "backend/cas"
+      ],
+      "tests": ["test/providers/chat_provider_sources_test.dart"],
+      "notes": "自然语言意图会路由到解题、计划、导图、软件工坊等能力。"
+    },
+    "course_space.mindmap_lecture": {
+      "frontend_pages": [
+        "lib/components/library/library_page.dart",
+        "lib/components/library/course_space_page.dart",
+        "lib/components/library/editable_mindmap_page.dart",
+        "lib/components/library/lecture/lecture_page.dart"
+      ],
+      "providers": [
+        "lib/providers/library_provider.dart",
+        "lib/providers/document_provider.dart",
+        "lib/providers/rag_sync_settings_provider.dart"
+      ],
+      "services": [
+        "lib/services/library_service.dart",
+        "lib/services/learning_path_service.dart"
+      ],
+      "backend": [
+        "backend/routers/library.py",
+        "backend/services/mindmap_service.py"
+      ],
+      "tests": [
+        "test/features/library/mindmap_parser_test.dart",
+        "test/features/library/lecture/export_book_dialog_test.dart"
+      ],
+      "notes": "导图和讲义是科目空间的核心学习材料层。"
+    },
+    "workshop.mini_apps": {
+      "frontend_pages": [
+        "lib/features/workshop/workshop_page.dart",
+        "lib/features/workshop/workshop_builder_page.dart",
+        "lib/features/workshop/mini_app_run_page.dart"
+      ],
+      "providers": ["lib/features/workshop/mini_app_providers.dart"],
+      "services": ["lib/features/workshop/mini_app_service.dart"],
+      "models": ["lib/features/workshop/mini_app_models.dart"],
+      "backend": ["backend/routers/mini_apps.py"],
+      "tests": ["tests/playwright/p1_shell_flow.spec.ts"],
+      "notes": "目前主要覆盖入口，核心构建和运行流仍待补。"
+    }
+  }
+}

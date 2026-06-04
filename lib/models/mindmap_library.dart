@@ -46,6 +46,7 @@ class MindMapSession {
   final String? title;
   final String? resourceScopeLabel;
   final DateTime createdAt;
+  final DateTime? lastVisitedAt;
   final int totalNodes;
   final int litNodes;
   final bool isPinned;
@@ -59,6 +60,7 @@ class MindMapSession {
     this.title,
     this.resourceScopeLabel,
     required this.createdAt,
+    this.lastVisitedAt,
     required this.totalNodes,
     required this.litNodes,
     this.isPinned = false,
@@ -74,6 +76,9 @@ class MindMapSession {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
+      lastVisitedAt: json['last_visited_at'] != null
+          ? DateTime.parse(json['last_visited_at'] as String)
+          : null,
       totalNodes: (json['total_nodes'] as num?)?.toInt() ?? 0,
       litNodes: (json['lit_nodes'] as num?)?.toInt() ?? 0,
       isPinned: json['is_pinned'] == true || json['is_pinned'] == 1,
@@ -87,6 +92,7 @@ class MindMapSession {
         title: title,
         resourceScopeLabel: resourceScopeLabel,
         createdAt: createdAt,
+        lastVisitedAt: lastVisitedAt,
         totalNodes: totalNodes,
         litNodes: litNodes,
         isPinned: isPinned,

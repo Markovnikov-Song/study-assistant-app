@@ -6,6 +6,7 @@ import '../../core/event_bus/app_event_bus.dart';
 import '../../core/event_bus/calendar_events.dart';
 import '../../core/mini_app/mini_app_contract.dart';
 import '../../routes/app_router.dart';
+import '../../services/notification_service.dart';
 import 'models/calendar_models.dart';
 import 'providers/calendar_providers.dart';
 import 'services/calendar_api_service.dart';
@@ -16,8 +17,8 @@ import 'widgets/pomodoro_timer.dart';
 import 'widgets/timetable_view.dart';
 
 class CalendarPage extends ConsumerStatefulWidget {
-  final String renderMode;    // 'full' | 'modal'
-  final String sceneSource;   // 'user_active' | 'agent'
+  final String renderMode; // 'full' | 'modal'
+  final String sceneSource; // 'user_active' | 'agent'
   final int? subjectId;
   final String? taskId;
   final DateTime? prefillDate;
@@ -56,43 +57,59 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       if (!mounted) return;
       final focused = ref.read(calendarFocusedDateProvider);
       // 上个月
-      ref.read(calendarEventsProvider(DateRange.month(
-        DateTime(focused.year, focused.month - 1),
-      )));
+      ref.read(
+        calendarEventsProvider(
+          DateRange.month(DateTime(focused.year, focused.month - 1)),
+        ),
+      );
       // 下个月
-      ref.read(calendarEventsProvider(DateRange.month(
-        DateTime(focused.year, focused.month + 1, 1),
-      )));
+      ref.read(
+        calendarEventsProvider(
+          DateRange.month(DateTime(focused.year, focused.month + 1, 1)),
+        ),
+      );
     });
   }
 
   void _listenEventBus() {
     final bus = AppEventBus.instance;
-    _busUnsubs.add(bus.on<CalendarEventCreated>().listen((_) {
-      ref.invalidate(calendarEventsProvider);
-      ref.invalidate(todayEventsProvider);
-    }));
-    _busUnsubs.add(bus.on<CalendarEventUpdated>().listen((e) {
-      ref.invalidate(calendarEventsProvider(DateRange.month(e.eventDate)));
-      ref.invalidate(todayEventsProvider);
-    }));
-    _busUnsubs.add(bus.on<CalendarEventCompleted>().listen((_) {
-      ref.invalidate(todayEventsProvider);
-      ref.invalidate(calendarStatsProvider('7d'));
-    }));
-    _busUnsubs.add(bus.on<CalendarEventUncompleted>().listen((_) {
-      ref.invalidate(todayEventsProvider);
-      ref.invalidate(calendarStatsProvider('7d'));
-    }));
-    _busUnsubs.add(bus.on<CalendarEventsBatchCreated>().listen((e) {
-      for (final month in e.affectedMonths) {
-        ref.invalidate(calendarEventsProvider(DateRange.month(month)));
-      }
-    }));
-    _busUnsubs.add(bus.on<CalendarEventDeleted>().listen((e) {
-      ref.invalidate(calendarEventsProvider(DateRange.month(e.eventDate)));
-      ref.invalidate(todayEventsProvider);
-    }));
+    _busUnsubs.add(
+      bus.on<CalendarEventCreated>().listen((_) {
+        ref.invalidate(calendarEventsProvider);
+        ref.invalidate(todayEventsProvider);
+      }),
+    );
+    _busUnsubs.add(
+      bus.on<CalendarEventUpdated>().listen((e) {
+        ref.invalidate(calendarEventsProvider(DateRange.month(e.eventDate)));
+        ref.invalidate(todayEventsProvider);
+      }),
+    );
+    _busUnsubs.add(
+      bus.on<CalendarEventCompleted>().listen((_) {
+        ref.invalidate(todayEventsProvider);
+        ref.invalidate(calendarStatsProvider('7d'));
+      }),
+    );
+    _busUnsubs.add(
+      bus.on<CalendarEventUncompleted>().listen((_) {
+        ref.invalidate(todayEventsProvider);
+        ref.invalidate(calendarStatsProvider('7d'));
+      }),
+    );
+    _busUnsubs.add(
+      bus.on<CalendarEventsBatchCreated>().listen((e) {
+        for (final month in e.affectedMonths) {
+          ref.invalidate(calendarEventsProvider(DateRange.month(month)));
+        }
+      }),
+    );
+    _busUnsubs.add(
+      bus.on<CalendarEventDeleted>().listen((e) {
+        ref.invalidate(calendarEventsProvider(DateRange.month(e.eventDate)));
+        ref.invalidate(todayEventsProvider);
+      }),
+    );
   }
 
   @override
@@ -117,7 +134,11 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 
-  void _showEventDetail(BuildContext context, WidgetRef ref, CalendarEvent event) {
+  void _showEventDetail(
+    BuildContext context,
+    WidgetRef ref,
+    CalendarEvent event,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -130,12 +151,19 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 
-  void _handleEventDragged(WidgetRef ref, CalendarEvent event, DateTime newDate) async {
+  void _handleEventDragged(
+    WidgetRef ref,
+    CalendarEvent event,
+    DateTime newDate,
+  ) async {
     try {
       await ref.read(calendarApiServiceProvider).updateEvent(event.id, {
-        'event_date': '${newDate.year}-${newDate.month.toString().padLeft(2, '0')}-${newDate.day.toString().padLeft(2, '0')}',
+        'event_date':
+            '${newDate.year}-${newDate.month.toString().padLeft(2, '0')}-${newDate.day.toString().padLeft(2, '0')}',
       });
-      AppEventBus.instance.fire(CalendarEventUpdated(eventId: event.id, eventDate: newDate));
+      AppEventBus.instance.fire(
+        CalendarEventUpdated(eventId: event.id, eventDate: newDate),
+      );
     } catch (e) {
       debugPrint('[CalendarPage] 事件拖拽保存失败: $e');
     }
@@ -146,6 +174,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     final viewMode = ref.watch(calendarViewModeProvider);
     final focused = ref.watch(calendarFocusedDateProvider);
     final pomodoroState = ref.watch(pomodoroTimerProvider);
+    final isPomodoroActive =
+        pomodoroState.isRunning || pomodoroState.phase == PomodoroPhase.paused;
 
     final isModal = widget.renderMode == 'modal';
 
@@ -158,17 +188,25 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           child: viewMode == ViewMode.month
               ? MonthView(
                   focusedDay: focused,
-                  onDaySelected: (day) =>
-                      ref.read(calendarFocusedDateProvider.notifier).jumpTo(day),
-                  onPageChanged: (day) =>
-                      ref.read(calendarFocusedDateProvider.notifier).jumpTo(day),
+                  onDaySelected: (day) => ref
+                      .read(calendarFocusedDateProvider.notifier)
+                      .jumpTo(day),
+                  onPageChanged: (day) => ref
+                      .read(calendarFocusedDateProvider.notifier)
+                      .jumpTo(day),
                 )
               : TimetableView(
                   visibleDates: viewMode == ViewMode.week
-                      ? List.generate(7, (i) => focused.subtract(Duration(days: focused.weekday % 7 - i)))
+                      ? List.generate(
+                          7,
+                          (i) => focused.subtract(
+                            Duration(days: focused.weekday % 7 - i),
+                          ),
+                        )
                       : [focused],
                   onEventTap: (event) => _showEventDetail(context, ref, event),
-                  onEventDragged: (event, newDate) => _handleEventDragged(ref, event, newDate),
+                  onEventDragged: (event, newDate) =>
+                      _handleEventDragged(ref, event, newDate),
                 ),
         ),
       ],
@@ -185,12 +223,14 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             bottom: 0,
             child: SafeArea(top: false, child: TodayPanel()),
           ),
-        if (pomodoroState.isRunning) const Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: SafeArea(top: false, child: PomodoroFloatingBar()),
-        ),
+        if (isPomodoroActive)
+          const Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: SafeArea(child: PomodoroFloatingBar()),
+          ),
       ],
     );
 
@@ -201,17 +241,21 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           leading: IconButton(
             icon: const Icon(Icons.close),
             onPressed: () {
-              widget.onResult?.call(const MiniAppResult(success: false, action: 'cancelled'));
+              widget.onResult?.call(
+                const MiniAppResult(success: false, action: 'cancelled'),
+              );
               Navigator.pop(context);
             },
           ),
-          actions: [_StatsButton(), _TodayButton()],
+          actions: [_ReminderButton(), _StatsButton(), _TodayButton()],
         ),
         body: body,
-        floatingActionButton: FloatingActionButton(
-          onPressed: _openCreateSheet,
-          child: const Icon(Icons.add),
-        ),
+        floatingActionButton: isPomodoroActive
+            ? null
+            : FloatingActionButton(
+                onPressed: _openCreateSheet,
+                child: const Icon(Icons.add),
+              ),
       );
     }
 
@@ -220,13 +264,15 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       appBar: AppBar(
         title: const Text('学习日历'),
         centerTitle: false,
-        actions: [_StatsButton(), _TodayButton()],
+        actions: [_ReminderButton(), _StatsButton(), _TodayButton()],
       ),
       body: body,
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openCreateSheet,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: isPomodoroActive
+          ? null
+          : FloatingActionButton(
+              onPressed: _openCreateSheet,
+              child: const Icon(Icons.add),
+            ),
     );
   }
 }
@@ -243,10 +289,13 @@ class _CountdownBanner extends ConsumerWidget {
 
     return eventsAsync.maybeWhen(
       data: (events) {
-        final countdowns = events
-            .where((e) => e.isCountdown && !e.eventDate.isBefore(DateTime.now()))
-            .toList()
-          ..sort((a, b) => a.eventDate.compareTo(b.eventDate));
+        final countdowns =
+            events
+                .where(
+                  (e) => e.isCountdown && !e.eventDate.isBefore(DateTime.now()),
+                )
+                .toList()
+              ..sort((a, b) => a.eventDate.compareTo(b.eventDate));
         if (countdowns.isEmpty) return const SizedBox.shrink();
 
         final next = countdowns.first;
@@ -264,7 +313,14 @@ class _CountdownBanner extends ConsumerWidget {
             children: [
               Icon(Icons.flag_rounded, size: 16, color: color),
               const SizedBox(width: 8),
-              Text(text, style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w500)),
+              Text(
+                text,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: color,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         );
@@ -311,8 +367,184 @@ class _TodayButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return TextButton(
-      onPressed: () => ref.read(calendarFocusedDateProvider.notifier).jumpToToday(),
+      onPressed: () =>
+          ref.read(calendarFocusedDateProvider.notifier).jumpToToday(),
       child: const Text('今天'),
+    );
+  }
+}
+
+// ── 提醒状态与测试 ────────────────────────────────────────────────────────────
+
+class _ReminderButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.notifications_active_outlined),
+      tooltip: '提醒测试',
+      onPressed: () => _showReminderSheet(context),
+    );
+  }
+
+  void _showReminderSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => const _ReminderSheet(),
+    );
+  }
+}
+
+class _ReminderSheet extends StatefulWidget {
+  const _ReminderSheet();
+
+  @override
+  State<_ReminderSheet> createState() => _ReminderSheetState();
+}
+
+class _ReminderSheetState extends State<_ReminderSheet> {
+  late Future<NotificationPermissionStatus> _statusFuture;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _statusFuture = NotificationService.instance.getPermissionStatus();
+  }
+
+  void _refresh() {
+    setState(() {
+      _statusFuture = NotificationService.instance.getPermissionStatus();
+    });
+  }
+
+  Future<void> _requestPermission() async {
+    setState(() => _busy = true);
+    await NotificationService.instance.requestPermission();
+    if (mounted) {
+      setState(() => _busy = false);
+      _refresh();
+    }
+  }
+
+  Future<void> _sendNow() async {
+    setState(() => _busy = true);
+    await NotificationService.instance.showImmediate(
+      id: NotificationIds.calendarTestImmediate,
+      title: '📚 学习提醒测试',
+      body: '这是一条即时提醒。锁屏和横幅样式由系统通知设置控制。',
+      payload: 'route:/toolkit/calendar',
+    );
+    if (mounted) setState(() => _busy = false);
+  }
+
+  Future<void> _sendIn30Seconds() async {
+    setState(() => _busy = true);
+    await NotificationService.instance.scheduleCalendarReminder(
+      id: NotificationIds.calendarTestScheduled,
+      title: '⏰ 该学习了',
+      body: '这是一条 30 秒后的日历学习提醒。',
+      scheduledTime: DateTime.now().add(const Duration(seconds: 30)),
+      payload: 'route:/toolkit/calendar',
+    );
+    if (mounted) {
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已安排 30 秒后的提醒，请锁屏测试。')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+        child: FutureBuilder<NotificationPermissionStatus>(
+          future: _statusFuture,
+          builder: (context, snapshot) {
+            final status = snapshot.data;
+            final notificationsOk = status?.notificationsEnabled ?? false;
+            final exactOk = status?.exactAlarmsEnabled ?? false;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('学习提醒', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 12),
+                _StatusRow(
+                  icon: Icons.notifications_active_outlined,
+                  label: '系统通知',
+                  ok: notificationsOk,
+                  okText: '已开启',
+                  badText: '未开启',
+                ),
+                _StatusRow(
+                  icon: Icons.alarm_on_outlined,
+                  label: '准时提醒',
+                  ok: exactOk,
+                  okText: '精确',
+                  badText: '近似时间',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '锁屏横幅、声音和弹出样式还受手机系统的通知频道设置影响。如果测试通知能到达但不弹出，请在系统里把“日历学习提醒”频道设为高优先级。',
+                  style: TextStyle(color: cs.onSurfaceVariant, height: 1.45),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _requestPermission,
+                  icon: const Icon(Icons.verified_user_outlined),
+                  label: const Text('重新请求权限'),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: _busy ? null : _sendNow,
+                  icon: const Icon(Icons.notifications_outlined),
+                  label: const Text('发送即时测试'),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.tonalIcon(
+                  onPressed: _busy ? null : _sendIn30Seconds,
+                  icon: const Icon(Icons.timer_outlined),
+                  label: const Text('30 秒后提醒我'),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool ok;
+  final String okText;
+  final String badText;
+
+  const _StatusRow({
+    required this.icon,
+    required this.label,
+    required this.ok,
+    required this.okText,
+    required this.badText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = ok ? Colors.green : Theme.of(context).colorScheme.error;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: color),
+      title: Text(label),
+      trailing: Text(
+        ok ? okText : badText,
+        style: TextStyle(color: color, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }
@@ -331,4 +563,3 @@ class _StatsButton extends StatelessWidget {
 }
 
 // ── 周/日视图占位（timetable 库接入后替换）────────────────────────────────────
-

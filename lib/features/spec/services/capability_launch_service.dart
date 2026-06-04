@@ -11,7 +11,11 @@ class CapabilityLaunchService {
   }
 
   static CapabilityExecutionContext contextForPlanItem(PlanItem item) {
-    final params = item.capabilityParams;
+    final params = {
+      ...item.capabilityParams,
+      if (item.subjectId != null) 'subject_id': '${item.subjectId}',
+      if (item.nodeId.isNotEmpty) 'node_id': item.nodeId,
+    };
     final topic = (params['topic'] as String?) ?? item.nodeText;
     final count = params['count'] is int
         ? params['count'] as int
@@ -34,7 +38,7 @@ class CapabilityLaunchService {
   }) {
     return switch (context.capabilityId) {
       'memory.drill' => appendCapabilityQuery(R.toolkitMemoryDrill, context),
-      'quiz.generate' => appendCapabilityQuery(R.toolkitQuiz, context),
+      'quiz.generate' => appendCapabilityQuery(R.toolkitPractice, context),
       'lecture.view' =>
         subjectId != null ? R.courseSpaceSubject(subjectId) : R.mindmapEntry,
       'mindmap.build' =>

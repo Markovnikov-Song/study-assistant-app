@@ -13,6 +13,7 @@ const routes = [
     name: 'quiz',
     auth: true,
   },
+  { path: '/toolkit/practice', name: 'practice', auth: true },
   { path: '/toolkit/calendar', name: 'calendar', auth: true },
 ];
 

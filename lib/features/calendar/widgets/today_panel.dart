@@ -181,6 +181,18 @@ class _EventTile extends ConsumerWidget {
                 ],
               ),
             ),
+            IconButton(
+              tooltip: '启动番茄钟',
+              icon: Icon(
+                Icons.play_circle_fill_rounded,
+                color: event.isCompleted ? cs.outline : color,
+              ),
+              onPressed: event.isCompleted
+                  ? null
+                  : () => ref
+                        .read(pomodoroTimerProvider.notifier)
+                        .start(event, durationMinutes: 25),
+            ),
             // 完成状态指示器
             GestureDetector(
               onTap: () => _toggleComplete(ref, context),

@@ -3,12 +3,18 @@
 
 param(
     [Parameter(Mandatory=$true)]
-    [string]$Version
+    [string]$Version,
+    [string]$SshIdentityFile = "$env:USERPROFILE\.ssh\study_assistant_deploy_ed25519"
 )
 
 $ServerIP = "47.104.165.105"
 $ServerUser = "admin"
 $ProjectPath = "/home/admin/study-assistant-app"
+$sshBase = @("-i", $SshIdentityFile, "-o", "IdentitiesOnly=yes")
+if (-not (Test-Path $SshIdentityFile)) {
+    Write-Host "Error: SSH key not found at $SshIdentityFile" -ForegroundColor Red
+    exit 1
+}
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Deploy to Server: v$Version" -ForegroundColor Cyan
@@ -31,7 +37,7 @@ Write-Host ""
 # Step 1: Upload APK
 Write-Host "[1/5] Uploading APK to server..." -ForegroundColor Yellow
 Write-Host "Command: scp $apkPath ${ServerUser}@${ServerIP}:${ProjectPath}/backend/downloads/" -ForegroundColor Gray
-scp $apkPath "${ServerUser}@${ServerIP}:${ProjectPath}/backend/downloads/"
+scp @sshBase $apkPath "${ServerUser}@${ServerIP}:${ProjectPath}/backend/downloads/"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: Failed to upload APK" -ForegroundColor Red
     exit 1
@@ -41,7 +47,7 @@ Write-Host ""
 
 # Step 2: Update code on server
 Write-Host "[2/5] Pulling latest code on server..." -ForegroundColor Yellow
-ssh "${ServerUser}@${ServerIP}" "cd ${ProjectPath} && git pull origin master"
+ssh @sshBase "${ServerUser}@${ServerIP}" "cd ${ProjectPath} && git pull origin master"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Warning: Git pull failed or no changes" -ForegroundColor Yellow
 }
@@ -50,36 +56,17 @@ Write-Host ""
 
 # Step 3: Update .env on server
 Write-Host "[3/5] Updating .env on server..." -ForegroundColor Yellow
-$updateEnvScript = @"
-cd ${ProjectPath}/backend && \
-sed -i 's/APP_VERSION=.*/APP_VERSION=$Version/' .env && \
-sed -i 's|APP_DOWNLOAD_URL=.*|APP_DOWNLOAD_URL=http://47.104.165.105:8000/downloads/app-v$Version.apk|' .env && \
-sed -i 's/APP_CHANGELOG=.*/APP_CHANGELOG=✨ 新增 API 配置功能\\n🔧 移除付费模块\\n🔒 增强安全性/' .env && \
-echo 'Updated .env:' && \
-grep 'APP_VERSION\|APP_DOWNLOAD_URL' .env
-"@
-
-ssh "${ServerUser}@${ServerIP}" $updateEnvScript
+$downloadUrl = "https://www.study-assistant.cn/downloads/app-v$Version.apk"
+$updateEnvCmd = "cd ${ProjectPath}/backend && sed -i 's/APP_VERSION=.*/APP_VERSION=$Version/' .env && sed -i 's|APP_DOWNLOAD_URL=.*|APP_DOWNLOAD_URL=$downloadUrl|' .env && grep 'APP_VERSION\|APP_DOWNLOAD_URL' .env"
+ssh @sshBase "${ServerUser}@${ServerIP}" $updateEnvCmd
 Write-Host "Done: .env updated" -ForegroundColor Green
 Write-Host ""
 
 # Step 4: Restart service
 Write-Host "[4/5] Restarting backend service..." -ForegroundColor Yellow
 Write-Host "Note: Service runs in ${ProjectPath}/backend (no separate backend folder needed)" -ForegroundColor Gray
-$restartScript = @"
-cd ${ProjectPath}/backend && \
-echo 'Cleaning up old processes...' && \
-pkill -f 'uvicorn main:app' || true && \
-sleep 2 && \
-echo 'Starting backend with nohup...' && \
-source venv/bin/activate && \
-nohup uvicorn main:app --host 0.0.0.0 --port 8000 > uvicorn.log 2>&1 & \
-sleep 5 && \
-echo 'Checking if process is up...' && \
-ps aux | grep uvicorn | grep -v grep
-"@
-
-ssh "${ServerUser}@${ServerIP}" $restartScript
+$restartCmd = "sudo systemctl restart study-assistant && sleep 3 && systemctl is-active study-assistant"
+ssh @sshBase "${ServerUser}@${ServerIP}" $restartCmd
 
 Write-Host "Done: Service restarted" -ForegroundColor Green
 Write-Host ""

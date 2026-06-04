@@ -100,6 +100,13 @@ class ProfilePage extends ConsumerWidget {
                   onTap: () => context.push(R.workshop),
                 ),
                 _ActionTile(
+                  icon: Icons.play_circle_rounded,
+                  title: '使用教学',
+                  subtitle: '用高等数学示例快速上手',
+                  colors: const [Color(0xFF0891B2), Color(0xFFDB2777)],
+                  onTap: () => context.push(R.onboardingReplay),
+                ),
+                _ActionTile(
                   icon: Icons.settings_rounded,
                   title: '设置',
                   subtitle: '账号、外观、通知',

@@ -136,12 +136,14 @@ class NodePracticeSheet extends ConsumerStatefulWidget {
   final String nodeId;
   final String nodeText;
   final int? subjectId;
+  final Future<void> Function(Map<String, dynamic> result)? onCompleted;
 
   const NodePracticeSheet({
     super.key,
     required this.nodeId,
     required this.nodeText,
     this.subjectId,
+    this.onCompleted,
   });
 
   @override
@@ -284,9 +286,22 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context); // 关闭 dialog
-              Navigator.pop(context); // 关闭 sheet
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              final callback = widget.onCompleted;
+              if (callback != null) {
+                await callback({
+                  'node_id': widget.nodeId,
+                  'node_text': widget.nodeText,
+                  'attempted_count': _questions.length,
+                  'correct_count': _correctCount,
+                  'mistake_count': _mistakeCount,
+                  'completed': true,
+                });
+              }
+              if (!mounted) return;
+              navigator.pop(); // 关闭 dialog
+              navigator.pop(); // 关闭 sheet
             },
             child: const Text('完成'),
           ),

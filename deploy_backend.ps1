@@ -6,6 +6,9 @@ $ErrorActionPreference = "Stop"
 $ServerIP = "47.104.165.105"
 $ServerUser = "admin"
 $ProjectPath = "/home/admin/study-assistant-app"
+$SshIdentityFile = "$env:USERPROFILE\.ssh\study_assistant_deploy_ed25519"
+$sshBase = @("-i", $SshIdentityFile, "-o", "IdentitiesOnly=yes")
+if (-not (Test-Path $SshIdentityFile)) { throw "SSH key not found: $SshIdentityFile" }
 
 Write-Host ">>> Deploy backend to $ServerUser@${ServerIP}" -ForegroundColor Cyan
 
@@ -14,33 +17,12 @@ git push origin master
 if ($LASTEXITCODE -ne 0) { throw "git push failed" }
 
 Write-Host "[2/3] git pull on server..." -ForegroundColor Yellow
-ssh "${ServerUser}@${ServerIP}" @"
-set -e
-cd '$ProjectPath'
-git fetch origin master
-git reset --hard origin/master
-cd backend
-source venv/bin/activate
-pip install -r requirements.txt -q
-"@
+$pullCmd = "cd $ProjectPath && git fetch origin master && git reset --hard origin/master && cd backend && . venv/bin/activate && pip install -r requirements.txt -q"
+ssh @sshBase "${ServerUser}@${ServerIP}" $pullCmd
 
 Write-Host "[3/3] restart study-assistant service..." -ForegroundColor Yellow
-ssh "${ServerUser}@${ServerIP}" @"
-set -e
-if systemctl is-active --quiet study-assistant 2>/dev/null; then
-  sudo systemctl restart study-assistant
-  sleep 3
-  systemctl is-active study-assistant
-else
-  cd '$ProjectPath/backend'
-  pkill -f 'uvicorn main:app' || true
-  sleep 2
-  source venv/bin/activate
-  nohup uvicorn main:app --host 0.0.0.0 --port 8000 > uvicorn.log 2>&1 &
-  sleep 3
-  pgrep -af 'uvicorn main:app' || true
-fi
-"@
+$restartCmd = "if systemctl is-active --quiet study-assistant 2>/dev/null; then sudo systemctl restart study-assistant && sleep 3 && systemctl is-active study-assistant; else cd $ProjectPath/backend && pkill -f 'uvicorn main:app' || true; sleep 2; . venv/bin/activate; nohup uvicorn main:app --host 0.0.0.0 --port 8000 > uvicorn.log 2>&1 & sleep 3; pgrep -af uvicorn; fi"
+ssh @sshBase "${ServerUser}@${ServerIP}" $restartCmd
 
 Write-Host "[verify] production health + photo solve (no auth -> expect 401 not 400)..." -ForegroundColor Yellow
 try {

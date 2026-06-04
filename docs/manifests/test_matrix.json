@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at": "2026-06-04",
+  "levels": {
+    "L0": "静态分析、单元测试、后端合同测试",
+    "L1": "页面 smoke 和入口渲染",
+    "L2": "Mock 交互流和请求体合同",
+    "L3": "真实后端 E2E",
+    "L4": "视觉回归",
+    "L5": "真机/平台能力验收"
+  },
+  "tests": [
+    {"id": "AUTH-P1-01", "feature": "auth", "level": "L1", "file": "tests/playwright/p1_shell_flow.spec.ts", "status": "passed", "coverage": "未登录访问受保护路由跳转登录"},
+    {"id": "SHELL-P1-01", "feature": "shell", "level": "L1", "file": "tests/playwright/p1_shell_flow.spec.ts", "status": "passed", "coverage": "主导航四个 tab 和工具入口渲染"},
+    {"id": "CAL-P1-01", "feature": "calendar.learning_calendar", "level": "L2", "file": "tests/playwright/calendar_flow.spec.ts", "status": "passed", "coverage": "创建学习事件并校验 /api/calendar/events 请求体"},
+    {"id": "CAL-P1-02", "feature": "calendar.learning_calendar", "level": "L2", "file": "tests/playwright/calendar_flow.spec.ts", "status": "passed", "coverage": "提醒测试面板打开且无 fatal error"},
+    {"id": "POMO-P1-01", "feature": "calendar.pomodoro_focus_guard", "level": "L2", "file": "tests/playwright/calendar_flow.spec.ts", "status": "passed", "coverage": "今日任务启动悬浮番茄钟"},
+    {"id": "POMO-P1-02", "feature": "calendar.pomodoro_focus_guard", "level": "L2", "file": "tests/playwright/calendar_flow.spec.ts", "status": "passed", "coverage": "番茄钟暂停、继续、结束并写入学习 session"},
+    {"id": "POMO-P1-03", "feature": "calendar.pomodoro_focus_guard", "level": "L2", "file": "tests/playwright/calendar_flow.spec.ts", "status": "passed", "coverage": "从悬浮面板进入防打扰设置"},
+    {"id": "SA-P0-01..08", "feature": "solve.assistant", "level": "L2", "file": "tests/playwright/solve_flow.spec.ts", "status": "passed", "coverage": "解题、保存笔记、加入错题、历史恢复和错误态"},
+    {"id": "SUBJECT-P1-01", "feature": "subjects.resources_rag", "level": "L2", "file": "tests/playwright/subject_resource_flow.spec.ts", "status": "passed", "coverage": "新建科目请求体"},
+    {"id": "DOC-P1-01", "feature": "subjects.resources_rag", "level": "L2", "file": "tests/playwright/subject_resource_flow.spec.ts", "status": "passed", "coverage": "资料库状态读取和全量重建索引"},
+    {"id": "RAG-P1-01", "feature": "subjects.resources_rag", "level": "L0", "file": "test/providers/chat_provider_sources_test.dart", "status": "passed", "coverage": "SSE [SOURCES] 挂到 assistant 消息"},
+    {"id": "QUIZ-P1-01", "feature": "quiz.generation_practice", "level": "L2", "file": "tests/playwright/quiz_flow.spec.ts", "status": "passed", "coverage": "选择科目并生成自定义题目"},
+    {"id": "PRACTICE-P1-01", "feature": "quiz.generation_practice", "level": "L2", "file": "tests/playwright/practice_flow.spec.ts", "status": "passed", "coverage": "按科目进入练习弹层并提交答案"},
+    {"id": "MISTAKE-P1-01", "feature": "review.mistakes", "level": "L2", "file": "tests/playwright/mistake_flow.spec.ts", "status": "passed", "coverage": "待复盘错题进入复盘页并提交质量"},
+    {"id": "NOTE-P1-01", "feature": "notes.notebooks", "level": "L2", "file": "tests/playwright/notebook_flow.spec.ts", "status": "passed", "coverage": "笔记详情 AI 润色和导入资料库"},
+    {"id": "REVIEW-NOTE-CONTRACT", "feature": "review.mistakes", "level": "L0", "file": "backend/tests/test_review_note_contracts.py", "status": "passed", "coverage": "判题、错题收录、SM-2 卡片和笔记合同"},
+    {"id": "WORKSHOP-P2-ENTRY", "feature": "workshop.mini_apps", "level": "L1", "file": "tests/playwright/p1_shell_flow.spec.ts", "status": "passed", "coverage": "软件工坊入口渲染，不代表核心构建流完成"}
+  ],
+  "known_gaps": [
+    "Android/iOS 通知和应用锁需要 L5 真机验收。",
+    "软件工坊核心构建、运行和发布流未完成。",
+    "文件上传真实选择器需补稳定测试方式。"
+  ]
+}

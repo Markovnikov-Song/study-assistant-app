@@ -15,6 +15,7 @@
 
 import 'dart:async'; // Dart 异步库
 import 'package:dio/dio.dart'; // HTTP 库（用到 CancelToken、DioException）
+import 'dart:convert';
 import 'package:flutter/foundation.dart'; // VoidCallback
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 状态管理
 import '../core/network/api_exception.dart';
@@ -199,7 +200,27 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
             }
             return;
           }
-          if (event.startsWith('[SOURCES]')) return; // 后端已保存，忽略
+          if (event.startsWith('[SOURCES]')) {
+            final sources = _parseSourcesFrame(event);
+            if (sources.isEmpty) return;
+            final msgs = state.value;
+            if (msgs != null &&
+                msgs.isNotEmpty &&
+                msgs.last.role == MessageRole.assistant) {
+              final updated = ChatMessage.local(
+                role: MessageRole.assistant,
+                content: msgs.last.content,
+                sources: sources,
+                type: msgs.last.type,
+                sceneCardData: msgs.last.sceneCardData,
+              );
+              state = AsyncValue.data([
+                ...msgs.sublist(0, msgs.length - 1),
+                updated,
+              ]);
+            }
+            return;
+          }
           if (event.startsWith('[ERROR]')) {
             if (!completer.isCompleted) {
               completer.completeError(Exception(event.substring(7)));
@@ -296,6 +317,25 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   }
 
   // ─── 取消正在发送的请求 ────────────────────────────────────
+  List<MessageSource> _parseSourcesFrame(String event) {
+    try {
+      final payload = event.substring('[SOURCES]'.length);
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map) return const [];
+      final rawSources = decoded['sources'];
+      if (rawSources is! List) return const [];
+      return rawSources
+          .whereType<Map>()
+          .map(
+            (source) =>
+                MessageSource.fromJson(Map<String, dynamic>.from(source)),
+          )
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   void cancelSending() {
     // ?. 空安全调用：_cancelToken 不为 null 时才调用 cancel()
     _cancelToken?.cancel('用户取消');

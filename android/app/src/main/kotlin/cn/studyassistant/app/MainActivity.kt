@@ -1,10 +1,13 @@
 package cn.studyassistant.app
 
+import android.app.AppOpsManager
+import android.content.Context
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -14,6 +17,7 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     private val ICON_CHANNEL = "app_icon"
     private val APK_CHANNEL = "apk_install"
+    private val FOCUS_GUARD_CHANNEL = "focus_guard"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -37,6 +41,115 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FOCUS_GUARD_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getStatus" -> result.success(focusGuardStatus())
+                    "openUsageAccessSettings" -> {
+                        openUsageAccessSettings()
+                        result.success(null)
+                    }
+                    "openOverlaySettings" -> {
+                        openOverlaySettings()
+                        result.success(null)
+                    }
+                    "getInstalledApps" -> result.success(getInstalledApps())
+                    "start" -> {
+                        val packages = call.argument<List<String>>("allowedPackages") ?: emptyList()
+                        startFocusGuard(packages)
+                        result.success(true)
+                    }
+                    "stop" -> {
+                        stopService(Intent(this, FocusGuardService::class.java))
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun focusGuardStatus(): Map<String, Any> {
+        return mapOf(
+            "platform" to "android",
+            "usageAccessGranted" to hasUsageAccess(),
+            "overlayGranted" to canDrawOverlays(),
+            "screenTimeAvailable" to false,
+            "entitlementRequired" to false,
+            "serviceAvailable" to true,
+        )
+    }
+
+    private fun hasUsageAccess(): Boolean {
+        val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            appOps.unsafeCheckOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(),
+                packageName,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            appOps.checkOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(),
+                packageName,
+            )
+        }
+        return mode == AppOpsManager.MODE_ALLOWED
+    }
+
+    private fun canDrawOverlays(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
+    }
+
+    private fun openUsageAccessSettings() {
+        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
+    }
+
+    private fun openOverlaySettings() {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName"),
+            )
+        } else {
+            Intent(Settings.ACTION_SETTINGS)
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+    }
+
+    private fun getInstalledApps(): List<Map<String, String>> {
+        val launchIntent = Intent(Intent.ACTION_MAIN, null).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+        }
+        return packageManager.queryIntentActivities(launchIntent, 0)
+            .map { resolveInfo ->
+                mapOf(
+                    "packageName" to resolveInfo.activityInfo.packageName,
+                    "label" to resolveInfo.loadLabel(packageManager).toString(),
+                )
+            }
+            .distinctBy { it["packageName"] }
+            .sortedBy { it["label"]?.lowercase() }
+    }
+
+    private fun startFocusGuard(allowedPackages: List<String>) {
+        val intent = Intent(this, FocusGuardService::class.java).apply {
+            putStringArrayListExtra(
+                FocusGuardService.EXTRA_ALLOWED_PACKAGES,
+                ArrayList(allowedPackages),
+            )
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
     }
 
     private fun installApk(path: String?, result: MethodChannel.Result) {

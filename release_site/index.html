@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>伴学下载</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #202538;
+      --muted: #64718b;
+      --line: #dfe6f2;
+      --blue: #5f63f2;
+      --green: #1f9d73;
+      --bg: #eef5f7;
+      --panel: rgba(255, 255, 255, .86);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 20%, rgba(95, 99, 242, .20), transparent 34%),
+        linear-gradient(135deg, #f7f8ff 0%, var(--bg) 58%, #edf8f3 100%);
+    }
+
+    main {
+      width: min(1040px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 56px 0;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 42px;
+    }
+
+    .logo {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      box-shadow: 0 18px 40px rgba(95, 99, 242, .22);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 40px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 22px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, .72);
+      border-radius: 8px;
+      padding: 28px;
+      box-shadow: 0 22px 56px rgba(39, 51, 79, .12);
+      backdrop-filter: blur(16px);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      height: 28px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    h2 {
+      margin: 20px 0 10px;
+      font-size: 26px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.75;
+    }
+
+    .meta {
+      margin: 22px 0;
+      padding: 14px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    a.download {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 48px;
+      border-radius: 8px;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 800;
+      background: var(--blue);
+      box-shadow: 0 16px 28px rgba(95, 99, 242, .22);
+    }
+
+    a.android {
+      background: var(--green);
+      box-shadow: 0 16px 28px rgba(31, 157, 115, .20);
+    }
+
+    footer {
+      margin-top: 32px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 760px) {
+      main { width: min(100% - 28px, 1040px); padding: 32px 0; }
+      header { align-items: flex-start; }
+      h1 { font-size: 32px; }
+      .grid { grid-template-columns: 1fr; }
+      .card { padding: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <img class="logo" src="assets/app_icon_1.png" alt="伴学图标">
+      <div>
+        <h1>伴学下载</h1>
+        <p class="subtitle">选择适合你的平台版本。</p>
+      </div>
+    </header>
+
+    <section class="grid" aria-label="下载列表">
+      <article class="card">
+        <span class="badge">Windows</span>
+        <h2>Windows 安装版</h2>
+        <p>适合 Windows 10/11 电脑，下载后双击安装。</p>
+        <div class="meta">
+          <span>版本：1.2.15</span>
+          <span>文件：伴学-Setup-1.2.15.exe</span>
+        </div>
+        <a class="download" href="downloads/windows/伴学-Setup-1.2.15.exe" download>下载 Windows 版</a>
+      </article>
+
+      <article class="card">
+        <span class="badge">Android</span>
+        <h2>Android APK</h2>
+        <p>适合 Android 手机，下载后按系统提示安装 APK。</p>
+        <div class="meta">
+          <span>版本：1.2.15</span>
+          <span>文件：伴学-Android-1.2.15.apk</span>
+        </div>
+        <a class="download android" href="downloads/android/伴学-Android-1.2.15.apk" download>下载 Android 版</a>
+      </article>
+    </section>
+
+    <footer>安装前请确认文件来源为 study-assistant.cn。</footer>
+  </main>
+</body>
+</html>

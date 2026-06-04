@@ -46,7 +46,9 @@ class SubjectProgressOut(BaseModel):
 class SessionSummaryOut(BaseModel):
     id: int
     title: Optional[str]
+    resource_scope_label: Optional[str] = None
     created_at: str
+    last_visited_at: Optional[str] = None
     total_nodes: int
     lit_nodes: int
     is_pinned: bool
@@ -176,6 +178,26 @@ def _assert_session_owner(db, session_id: int, user_id: int) -> ConversationSess
     if not sess:
         raise HTTPException(404, "大纲不存在")
     return sess
+
+
+def _resource_scope_label(sources: Any) -> Optional[str]:
+    """Return the human-readable source label saved with a generated mindmap."""
+    if not isinstance(sources, dict):
+        return None
+    label = sources.get("resource_scope_label")
+    if isinstance(label, str) and label.strip():
+        return label.strip()
+    filename = sources.get("filename")
+    if isinstance(filename, str) and filename.strip():
+        return filename.strip()
+    filenames = sources.get("filenames")
+    if isinstance(filenames, list):
+        clean = [str(v).strip() for v in filenames if str(v).strip()]
+        if clean:
+            if len(clean) == 1:
+                return clean[0]
+            return f"{clean[0]} 等 {len(clean)} 份资料"
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -332,6 +354,37 @@ def get_sessions(subject_id: int, user=Depends(get_current_user)):
         )
         content_map = {r.session_id: r.content for r in records}
 
+        latest_activity_rows = (
+            db.query(
+                ConversationHistory.session_id,
+                func.max(ConversationHistory.created_at).label("last_visited_at"),
+            )
+            .filter(ConversationHistory.session_id.in_(session_ids))
+            .group_by(ConversationHistory.session_id)
+            .all()
+        )
+        last_visited_map = {
+            r.session_id: r.last_visited_at for r in latest_activity_rows
+        }
+
+        latest_source_ids = (
+            db.query(func.max(ConversationHistory.id))
+            .filter(
+                ConversationHistory.session_id.in_(session_ids),
+                ConversationHistory.role == "user",
+            )
+            .group_by(ConversationHistory.session_id)
+            .subquery()
+        )
+        source_records = (
+            db.query(ConversationHistory)
+            .filter(ConversationHistory.id.in_(latest_source_ids))
+            .all()
+        )
+        source_label_map = {
+            r.session_id: _resource_scope_label(r.sources) for r in source_records
+        }
+
         # 批量查点亮数
         lit_rows = (
             db.query(
@@ -352,7 +405,11 @@ def get_sessions(subject_id: int, user=Depends(get_current_user)):
             SessionSummaryOut(
                 id=sess.id,
                 title=sess.title,
+                resource_scope_label=source_label_map.get(sess.id),
                 created_at=sess.created_at.isoformat(),
+                last_visited_at=(
+                    last_visited_map.get(sess.id) or sess.created_at
+                ).isoformat(),
                 total_nodes=_parse_node_count(content_map.get(sess.id, "")),
                 lit_nodes=lit_map.get(sess.id, 0),
                 is_pinned=bool(getattr(sess, "is_pinned", 0)),

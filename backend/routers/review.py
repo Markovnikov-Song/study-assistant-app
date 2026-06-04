@@ -28,7 +28,7 @@ router = APIRouter()
 
 class MistakeCreateIn(BaseModel):
     """创建错题的请求"""
-    notebook_id: int
+    notebook_id: Optional[int] = None
     subject_id: Optional[int] = None
     title: Optional[str] = None
     content: str = Field(..., description="题目内容或错误描述")
@@ -229,6 +229,9 @@ def create_mistake(
     
     通常在练习完成后自动调用，正确答题不会创建错题。
     """
+    if body.notebook_id is None:
+        raise HTTPException(400, "notebook_id is required")
+
     with get_session() as db:
         # 验证笔记本存在
         notebook = db.query(Notebook).filter(

@@ -9,8 +9,14 @@ param(
     [string]$ServerUser = "admin",
     [string]$ApiBaseUrl = "",
     [string]$RemoteWebRoot = "/var/www/study-assistant-web",
+    [string]$SshIdentityFile = "$env:USERPROFILE\.ssh\study_assistant_deploy_ed25519",
     [switch]$SkipBuild
 )
+
+$sshBase = @("-i", $SshIdentityFile, "-o", "IdentitiesOnly=yes")
+if (-not (Test-Path $SshIdentityFile)) {
+    throw "SSH key not found: $SshIdentityFile"
+}
 
 $ErrorActionPreference = "Stop"
 
@@ -56,34 +62,15 @@ Write-Host "[2/4] Packing build/web..." -ForegroundColor Yellow
 tar -czf $archive -C build\web .
 
 Write-Host "[3/4] Uploading archive..." -ForegroundColor Yellow
-scp $archive "${ServerUser}@${ServerIP}:/tmp/study-assistant-web.tar.gz"
+scp @sshBase $archive "${ServerUser}@${ServerIP}:/tmp/study-assistant-web.tar.gz"
 if ($LASTEXITCODE -ne 0) {
     throw "Upload failed: scp exited with code $LASTEXITCODE"
 }
 
 Write-Host "[4/4] Publishing on server..." -ForegroundColor Yellow
-$remoteScript = @"
-set -e
-WEB_ROOT='$RemoteWebRoot'
+$remoteScript = "WEB_ROOT='$RemoteWebRoot'; case `"`$WEB_ROOT`" in /var/www/*) ;; *) echo refuse; exit 1 ;; esac; sudo mkdir -p `"`$WEB_ROOT`"; sudo find `"`$WEB_ROOT`" -mindepth 1 -maxdepth 1 -exec rm -rf {} +; sudo tar -xzf /tmp/study-assistant-web.tar.gz -C `"`$WEB_ROOT`"; sudo chown -R www-data:www-data `"`$WEB_ROOT`" 2>/dev/null || true; sudo chmod -R a+rX `"`$WEB_ROOT`"; rm -f /tmp/study-assistant-web.tar.gz; if command -v nginx >/dev/null 2>&1; then sudo nginx -t && (sudo systemctl reload nginx || sudo service nginx reload); fi"
 
-case "`$WEB_ROOT" in
-  /var/www/*) ;;
-  *) echo "Refuse to clean unsafe WEB_ROOT: `$WEB_ROOT"; exit 1 ;;
-esac
-
-sudo mkdir -p "`$WEB_ROOT"
-sudo find "`$WEB_ROOT" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-sudo tar -xzf /tmp/study-assistant-web.tar.gz -C "`$WEB_ROOT"
-sudo chown -R www-data:www-data "`$WEB_ROOT" 2>/dev/null || true
-sudo chmod -R a+rX "`$WEB_ROOT"
-rm -f /tmp/study-assistant-web.tar.gz
-if command -v nginx >/dev/null 2>&1; then
-  sudo nginx -t
-  sudo systemctl reload nginx || sudo service nginx reload
-fi
-"@
-
-ssh "${ServerUser}@${ServerIP}" $remoteScript
+ssh @sshBase "${ServerUser}@${ServerIP}" $remoteScript
 if ($LASTEXITCODE -ne 0) {
     throw "Remote publish failed: ssh exited with code $LASTEXITCODE"
 }

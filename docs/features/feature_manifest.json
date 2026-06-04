@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at": "2026-06-04",
+  "status": "compatibility_manifest",
+  "note": "兼容旧入口。权威机器可读清单请优先读取 docs/manifests/*.json。",
+  "canonical_manifests": [
+    "docs/manifests/features.json",
+    "docs/manifests/code_map.json",
+    "docs/manifests/routes.json",
+    "docs/manifests/apis.json",
+    "docs/manifests/data_models.json",
+    "docs/manifests/test_matrix.json"
+  ],
+  "features": [
+    {
+      "id": "onboarding.demo_pack",
+      "doc": "docs/features/onboarding_demo.md",
+      "status": "partial"
+    },
+    {
+      "id": "subjects.resources_rag",
+      "doc": "docs/features/subjects_resources_rag.md",
+      "status": "implemented"
+    },
+    {
+      "id": "course_space.mindmap_lecture",
+      "doc": "docs/features/course_space_mindmap.md",
+      "status": "partial"
+    },
+    {
+      "id": "chat.cas",
+      "doc": "docs/features/chat_and_cas.md",
+      "status": "partial"
+    },
+    {
+      "id": "calendar.learning_calendar",
+      "doc": "docs/features/calendar.md",
+      "status": "partial"
+    },
+    {
+      "id": "calendar.pomodoro_focus_guard",
+      "doc": "docs/features/pomodoro_focus_guard.md",
+      "status": "partial"
+    },
+    {
+      "id": "solve.assistant",
+      "doc": "docs/features/solve_assistant.md",
+      "status": "implemented"
+    },
+    {
+      "id": "quiz.generation_practice",
+      "doc": "docs/features/quiz_generation.md",
+      "status": "implemented"
+    },
+    {
+      "id": "review.mistakes",
+      "doc": "docs/features/mistakes_review.md",
+      "status": "implemented"
+    },
+    {
+      "id": "notes.notebooks",
+      "doc": "docs/features/notes.md",
+      "status": "implemented"
+    },
+    {
+      "id": "workshop.mini_apps",
+      "doc": "docs/features/software_workshop.md",
+      "status": "partial"
+    }
+  ]
+}

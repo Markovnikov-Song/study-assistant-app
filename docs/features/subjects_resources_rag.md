@@ -1,0 +1,80 @@
+# 科目、资料库与 RAG 来源
+
+## 基本信息
+
+| 字段 | 内容 |
+| --- | --- |
+| 功能 ID | `subjects.resources_rag` |
+| 当前状态 | 已实现主流程 |
+| 主要入口 | `/profile/subjects`、`/profile/resources`、`/profile/resources/:id` |
+| 后端前缀 | `/api/subjects`、`/api/documents`、`/api/chat` |
+| 自动化覆盖 | `SUBJECT-P1-01`、`DOC-P1-01`、`RAG-P1-01` |
+
+## 功能目标
+
+科目是学习数据的组织边界。资料库负责把教材、讲义、课件等材料解析为可检索知识块。RAG 来源负责在资料问答时把回答对应到具体文件和片段，让用户知道答案来自哪里。
+
+## 用户流程
+
+1. 用户在科目管理中新建科目。
+2. 用户进入资料管理，选择某个科目。
+3. 系统展示该科目的资料库状态：资料数量、知识块数量、导图是否就绪。
+4. 用户可以上传资料、重建全部索引，或后续对单个资料执行操作。
+5. 用户在对话或解题中使用资料问答时，后端通过 SSE 返回 `[SOURCES]` 帧。
+6. 前端把来源挂到 assistant 消息上，UI 展示参考来源。
+
+## 已实现能力
+
+- 科目列表、新建、编辑、置顶、归档、删除。
+- 资料管理按科目进入详情。
+- 资料库状态展示：文档数、知识块数、导图状态。
+- 全量重建索引请求。
+- RAG 流式问答来源解析。
+- 笔记导入资料库后可成为 RAG 文档。
+
+## 技术结构
+
+| 层级 | 文件 | 说明 |
+| --- | --- | --- |
+| 科目 UI | `lib/features/subjects/subjects_page.dart` | 科目管理页和表单 |
+| 资料入口 | `lib/features/resources/resources_page.dart` | 资料管理科目列表 |
+| 资料详情 | `lib/features/subject_detail/subject_detail_page.dart` | 资料、历年题、设置 Tab |
+| 资料 Tab | `lib/features/subject_detail/tabs/docs_tab.dart` | 资料状态、上传、重建索引、资料列表 |
+| Provider | `lib/providers/subject_provider.dart` | 科目查询和操作 |
+| Provider | `lib/providers/document_provider.dart` | 资料、知识库状态、上传/删除/重建索引 |
+| Chat Provider | `lib/providers/chat_provider.dart` | 解析 SSE `[SOURCES]` 并写入消息 |
+| 模型 | `lib/models/subject.dart` | 科目模型 |
+| 模型 | `lib/models/document.dart` | 资料和知识库状态 |
+| 模型 | `lib/models/chat_message.dart` | `MessageSource` 与消息来源 |
+| 后端 | `backend/routers/chat.py` | SSE 返回 sources |
+| 后端 | `backend/services/rag_pipeline.py` | 检索、重排、生成和来源收集 |
+
+## API 合同
+
+详见 `docs/manifests/apis.json`。
+
+核心端点：
+
+- `GET /api/subjects`
+- `POST /api/subjects`
+- `GET /api/documents?subject_id=...`
+- `GET /api/documents/knowledge-base?subject_id=...`
+- `POST /api/documents/reindex-all?subject_id=...`
+- `POST /api/chat/query/stream`
+
+## 行为边界
+
+- Playwright 不稳定覆盖浏览器文件选择器，真实上传需要后端 E2E 或专门测试夹具。
+- 单文档三点菜单当前坐标测试较脆，建议给 Flutter 组件补语义 key 后再升级。
+- RAG 来源必须由后端返回；如果没有检索到资料，UI 不应伪造来源。
+
+## 验证方式
+
+- `npx playwright test tests/playwright/subject_resource_flow.spec.ts --reporter=list`
+- `flutter test test/providers/chat_provider_sources_test.dart`
+
+验收点：
+
+- 新建科目请求体包含 `name/category/description/color_index`。
+- 资料库页面可读取知识库状态并触发全量重建索引。
+- SSE `[SOURCES]` 会挂到 assistant 消息 `sources` 上。

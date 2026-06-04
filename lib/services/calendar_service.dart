@@ -23,9 +23,11 @@ class CalendarService {
 
     // 请求权限
     var permissionsGranted = await _calendarPlugin.hasPermissions();
-    if (permissionsGranted.isSuccess && (permissionsGranted.data ?? false) == false) {
+    if (permissionsGranted.isSuccess &&
+        (permissionsGranted.data ?? false) == false) {
       permissionsGranted = await _calendarPlugin.requestPermissions();
-      if (!permissionsGranted.isSuccess || (permissionsGranted.data ?? false) == false) {
+      if (!permissionsGranted.isSuccess ||
+          (permissionsGranted.data ?? false) == false) {
         debugPrint('[CalendarService] 日历权限被拒绝');
         return;
       }
@@ -36,10 +38,9 @@ class CalendarService {
     if (calendarsResult.isSuccess && calendarsResult.data != null) {
       final calendars = calendarsResult.data!;
       // 优先使用默认日历，否则使用第一个
-      _defaultCalendarId = calendars.firstWhere(
-        (c) => c.isDefault == true,
-        orElse: () => calendars.first,
-      ).id;
+      _defaultCalendarId = calendars
+          .firstWhere((c) => c.isDefault == true, orElse: () => calendars.first)
+          .id;
     }
   }
 
@@ -76,7 +77,8 @@ class CalendarService {
     // 构建带有额外数据的描述
     String eventDescription = description;
     if (extraData != null && extraData.isNotEmpty) {
-      eventDescription = '$description\n${extraData.entries.map((e) => '${e.key}: ${e.value}').join(', ')}';
+      eventDescription =
+          '$description\n${extraData.entries.map((e) => '${e.key}: ${e.value}').join(', ')}';
     }
 
     final event = Event(
@@ -110,7 +112,10 @@ class CalendarService {
   Future<bool> deleteEvent(String eventId) async {
     if (_defaultCalendarId == null) return false;
 
-    final result = await _calendarPlugin.deleteEvent(_defaultCalendarId, eventId);
+    final result = await _calendarPlugin.deleteEvent(
+      _defaultCalendarId,
+      eventId,
+    );
     return result.isSuccess;
   }
 
@@ -152,25 +157,41 @@ class CalendarService {
     final notificationService = NotificationService.instance;
 
     // 计划开始前一天提醒
-    await notificationService.scheduleNotification(
-      id: NotificationIds.planGenerated + planId,
-      title: '📋 备考计划即将开始',
-      body: '您的学习计划将于明天开始，准备好了吗？',
-      scheduledTime: startDate.subtract(const Duration(days: 1)),
-    );
+    final planPrepTime = DateTime(
+      startDate.year,
+      startDate.month,
+      startDate.day,
+      reminderHour,
+      reminderMinute,
+    ).subtract(const Duration(days: 1));
+    if (planPrepTime.isAfter(DateTime.now())) {
+      await notificationService.scheduleNotification(
+        id: NotificationIds.planGenerated + planId,
+        title: '📋 备考计划即将开始',
+        body: '您的学习计划将于明天开始，准备好了吗？',
+        scheduledTime: planPrepTime,
+        payload: 'route:/spec',
+      );
+    }
 
-    // 每日学习提醒
+    // 每日学习提醒：按计划日期创建单次通知，避免多条每日重复通知互相叠加。
     DateTime current = startDate;
     int notificationId = NotificationIds.dailyStudyReminder + planId * 100;
 
     while (!current.isAfter(endDate)) {
-      await notificationService.scheduleDailyAt(
+      final scheduledTime = DateTime(
+        current.year,
+        current.month,
+        current.day,
+        reminderHour,
+        reminderMinute,
+      );
+      await notificationService.scheduleNotification(
         id: notificationId,
         title: '📚 今日学习任务',
         body: '点击查看今天的学习安排',
-        hour: reminderHour,
-        minute: reminderMinute,
-        payload: 'plan:$planId',
+        scheduledTime: scheduledTime,
+        payload: 'route:/spec',
       );
       current = current.add(const Duration(days: 1));
       notificationId++;

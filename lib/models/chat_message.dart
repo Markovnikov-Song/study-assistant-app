@@ -115,6 +115,7 @@ class ChatMessage {
   factory ChatMessage.local({
     required MessageRole role,
     required String content,
+    List<MessageSource>? sources,
     List<String>? images,
     MessageType type = MessageType.text,
     SceneCardData? sceneCardData,
@@ -124,6 +125,7 @@ class ChatMessage {
         id: DateTime.now().millisecondsSinceEpoch,
         role: role,
         content: content,
+        sources: sources,
         images: images,
         createdAt: DateTime.now(),
         type: type,

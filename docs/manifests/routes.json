@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at": "2026-06-04",
+  "routes": [
+    {"path": "/", "name": "对话首页", "page": "ResponsiveShell/ChatPage", "auth": true, "feature": "chat.cas"},
+    {"path": "/course-space", "name": "科目空间", "page": "LibraryPage", "auth": true, "feature": "course_space.mindmap_lecture"},
+    {"path": "/course-space/:subjectId", "name": "科目详情", "page": "CourseSpacePage", "auth": true, "feature": "course_space.mindmap_lecture"},
+    {"path": "/course-space/:subjectId/mindmap/:sessionId", "name": "思维导图", "page": "EditableMindMapPage", "auth": true, "feature": "course_space.mindmap_lecture"},
+    {"path": "/toolkit", "name": "工具箱", "page": "ToolkitPage", "auth": true, "feature": "shell"},
+    {"path": "/toolkit/calendar", "name": "学习日历", "page": "CalendarPage", "auth": true, "feature": "calendar.learning_calendar"},
+    {"path": "/toolkit/solve", "name": "解题助手", "page": "SolvePage", "auth": true, "feature": "solve.assistant"},
+    {"path": "/toolkit/quiz", "name": "出题", "page": "QuizPage", "auth": true, "feature": "quiz.generation_practice"},
+    {"path": "/toolkit/practice", "name": "去练习", "page": "PracticePage", "auth": true, "feature": "quiz.generation_practice"},
+    {"path": "/toolkit/mistake-book", "name": "错题本", "page": "MistakeBookPage", "auth": true, "feature": "review.mistakes"},
+    {"path": "/toolkit/review", "name": "历史兼容入口：错题本", "page": "MistakeBookPage", "auth": true, "feature": "review.mistakes"},
+    {"path": "/toolkit/notebooks", "name": "笔记本", "page": "NotebookListPage", "auth": true, "feature": "notes.notebooks"},
+    {"path": "/toolkit/notebooks/:notebookId", "name": "笔记本详情", "page": "NotebookDetailPage", "auth": true, "feature": "notes.notebooks"},
+    {"path": "/toolkit/notebooks/:notebookId/notes/:noteId", "name": "笔记详情", "page": "NoteDetailPage", "auth": true, "feature": "notes.notebooks"},
+    {"path": "/profile", "name": "我的", "page": "ProfilePage", "auth": true, "feature": "profile"},
+    {"path": "/profile/subjects", "name": "科目管理", "page": "SubjectsPage", "auth": true, "feature": "subjects.resources_rag"},
+    {"path": "/profile/resources", "name": "资料管理", "page": "ResourcesPage", "auth": true, "feature": "subjects.resources_rag"},
+    {"path": "/profile/resources/:id", "name": "资料库详情", "page": "SubjectDetailPage", "auth": true, "feature": "subjects.resources_rag"},
+    {"path": "/workshop", "name": "软件工坊", "page": "WorkshopPage", "auth": true, "feature": "workshop.mini_apps"},
+    {"path": "/workshop/builder", "name": "软件工坊构建器", "page": "WorkshopBuilderPage", "auth": true, "feature": "workshop.mini_apps"},
+    {"path": "/workshop/apps/:appId", "name": "Mini App 运行页", "page": "MiniAppRunPage", "auth": true, "feature": "workshop.mini_apps"},
+    {"path": "/onboarding", "name": "引导页", "page": "OnboardingPage", "auth": false, "feature": "onboarding.demo_pack"},
+    {"path": "/login", "name": "登录", "page": "LoginPage", "auth": false, "feature": "auth"},
+    {"path": "/register", "name": "注册", "page": "RegisterPage", "auth": false, "feature": "auth"}
+  ]
+}
