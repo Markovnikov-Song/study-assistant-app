@@ -9,6 +9,7 @@ import '../../providers/history_provider.dart';
 import '../../providers/library_provider.dart';
 import '../../providers/shared_preferences_provider.dart';
 import '../../routes/app_router.dart';
+import '../../widgets/navigation_breadcrumbs.dart';
 
 /// CourseSpacePage — 学科详情页
 ///
@@ -55,6 +56,14 @@ class _CourseSpacePageState extends ConsumerState<CourseSpacePage> {
     );
   }
 
+  void _goBack(BuildContext context) {
+    if (Navigator.of(context).canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(AppRoutes.courseSpace);
+  }
+
   @override
   Widget build(BuildContext context) {
     final subjectId = widget.subjectId;
@@ -76,7 +85,20 @@ class _CourseSpacePageState extends ConsumerState<CourseSpacePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(subjectName),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: '返回',
+          onPressed: () => _goBack(context),
+        ),
+        title: NavigationBreadcrumbs(
+          items: [
+            BreadcrumbItem(
+              label: '科目空间',
+              onTap: () => context.go(AppRoutes.courseSpace),
+            ),
+            BreadcrumbItem(label: subjectName),
+          ],
+        ),
         centerTitle: false,
         actions: [
           IconButton(

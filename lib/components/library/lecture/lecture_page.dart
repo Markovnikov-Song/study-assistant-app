@@ -17,6 +17,10 @@ import '../../../tools/document/block_converter.dart';
 import 'export_book_dialog.dart';
 import '../../../tools/document/lecture_exporter.dart';
 import '../../quiz/node_practice_sheet.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../routes/app_router.dart';
+import '../../../widgets/navigation_breadcrumbs.dart';
 
 // ── LectureEditorState ────────────────────────────────────────────────────────
 
@@ -42,14 +46,13 @@ class LectureEditorState {
     bool? isSaving,
     String? saveError,
     bool clearError = false,
-  }) =>
-      LectureEditorState(
-        lectureId: lectureId ?? this.lectureId,
-        blocks: blocks ?? this.blocks,
-        isDirty: isDirty ?? this.isDirty,
-        isSaving: isSaving ?? this.isSaving,
-        saveError: clearError ? null : (saveError ?? this.saveError),
-      );
+  }) => LectureEditorState(
+    lectureId: lectureId ?? this.lectureId,
+    blocks: blocks ?? this.blocks,
+    isDirty: isDirty ?? this.isDirty,
+    isSaving: isSaving ?? this.isSaving,
+    saveError: clearError ? null : (saveError ?? this.saveError),
+  );
 }
 
 // ── LectureEditorNotifier ─────────────────────────────────────────────────────
@@ -93,7 +96,8 @@ class LectureEditorNotifier
   }
 
   void onMarkdownChanged(String markdown) {
-    final blocks = _markdownToBlocks(markdown);    state = state.copyWith(blocks: blocks, isDirty: true, clearError: true);
+    final blocks = _markdownToBlocks(markdown);
+    state = state.copyWith(blocks: blocks, isDirty: true, clearError: true);
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(seconds: 5), _autoSave);
   }
@@ -113,62 +117,75 @@ class LectureEditorNotifier
           buf.writeln(lines[i]);
           i++;
         }
-        blocks.add(LectureBlock(
-          id: 'b${blocks.length}',
-          type: 'code',
-          text: buf.toString().trimRight(),
-          language: lang.isEmpty ? null : lang,
-          source: 'user',
-        ));
+        blocks.add(
+          LectureBlock(
+            id: 'b${blocks.length}',
+            type: 'code',
+            text: buf.toString().trimRight(),
+            language: lang.isEmpty ? null : lang,
+            source: 'user',
+          ),
+        );
         i++;
         continue;
       }
       // 标题
       final hMatch = RegExp(r'^(#{1,4})\s+(.+)').firstMatch(line);
       if (hMatch != null) {
-        blocks.add(LectureBlock(
-          id: 'b${blocks.length}',
-          type: 'heading',
-          level: hMatch.group(1)!.length,
-          text: hMatch.group(2)!.trim(),
-          source: 'user',
-        ));
+        blocks.add(
+          LectureBlock(
+            id: 'b${blocks.length}',
+            type: 'heading',
+            level: hMatch.group(1)!.length,
+            text: hMatch.group(2)!.trim(),
+            source: 'user',
+          ),
+        );
         i++;
         continue;
       }
       // 列表
       final lMatch = RegExp(r'^[-*]\s+(.+)').firstMatch(line);
       if (lMatch != null) {
-        blocks.add(LectureBlock(
-          id: 'b${blocks.length}',
-          type: 'list',
-          text: lMatch.group(1)!.trim(),
-          source: 'user',
-        ));
+        blocks.add(
+          LectureBlock(
+            id: 'b${blocks.length}',
+            type: 'list',
+            text: lMatch.group(1)!.trim(),
+            source: 'user',
+          ),
+        );
         i++;
         continue;
       }
       // 引用
       final qMatch = RegExp(r'^>\s*(.*)').firstMatch(line);
       if (qMatch != null) {
-        blocks.add(LectureBlock(
-          id: 'b${blocks.length}',
-          type: 'quote',
-          text: qMatch.group(1)!.trim(),
-          source: 'user',
-        ));
+        blocks.add(
+          LectureBlock(
+            id: 'b${blocks.length}',
+            type: 'quote',
+            text: qMatch.group(1)!.trim(),
+            source: 'user',
+          ),
+        );
         i++;
         continue;
       }
       // 空行跳过
-      if (line.trim().isEmpty) { i++; continue; }
+      if (line.trim().isEmpty) {
+        i++;
+        continue;
+      }
       // 普通段落
-      blocks.add(LectureBlock(
-        id: 'b${blocks.length}',
-        type: 'paragraph',
-        text: line,
-        source: 'user',
-      ));
+      blocks.add(
+        LectureBlock(
+          id: 'b${blocks.length}',
+          type: 'paragraph',
+          text: line,
+          source: 'user',
+        ),
+      );
       i++;
     }
     return blocks;
@@ -211,8 +228,12 @@ class LectureEditorNotifier
   }
 }
 
-final lectureEditorProvider = NotifierProviderFamily<LectureEditorNotifier,
-    LectureEditorState, LectureKey>(LectureEditorNotifier.new);
+final lectureEditorProvider =
+    NotifierProviderFamily<
+      LectureEditorNotifier,
+      LectureEditorState,
+      LectureKey
+    >(LectureEditorNotifier.new);
 
 // ── LecturePage ───────────────────────────────────────────────────────────────
 
@@ -299,6 +320,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
         collect(n.children);
       }
     }
+
     collect(roots);
 
     // 并发检查所有节点的讲义存在性（最多同时 5 个），跳过当前正在加载的节点
@@ -312,27 +334,29 @@ class _LecturePageState extends ConsumerState<LecturePage> {
     for (var i = 0; i < orderedIds.length; i += batchSize) {
       if (!mounted) return;
       final batch = orderedIds.skip(i).take(batchSize);
-      await Future.wait(batch.map((nodeId) async {
-        if (_checkedNodeIds.contains(nodeId)) return;
-        if (_nodeLoading[nodeId] == true) return;
-        try {
-          await service.getLecture(widget.sessionId, nodeId);
-          if (mounted) {
-            setState(() {
+      await Future.wait(
+        batch.map((nodeId) async {
+          if (_checkedNodeIds.contains(nodeId)) return;
+          if (_nodeLoading[nodeId] == true) return;
+          try {
+            await service.getLecture(widget.sessionId, nodeId);
+            if (mounted) {
+              setState(() {
+                _hasLectureNodeIds.add(nodeId);
+                _checkedNodeIds.add(nodeId);
+              });
+            }
+            // 即使 unmounted 也要记录，避免重建后重复请求
+            if (!mounted) {
               _hasLectureNodeIds.add(nodeId);
               _checkedNodeIds.add(nodeId);
-            });
+            }
+          } catch (_) {
+            _checkedNodeIds.add(nodeId); // 先更新数据
+            if (mounted) setState(() {}); // 再触发重建
           }
-          // 即使 unmounted 也要记录，避免重建后重复请求
-          if (!mounted) {
-            _hasLectureNodeIds.add(nodeId);
-            _checkedNodeIds.add(nodeId);
-          }
-        } catch (_) {
-          _checkedNodeIds.add(nodeId); // 先更新数据
-          if (mounted) setState(() {}); // 再触发重建
-        }
-      }));
+        }),
+      );
     }
   }
 
@@ -344,8 +368,30 @@ class _LecturePageState extends ConsumerState<LecturePage> {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  LectureKey _keyFor(String nodeId) =>
-      (sessionId: widget.sessionId, nodeId: nodeId, subjectId: widget.subjectId);
+  LectureKey _keyFor(String nodeId) => (
+    sessionId: widget.sessionId,
+    nodeId: nodeId,
+    subjectId: widget.subjectId,
+  );
+
+  Future<void> _goBack() async {
+    await ref
+        .read(lectureEditorProvider(_keyFor(_currentNodeId)).notifier)
+        .forceSave();
+    if (!context.mounted) return;
+    if (Navigator.of(context).canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(AppRoutes.mindmap(widget.subjectId, widget.sessionId));
+  }
+
+  Future<void> _saveThenGo(String location) async {
+    await ref
+        .read(lectureEditorProvider(_keyFor(_currentNodeId)).notifier)
+        .forceSave();
+    if (context.mounted) context.go(location);
+  }
 
   String _currentNodeText(List<TreeNode> roots) {
     return _findNodeText(roots, _currentNodeId) ?? '讲义';
@@ -397,12 +443,12 @@ class _LecturePageState extends ConsumerState<LecturePage> {
       _nodeError[nodeId] = null;
     });
     try {
-      final data = await ref.read(libraryServiceProvider).getLecture(
-            widget.sessionId,
-            nodeId,
-          );
-      final content =
-          LectureContent.fromJson(data['content'] as Map<String, dynamic>);
+      final data = await ref
+          .read(libraryServiceProvider)
+          .getLecture(widget.sessionId, nodeId);
+      final content = LectureContent.fromJson(
+        data['content'] as Map<String, dynamic>,
+      );
       final lectureId = data['id'] as int;
 
       ref
@@ -493,10 +539,9 @@ class _LecturePageState extends ConsumerState<LecturePage> {
       _currentNodeId = nodeId;
     });
     try {
-      final stream = ref.read(libraryServiceProvider).generateLectureStream(
-        sessionId: widget.sessionId,
-        nodeId: nodeId,
-      );
+      final stream = ref
+          .read(libraryServiceProvider)
+          .generateLectureStream(sessionId: widget.sessionId, nodeId: nodeId);
       bool hasError = false;
       String? errorMsg;
       await for (final event in stream) {
@@ -520,7 +565,10 @@ class _LecturePageState extends ConsumerState<LecturePage> {
             _streamingText.remove(nodeId);
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('生成失败：$errorMsg'), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text('生成失败：$errorMsg'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
         return;
@@ -540,11 +588,13 @@ class _LecturePageState extends ConsumerState<LecturePage> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(children: [
-              const Icon(Icons.check_circle, color: Colors.white, size: 18),
-              const SizedBox(width: 8),
-              Text('「$nodeText」讲义生成成功！'),
-            ]),
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text('「$nodeText」讲义生成成功！'),
+              ],
+            ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -568,12 +618,25 @@ class _LecturePageState extends ConsumerState<LecturePage> {
   @override
   Widget build(BuildContext context) {
     final nodesAsync = ref.watch(mindMapNodesProvider(widget.sessionId));
-    final editorState =
-        ref.watch(lectureEditorProvider(_keyFor(_currentNodeId)));
+    final editorState = ref.watch(
+      lectureEditorProvider(_keyFor(_currentNodeId)),
+    );
     final isWide = MediaQuery.sizeOf(context).width > 600;
 
     final roots = nodesAsync.valueOrNull ?? [];
     final currentNodeText = _currentNodeText(roots);
+    final subjectName = ref
+        .watch(schoolSubjectsProvider)
+        .maybeWhen(
+          data: (list) =>
+              list
+                  .where((s) => s.subject.id == widget.subjectId)
+                  .firstOrNull
+                  ?.subject
+                  .name ??
+              '科目详情',
+          orElse: () => '科目详情',
+        );
 
     final outlinePanel = _OutlinePanel(
       roots: roots,
@@ -610,34 +673,47 @@ class _LecturePageState extends ConsumerState<LecturePage> {
       child: Scaffold(
         key: _scaffoldKey,
         appBar: AppBar(
-          title: Text(
-            currentNodeText,
-            overflow: TextOverflow.ellipsis,
+          title: NavigationBreadcrumbs(
+            items: [
+              BreadcrumbItem(
+                label: '科目空间',
+                onTap: () => _saveThenGo(AppRoutes.courseSpace),
+              ),
+              BreadcrumbItem(
+                label: subjectName,
+                onTap: () =>
+                    _saveThenGo(AppRoutes.courseSpaceById(widget.subjectId)),
+              ),
+              BreadcrumbItem(
+                label: '思维导图',
+                onTap: () => _saveThenGo(
+                  AppRoutes.mindmap(widget.subjectId, widget.sessionId),
+                ),
+              ),
+              BreadcrumbItem(label: currentNodeText),
+            ],
           ),
           centerTitle: false,
           leading: isWide
-              ? null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  tooltip: '返回',
+                  onPressed: _goBack,
+                )
               : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Back button
                     IconButton(
                       icon: const Icon(Icons.arrow_back),
-                      onPressed: () async {
-                        await ref
-                            .read(lectureEditorProvider(
-                                    _keyFor(_currentNodeId))
-                                .notifier)
-                            .forceSave();
-                        if (context.mounted) Navigator.of(context).pop();
-                      },
+                      tooltip: '返回',
+                      onPressed: _goBack,
                     ),
                     // Hamburger for outline drawer
                     IconButton(
                       icon: const Icon(Icons.menu),
                       tooltip: '大纲',
-                      onPressed: () =>
-                          _scaffoldKey.currentState?.openDrawer(),
+                      onPressed: () => _scaffoldKey.currentState?.openDrawer(),
                     ),
                   ],
                 ),
@@ -652,7 +728,8 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                 !_hasLectureNodeIds.contains(_currentNodeId) &&
                 !_generatingNodeIds.contains(_currentNodeId))
               TextButton.icon(
-                onPressed: () => _generateLecture(_currentNodeId, currentNodeText),
+                onPressed: () =>
+                    _generateLecture(_currentNodeId, currentNodeText),
                 icon: const Icon(Icons.auto_awesome, size: 16),
                 label: const Text('AI 生成'),
               ),
@@ -706,7 +783,8 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                       hasLecture: _hasLectureNodeIds.contains(_currentNodeId),
                       isGenerating: _generatingNodeIds.contains(_currentNodeId),
                       streamingText: _streamingText[_currentNodeId],
-                      onGenerate: () => _generateLecture(_currentNodeId, currentNodeText),
+                      onGenerate: () =>
+                          _generateLecture(_currentNodeId, currentNodeText),
                     ),
                   ),
                 ],
@@ -725,33 +803,39 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                 hasLecture: _hasLectureNodeIds.contains(_currentNodeId),
                 isGenerating: _generatingNodeIds.contains(_currentNodeId),
                 streamingText: _streamingText[_currentNodeId],
-                onGenerate: () => _generateLecture(_currentNodeId, currentNodeText),
+                onGenerate: () =>
+                    _generateLecture(_currentNodeId, currentNodeText),
               ),
       ),
     );
   }
 
   void _showExportMenu(BuildContext context) {
-    final blocks =
-        ref.read(lectureEditorProvider(_keyFor(_currentNodeId))).blocks;
-    final lectureId =
-        ref.read(lectureEditorProvider(_keyFor(_currentNodeId))).lectureId;
+    final blocks = ref
+        .read(lectureEditorProvider(_keyFor(_currentNodeId)))
+        .blocks;
+    final lectureId = ref
+        .read(lectureEditorProvider(_keyFor(_currentNodeId)))
+        .lectureId;
     final isLoading = _nodeLoading[_currentNodeId] == true;
 
     // Resolve session title from cached sessions list
     final sessionsAsync = ref.read(courseSessionsProvider(widget.subjectId));
     final sessions = sessionsAsync.valueOrNull ?? [];
     final session = sessions.cast<MindMapSession?>().firstWhere(
-          (s) => s?.id == widget.sessionId,
-          orElse: () => null,
-        );
-    final sessionTitle =
-        (session?.title?.isNotEmpty == true) ? session!.title! : '未命名大纲';
+      (s) => s?.id == widget.sessionId,
+      orElse: () => null,
+    );
+    final sessionTitle = (session?.title?.isNotEmpty == true)
+        ? session!.title!
+        : '未命名大纲';
 
-    final roots = ref.read(mindMapNodesProvider(widget.sessionId)).valueOrNull ?? [];
+    final roots =
+        ref.read(mindMapNodesProvider(widget.sessionId)).valueOrNull ?? [];
 
     // 当前节点的显示名称
-    final currentNodeText = _findNodeText(roots, _currentNodeId) ?? _currentNodeId;
+    final currentNodeText =
+        _findNodeText(roots, _currentNodeId) ?? _currentNodeId;
 
     showModalBottomSheet(
       context: context,
@@ -761,16 +845,20 @@ class _LecturePageState extends ConsumerState<LecturePage> {
           children: [
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text('导出格式',
-                  style:
-                      TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: Text(
+                '导出格式',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.description_outlined),
               title: const Text('Markdown (.md)'),
               onTap: () {
                 Navigator.pop(context);
-                LectureExporter.exportToMarkdown(blocks, nodeText: currentNodeText);
+                LectureExporter.exportToMarkdown(
+                  blocks,
+                  nodeText: currentNodeText,
+                );
               },
             ),
             if (lectureId != null)
@@ -830,7 +918,9 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                           sessionId: widget.sessionId,
                           sessionTitle: sessionTitle,
                           nodes: roots,
-                          hasLectureNodeIds: Set.unmodifiable(_hasLectureNodeIds),
+                          hasLectureNodeIds: Set.unmodifiable(
+                            _hasLectureNodeIds,
+                          ),
                         ),
                       );
                     },
@@ -848,9 +938,9 @@ class _LecturePageState extends ConsumerState<LecturePage> {
     String nodeTitle,
   ) async {
     if (blocks.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('讲义内容为空，无法保存')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('讲义内容为空，无法保存')));
       return;
     }
 
@@ -931,9 +1021,7 @@ class _OutlinePanel extends StatelessWidget {
     }
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      children: roots
-          .map((node) => _buildNodeTile(context, node, 0))
-          .toList(),
+      children: roots.map((node) => _buildNodeTile(context, node, 0)).toList(),
     );
   }
 
@@ -980,9 +1068,7 @@ class _OutlinePanel extends StatelessWidget {
                   ? GestureDetector(
                       onTap: () => onToggleExpand(node.nodeId),
                       child: Icon(
-                        isExpanded
-                            ? Icons.expand_more
-                            : Icons.chevron_right,
+                        isExpanded ? Icons.expand_more : Icons.chevron_right,
                         size: 16,
                         color: cs.onSurfaceVariant,
                       ),
@@ -998,12 +1084,8 @@ class _OutlinePanel extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: depth == 0
-                      ? FontWeight.w600
-                      : FontWeight.normal,
-                  color: isSelected
-                      ? cs.onPrimaryContainer
-                      : cs.onSurface,
+                  fontWeight: depth == 0 ? FontWeight.w600 : FontWeight.normal,
+                  color: isSelected ? cs.onPrimaryContainer : cs.onSurface,
                 ),
               ),
             ),
@@ -1119,7 +1201,8 @@ class _RightPanelState extends State<_RightPanel> {
       // 用户选择手动编写时，显示空白编辑器
       if (_manualEdit) {
         final ctrl = widget.controller;
-        if (ctrl == null) return const Center(child: CircularProgressIndicator());
+        if (ctrl == null)
+          return const Center(child: CircularProgressIndicator());
 
         return Column(
           children: [
@@ -1149,16 +1232,22 @@ class _RightPanelState extends State<_RightPanel> {
                 Tooltip(
                   message: '插入公式',
                   child: IconButton(
-                    icon: const Text('∑',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    icon: const Text(
+                      '∑',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     onPressed: () => _showFormulaDialog(context, ctrl),
                   ),
                 ),
               ],
             ),
             const Divider(height: 1),
-            Expanded(child: _LectureEditor(controller: ctrl, blocks: const [])),
+            Expanded(
+              child: _LectureEditor(controller: ctrl, blocks: const []),
+            ),
           ],
         );
       }
@@ -1171,11 +1260,17 @@ class _RightPanelState extends State<_RightPanel> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.menu_book_outlined, size: 64, color: cs.outlineVariant),
+              Icon(
+                Icons.menu_book_outlined,
+                size: 64,
+                color: cs.outlineVariant,
+              ),
               const SizedBox(height: 20),
               Text(
                 widget.nodeText,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
@@ -1239,9 +1334,10 @@ class _RightPanelState extends State<_RightPanel> {
             Tooltip(
               message: '插入公式',
               child: IconButton(
-                icon: const Text('∑',
-                    style: TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
+                icon: const Text(
+                  '∑',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 onPressed: () => _showFormulaDialog(context, ctrl),
               ),
             ),
@@ -1251,16 +1347,25 @@ class _RightPanelState extends State<_RightPanel> {
         // WYSIWYG 编辑区
         Expanded(
           child: _LectureEditor(
-              controller: ctrl, blocks: widget.editorState.blocks),
+            controller: ctrl,
+            blocks: widget.editorState.blocks,
+          ),
         ),
         // ── 底部练习入口 ────────────────────────────────────────────────────────
-        _PracticeEntryCard(nodeId: widget.nodeId, nodeText: widget.nodeText, subjectId: widget.subjectId),      ],
+        _PracticeEntryCard(
+          nodeId: widget.nodeId,
+          nodeText: widget.nodeText,
+          subjectId: widget.subjectId,
+        ),
+      ],
     );
   }
 
   /// 弹出公式输入对话框，确认后插入 formula embed 到编辑器
   Future<void> _showFormulaDialog(
-      BuildContext context, QuillController ctrl) async {
+    BuildContext context,
+    QuillController ctrl,
+  ) async {
     final formulaCtrl = TextEditingController();
     String? result;
     try {
@@ -1327,27 +1432,36 @@ class _RightPanelState extends State<_RightPanel> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: cs.surfaceContainerLow,
-        border:
-            Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+        border: Border(
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
+        ),
       ),
       child: Row(
         children: [
           if (widget.editorState.isSaving)
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              SizedBox(
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
                   width: 12,
                   height: 12,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: cs.primary)),
-              const SizedBox(width: 6),
-              Text('保存中…',
-                  style:
-                      TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-            ])
+                    strokeWidth: 2,
+                    color: cs.primary,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '保存中…',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
+              ],
+            )
           else if (!widget.editorState.isDirty)
-            Text('已保存',
-                style:
-                    TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            Text(
+              '已保存',
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
           const Spacer(),
         ],
       ),
@@ -1358,19 +1472,23 @@ class _RightPanelState extends State<_RightPanel> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       color: Theme.of(context).colorScheme.surfaceContainerLow,
-      child: Row(children: [
-        const SizedBox(
+      child: Row(
+        children: [
+          const SizedBox(
             width: 12,
             height: 12,
-            child: CircularProgressIndicator(strokeWidth: 2)),
-        const SizedBox(width: 8),
-        Text(
-          'AI 正在生成「${widget.nodeText}」的讲义…',
-          style: TextStyle(
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'AI 正在生成「${widget.nodeText}」的讲义…',
+            style: TextStyle(
               fontSize: 13,
-              color: Theme.of(context).colorScheme.outline),
-        ),
-      ]),
+              color: Theme.of(context).colorScheme.outline,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1420,10 +1538,11 @@ class _LectureEditorState extends State<_LectureEditor> {
           // H1
           h1: DefaultTextBlockStyle(
             TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: baseColor,
-                height: 1.4),
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: baseColor,
+              height: 1.4,
+            ),
             const HorizontalSpacing(0, 0),
             const VerticalSpacing(12, 6),
             const VerticalSpacing(0, 0),
@@ -1432,10 +1551,11 @@ class _LectureEditorState extends State<_LectureEditor> {
           // H2
           h2: DefaultTextBlockStyle(
             TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: baseColor,
-                height: 1.4),
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: baseColor,
+              height: 1.4,
+            ),
             const HorizontalSpacing(0, 0),
             const VerticalSpacing(10, 4),
             const VerticalSpacing(0, 0),
@@ -1444,10 +1564,11 @@ class _LectureEditorState extends State<_LectureEditor> {
           // H3
           h3: DefaultTextBlockStyle(
             TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: baseColor,
-                height: 1.4),
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: baseColor,
+              height: 1.4,
+            ),
             const HorizontalSpacing(0, 0),
             const VerticalSpacing(8, 4),
             const VerticalSpacing(0, 0),
@@ -1467,10 +1588,11 @@ class _LectureEditorState extends State<_LectureEditor> {
           // 代码块
           code: DefaultTextBlockStyle(
             TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 13,
-                color: cs.onSurface,
-                height: 1.5),
+              fontFamily: 'monospace',
+              fontSize: 13,
+              color: cs.onSurface,
+              height: 1.5,
+            ),
             const HorizontalSpacing(12, 12),
             const VerticalSpacing(4, 4),
             const VerticalSpacing(0, 0),
@@ -1482,16 +1604,18 @@ class _LectureEditorState extends State<_LectureEditor> {
           // 引用块
           quote: DefaultTextBlockStyle(
             TextStyle(
-                fontSize: 15,
-                color: cs.onSurfaceVariant,
-                fontStyle: FontStyle.italic,
-                height: 1.6),
+              fontSize: 15,
+              color: cs.onSurfaceVariant,
+              fontStyle: FontStyle.italic,
+              height: 1.6,
+            ),
             const HorizontalSpacing(12, 0),
             const VerticalSpacing(4, 4),
             const VerticalSpacing(0, 0),
             BoxDecoration(
               border: Border(
-                  left: BorderSide(color: cs.outlineVariant, width: 3)),
+                left: BorderSide(color: cs.outlineVariant, width: 3),
+              ),
               color: cs.surfaceContainerLow,
             ),
           ),
@@ -1506,7 +1630,7 @@ class _LectureEditorState extends State<_LectureEditor> {
           ),
         ),
       ),
-    );  // QuillEditor.basic
+    ); // QuillEditor.basic
   }
 }
 
@@ -1524,23 +1648,24 @@ class _SaveStatusChip extends StatelessWidget {
           SizedBox(
             width: 12,
             height: 12,
-            child:
-                CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+            child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
           ),
           const SizedBox(width: 6),
-          Text('保存中…',
-              style:
-                  TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+          Text(
+            '保存中…',
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+          ),
         ],
       );
     }
     if (state.saveError != null) {
-      return Text('保存失败',
-          style: TextStyle(fontSize: 12, color: cs.error));
+      return Text('保存失败', style: TextStyle(fontSize: 12, color: cs.error));
     }
     if (!state.isDirty) {
-      return Text('已保存',
-          style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant));
+      return Text(
+        '已保存',
+        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+      );
     }
     return const SizedBox.shrink();
   }
@@ -1567,7 +1692,6 @@ class _SaveErrorBanner extends StatelessWidget {
   }
 }
 
-
 // ── 底部练习入口卡片 ─────────────────────────────────────────────────────────
 
 class _PracticeEntryCard extends StatelessWidget {
@@ -1588,7 +1712,9 @@ class _PracticeEntryCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: cs.surfaceContainerLow,
-        border: Border(top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.3))),
+        border: Border(
+          top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.3)),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -1610,10 +1736,7 @@ class _PracticeEntryCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     '基于「$nodeText」生成针对性练习',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: cs.onSurfaceVariant,
-                    ),
+                    style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -1622,7 +1745,10 @@ class _PracticeEntryCard extends StatelessWidget {
             FilledButton(
               onPressed: () => _openPractice(context),
               style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
               ),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1667,7 +1793,8 @@ class _SaveToNotebookSheet extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_SaveToNotebookSheet> createState() => _SaveToNotebookSheetState();
+  ConsumerState<_SaveToNotebookSheet> createState() =>
+      _SaveToNotebookSheetState();
 }
 
 class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
@@ -1683,7 +1810,9 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
 
   Future<void> _save() async {
     if (_selectedNotebookId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请选择一个笔记本')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请选择一个笔记本')));
       return;
     }
     setState(() => _loading = true);
@@ -1696,16 +1825,20 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
           'original_content': widget.content,
           'title': widget.title,
           'note_type': 'general',
-        }
+        },
       ]);
       ref.invalidate(notebookNotesProvider(_selectedNotebookId!));
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('讲义已保存到笔记本')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('讲义已保存到笔记本')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败：$e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存失败：$e'), backgroundColor: Colors.red),
+        );
         setState(() => _loading = false);
       }
     }
@@ -1717,7 +1850,9 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
     final subjectsAsync = ref.watch(subjectsProvider);
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1726,20 +1861,38 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Row(
               children: [
-                Expanded(child: Text('保存为笔记', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold))),
-                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                Expanded(
+                  child: Text(
+                    '保存为笔记',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
               ],
             ),
           ),
           const Divider(height: 1),
           // 笔记本列表
           notebooksAsync.when(
-            loading: () => const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
-            error: (e, _) => Padding(padding: const EdgeInsets.all(16), child: Text('加载失败：$e', style: const TextStyle(color: Colors.red))),
+            loading: () => const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('加载失败：$e', style: const TextStyle(color: Colors.red)),
+            ),
             data: (notebooks) {
               final active = notebooks.where((n) => !n.isArchived).toList();
               return ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.4,
+                ),
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: active.length,
@@ -1750,19 +1903,33 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         ListTile(
-                          leading: Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                              color: isSelected ? Theme.of(context).colorScheme.primary : null),
+                          leading: Icon(
+                            isSelected
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : null,
+                          ),
                           title: Text(nb.name),
-                          onTap: () => setState(() => _selectedNotebookId = nb.id),
+                          onTap: () =>
+                              setState(() => _selectedNotebookId = nb.id),
                         ),
                         if (isSelected)
                           subjectsAsync.when(
                             loading: () => const SizedBox.shrink(),
                             error: (_, _) => const SizedBox.shrink(),
                             data: (subjects) {
-                              final active = subjects.where((s) => !s.isArchived).toList();
+                              final active = subjects
+                                  .where((s) => !s.isArchived)
+                                  .toList();
                               return Padding(
-                                padding: const EdgeInsets.fromLTRB(32, 0, 16, 8),
+                                padding: const EdgeInsets.fromLTRB(
+                                  32,
+                                  0,
+                                  16,
+                                  8,
+                                ),
                                 child: Row(
                                   children: [
                                     const Text('科目：'),
@@ -1771,10 +1938,20 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
                                       value: _selectedSubjectId,
                                       isDense: true,
                                       items: [
-                                        const DropdownMenuItem<int?>(value: null, child: Text('通用')),
-                                        ...active.map((s) => DropdownMenuItem<int?>(value: s.id, child: Text(s.name))),
+                                        const DropdownMenuItem<int?>(
+                                          value: null,
+                                          child: Text('通用'),
+                                        ),
+                                        ...active.map(
+                                          (s) => DropdownMenuItem<int?>(
+                                            value: s.id,
+                                            child: Text(s.name),
+                                          ),
+                                        ),
                                       ],
-                                      onChanged: (v) => setState(() => _selectedSubjectId = v),
+                                      onChanged: (v) => setState(
+                                        () => _selectedSubjectId = v,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -1794,7 +1971,14 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
             child: FilledButton(
               onPressed: _loading ? null : _save,
               child: _loading
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Text('保存'),
             ),
           ),

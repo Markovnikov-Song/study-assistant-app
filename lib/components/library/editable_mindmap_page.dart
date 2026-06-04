@@ -9,6 +9,7 @@ import '../../models/mindmap_library.dart';
 import '../../providers/library_provider.dart';
 import '../../providers/learning_path_provider.dart';
 import '../../routes/app_router.dart';
+import '../../widgets/navigation_breadcrumbs.dart';
 import '../quiz/node_practice_sheet.dart';
 import '../../../tools/mindmap/mindmap_painter.dart';
 import '../../../tools/mindmap/mindmap_parser.dart';
@@ -18,10 +19,10 @@ import 'package:go_router/go_router.dart';
 // ── 知识关联类型颜色映射（全局唯一）────────────────────────────────────
 
 const _kLinkColors = {
-  'causal': Color(0xFFEF4444),      // 因果 — 红
-  'dependency': Color(0xFF3B82F6),  // 依赖 — 蓝
-  'contrast': Color(0xFFF97316),    // 对比 — 橙
-  'evolution': Color(0xFF22C55E),   // 演进 — 绿
+  'causal': Color(0xFFEF4444), // 因果 — 红
+  'dependency': Color(0xFF3B82F6), // 依赖 — 蓝
+  'contrast': Color(0xFFF97316), // 对比 — 橙
+  'evolution': Color(0xFF22C55E), // 演进 — 绿
 };
 
 // ── Undo stack provider ───────────────────────────────────────────────────────
@@ -64,8 +65,8 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
   List<TreeNode> _roots = [];
   bool _initialized = false;
   bool _wasComplete = false;
-  bool _heatmapMode = false;  // 热力图模式
-  final bool _pathMode = true;      // 路径模式（显示预设路径）
+  bool _heatmapMode = false; // 热力图模式
+  final bool _pathMode = true; // 路径模式（显示预设路径）
   late final ConfettiController _confettiController;
   late final TabController _tabController;
 
@@ -74,7 +75,9 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
   @override
   void initState() {
     super.initState();
-    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 3),
+    );
     _tabController = TabController(length: 2, vsync: this);
   }
 
@@ -89,6 +92,18 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
   Widget build(BuildContext context) {
     final nodesAsync = ref.watch(mindMapNodesProvider(widget.sessionId));
     final progress = ref.watch(fullMindMapProgressProvider(widget.sessionId));
+    final subjectName = ref
+        .watch(schoolSubjectsProvider)
+        .maybeWhen(
+          data: (list) =>
+              list
+                  .where((s) => s.subject.id == widget.subjectId)
+                  .firstOrNull
+                  ?.subject
+                  .name ??
+              '科目详情',
+          orElse: () => '科目详情',
+        );
 
     // Initialize roots from provider on first load
     nodesAsync.whenData((roots) {
@@ -111,31 +126,49 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            const Text('思维导图'),
-            const SizedBox(width: 8),
-            // 路径进度条
-            Consumer(
-              builder: (context, ref, child) {
-                final progressAsync = ref.watch(pathProgressProvider(widget.sessionId));
-                return progressAsync.when(
-                  data: (p) => Chip(
-                    label: Text(p, style: const TextStyle(fontSize: 12)),
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                  ),
-                  loading: () => const SizedBox.shrink(),
-                  error: (error, stackTrace) => const SizedBox.shrink(),
-                );
-              },
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: '返回',
+          onPressed: _goBack,
+        ),
+        title: NavigationBreadcrumbs(
+          items: [
+            BreadcrumbItem(
+              label: '科目空间',
+              onTap: () => context.go(AppRoutes.courseSpace),
             ),
+            BreadcrumbItem(
+              label: subjectName,
+              onTap: () =>
+                  context.go(AppRoutes.courseSpaceById(widget.subjectId)),
+            ),
+            const BreadcrumbItem(label: '思维导图'),
           ],
+          trailing: Consumer(
+            builder: (context, ref, child) {
+              final progressAsync = ref.watch(
+                pathProgressProvider(widget.sessionId),
+              );
+              return progressAsync.when(
+                data: (p) => Chip(
+                  label: Text(p, style: const TextStyle(fontSize: 12)),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer,
+                ),
+                loading: () => const SizedBox.shrink(),
+                error: (error, stackTrace) => const SizedBox.shrink(),
+              );
+            },
+          ),
         ),
         centerTitle: false,
         actions: [
           // 热力图/路径模式切换
           IconButton(
-            icon: Icon(_heatmapMode ? Icons.map : Icons.local_fire_department_outlined),
+            icon: Icon(
+              _heatmapMode ? Icons.map : Icons.local_fire_department_outlined,
+            ),
             tooltip: _heatmapMode ? '切换到路径模式' : '切换到热力图模式',
             onPressed: () {
               setState(() {
@@ -147,11 +180,26 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
           AnimatedBuilder(
             animation: _tabController,
             builder: (_, _) => _tabController.index == 0
-                ? Row(mainAxisSize: MainAxisSize.min, children: [
-                    IconButton(icon: const Icon(Icons.add), tooltip: '放大', onPressed: () => _zoomFn?.call(1.25)),
-                    IconButton(icon: const Icon(Icons.remove), tooltip: '缩小', onPressed: () => _zoomFn?.call(0.8)),
-                    IconButton(icon: const Icon(Icons.undo), tooltip: '撤销', onPressed: _undoStack.canUndo ? _handleUndo : null),
-                  ])
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        tooltip: '放大',
+                        onPressed: () => _zoomFn?.call(1.25),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.remove),
+                        tooltip: '缩小',
+                        onPressed: () => _zoomFn?.call(0.8),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.undo),
+                        tooltip: '撤销',
+                        onPressed: _undoStack.canUndo ? _handleUndo : null,
+                      ),
+                    ],
+                  )
                 : const SizedBox.shrink(),
           ),
         ],
@@ -175,11 +223,16 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
                   _ProgressBar(progress: progress),
                   Expanded(
                     child: nodesAsync.when(
-                      loading: () => const Center(child: CircularProgressIndicator()),
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
                       error: (e, _) => Center(child: Text('加载失败：$e')),
                       data: (_) {
-                        final nodeStates = ref.watch(nodeStatesProvider(widget.sessionId));
-                        final pathAsync = ref.watch(learningPathProvider(widget.subjectId));
+                        final nodeStates = ref.watch(
+                          nodeStatesProvider(widget.sessionId),
+                        );
+                        final pathAsync = ref.watch(
+                          learningPathProvider(widget.subjectId),
+                        );
                         final pathNodeIds = pathAsync.maybeWhen(
                           data: (path) => path?.nodeIds,
                           orElse: () => null,
@@ -187,7 +240,9 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
 
                         return _MindMapCanvas(
                           onZoomReady: (fn) => _zoomFn = fn,
-                          roots: _roots.isEmpty ? nodesAsync.value ?? [] : _roots,
+                          roots: _roots.isEmpty
+                              ? nodesAsync.value ?? []
+                              : _roots,
                           nodeStates: nodeStates,
                           sessionId: widget.sessionId,
                           subjectId: widget.subjectId,
@@ -225,6 +280,14 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
 
   // ── Gesture handlers ────────────────────────────────────────────────────────
 
+  void _goBack() {
+    if (Navigator.of(context).canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(AppRoutes.courseSpaceById(widget.subjectId));
+  }
+
   void _handleNodeTap(TreeNode node) {
     showModalBottomSheet(
       context: context,
@@ -235,36 +298,21 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
         onEditText: () => _showEditTextDialog(node),
         onAddChild: () => _showAddChildDialog(node),
         onDelete: () => _showDeleteDialog(node),
+        onToggleLearned: () => _toggleNodeLearned(node),
       ),
     );
   }
 
   void _handleNodeLongPress(TreeNode node) {
+    _toggleNodeLearned(node);
+  }
+
+  Future<void> _toggleNodeLearned(TreeNode node) async {
     final states = ref.read(nodeStatesProvider(widget.sessionId));
     final isLit = states[node.nodeId] == true;
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(
-                isLit ? Icons.star : Icons.star_border,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              title: Text(isLit ? '取消标记' : '标记为已学习'),
-              onTap: () async {
-                Navigator.pop(ctx);
-                await ref
-                    .read(nodeStatesProvider(widget.sessionId).notifier)
-                    .toggleNode(node.nodeId, !isLit);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
+    await ref
+        .read(nodeStatesProvider(widget.sessionId).notifier)
+        .toggleNode(node.nodeId, !isLit);
   }
 
   // ── Edit operations ─────────────────────────────────────────────────────────
@@ -283,18 +331,22 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () {
               final text = controller.text.trim();
               if (text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('文本不能为空')));
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('文本不能为空')));
                 return;
               }
               if (text.length > 200) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('文本不能超过 200 个字符')));
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('文本不能超过 200 个字符')));
                 return;
               }
               Navigator.pop(ctx);
@@ -321,18 +373,22 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () {
               final text = controller.text.trim();
               if (text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('文本不能为空')));
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('文本不能为空')));
                 return;
               }
               if (text.length > 200) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('文本不能超过 200 个字符')));
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('文本不能超过 200 个字符')));
                 return;
               }
               Navigator.pop(ctx);
@@ -348,8 +404,9 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
   void _showDeleteDialog(TreeNode node) {
     // Reject root node deletion
     if (node.parentId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('根节点不可删除')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('根节点不可删除')));
       return;
     }
     showDialog(
@@ -359,7 +416,9 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
         content: Text('确认删除「${node.text}」及其所有子节点？'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
@@ -424,15 +483,15 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
       _currentMarkdown = snapshot;
     });
     try {
-      await ref.read(libraryServiceProvider).updateContent(
-            widget.sessionId,
-            snapshot,
-          );
+      await ref
+          .read(libraryServiceProvider)
+          .updateContent(widget.sessionId, snapshot);
       ref.invalidate(mindMapNodesProvider(widget.sessionId));
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('撤销持久化失败：$e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('撤销持久化失败：$e')));
       }
     }
   }
@@ -445,15 +504,15 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
     final markdown = MindMapSerializer.serializeRoots(_roots);
     _currentMarkdown = markdown;
     try {
-      await ref.read(libraryServiceProvider).updateContent(
-            widget.sessionId,
-            markdown,
-          );
+      await ref
+          .read(libraryServiceProvider)
+          .updateContent(widget.sessionId, markdown);
       ref.invalidate(mindMapNodesProvider(widget.sessionId));
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('保存失败：$e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存失败：$e')));
         // Rollback
         final snapshot = _undoStack.pop();
         if (snapshot != null) {
@@ -469,7 +528,10 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
   // ── Tree mutation utilities ─────────────────────────────────────────────────
 
   static void _mutateNode(
-      List<TreeNode> nodes, String nodeId, void Function(TreeNode) fn) {
+    List<TreeNode> nodes,
+    String nodeId,
+    void Function(TreeNode) fn,
+  ) {
     for (final n in nodes) {
       if (n.nodeId == nodeId) {
         fn(n);
@@ -480,7 +542,10 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
   }
 
   static void _updateNodeText(
-      List<TreeNode> nodes, String nodeId, String newText) {
+    List<TreeNode> nodes,
+    String nodeId,
+    String newText,
+  ) {
     for (int i = 0; i < nodes.length; i++) {
       if (nodes[i].nodeId == nodeId) {
         nodes[i] = TreeNode(
@@ -499,7 +564,10 @@ class _EditableMindMapPageState extends ConsumerState<EditableMindMapPage>
   }
 
   static bool _findAndAddChild(
-      List<TreeNode> nodes, String parentId, TreeNode child) {
+    List<TreeNode> nodes,
+    String parentId,
+    TreeNode child,
+  ) {
     for (final n in nodes) {
       if (n.nodeId == parentId) {
         n.children.add(child);
@@ -573,7 +641,9 @@ class _ProgressBar extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
-                    value: progress.total == 0 ? 0 : progress.lit / progress.total,
+                    value: progress.total == 0
+                        ? 0
+                        : progress.lit / progress.total,
                     minHeight: 6,
                     backgroundColor: cs.surfaceContainerHighest,
                     color: cs.primary.withValues(alpha: 0.3),
@@ -666,7 +736,10 @@ class _Layer extends StatelessWidget {
           width: 28,
           child: Text(
             label,
-            style: TextStyle(fontSize: 10, color: cs.onSurface.withValues(alpha: 0.55)),
+            style: TextStyle(
+              fontSize: 10,
+              color: cs.onSurface.withValues(alpha: 0.55),
+            ),
           ),
         ),
         Expanded(
@@ -788,7 +861,10 @@ class _MindMapCanvasState extends ConsumerState<_MindMapCanvas>
     _transformCtrl?.dispose();
     final scale = (viewSize.width / (canvasSize.width + 48)).clamp(0.3, 1.0);
     final scaledW = canvasSize.width * scale;
-    final offsetX = ((viewSize.width - scaledW) / 2).clamp(0.0, double.infinity);
+    final offsetX = ((viewSize.width - scaledW) / 2).clamp(
+      0.0,
+      double.infinity,
+    );
     _transformCtrl = TransformationController(
       Matrix4.diagonal3Values(scale, scale, 1.0)
         ..setTranslationRaw(offsetX, 24.0 * scale, 0),
@@ -804,11 +880,9 @@ class _MindMapCanvasState extends ConsumerState<_MindMapCanvas>
       final dy = event.scrollDelta.dy;
       final dx = event.scrollDelta.dx;
       if (dx.abs() > dy.abs()) {
-        ctrl.value = ctrl.value.clone()
-          ..translateByVector3(Vector3(-dx, 0, 0));
+        ctrl.value = ctrl.value.clone()..translateByVector3(Vector3(-dx, 0, 0));
       } else {
-        ctrl.value = ctrl.value.clone()
-          ..translateByVector3(Vector3(0, -dy, 0));
+        ctrl.value = ctrl.value.clone()..translateByVector3(Vector3(0, -dy, 0));
       }
     }
   }
@@ -872,20 +946,30 @@ class _MindMapCanvasState extends ConsumerState<_MindMapCanvas>
               height: wrapH,
               child: GestureDetector(
                 onTapUp: (details) {
-                  final hit = MindMapPainter.nodeAt(layouts, details.localPosition);
+                  final hit = MindMapPainter.nodeAt(
+                    layouts,
+                    details.localPosition,
+                  );
                   if (hit != null) widget.onNodeTap(hit.node);
                 },
                 onLongPressStart: (details) {
-                  final hit = MindMapPainter.nodeAt(layouts, details.localPosition);
+                  final hit = MindMapPainter.nodeAt(
+                    layouts,
+                    details.localPosition,
+                  );
                   if (hit != null) widget.onNodeLongPress(hit.node);
                 },
                 child: AnimatedBuilder(
                   animation: _pulseCtrl,
                   builder: (_, _) {
                     // 获取节点学习状态和掌握度
-                    final learningStates = ref.watch(nodeStatesMapProvider(widget.sessionId)).valueOrNull;
-                    final masteryLevels = ref.watch(nodeMasteryProvider(widget.sessionId)).valueOrNull;
-                    
+                    final learningStates = ref
+                        .watch(nodeStatesMapProvider(widget.sessionId))
+                        .valueOrNull;
+                    final masteryLevels = ref
+                        .watch(nodeMasteryProvider(widget.sessionId))
+                        .valueOrNull;
+
                     return CustomPaint(
                       size: canvasSize,
                       painter: MindMapPainter(
@@ -896,7 +980,9 @@ class _MindMapCanvasState extends ConsumerState<_MindMapCanvas>
                         pulseValue: _pulseValue,
                         // 新增：学习状态和热力图参数
                         learningNodeStates: learningStates,
-                        masteryLevels: masteryLevels?.map((k, v) => MapEntry(k, v.masteryLevel)),
+                        masteryLevels: masteryLevels?.map(
+                          (k, v) => MapEntry(k, v.masteryLevel),
+                        ),
                         heatmapMode: widget.heatmapMode,
                         pathMode: widget.pathMode,
                         pathNodeIds: widget.pathNodeIds,
@@ -922,6 +1008,7 @@ class _NodeActionSheet extends ConsumerWidget {
   final VoidCallback onEditText;
   final VoidCallback onAddChild;
   final VoidCallback onDelete;
+  final VoidCallback onToggleLearned;
 
   const _NodeActionSheet({
     required this.node,
@@ -930,6 +1017,7 @@ class _NodeActionSheet extends ConsumerWidget {
     required this.onEditText,
     required this.onAddChild,
     required this.onDelete,
+    required this.onToggleLearned,
   });
 
   @override
@@ -942,11 +1030,19 @@ class _NodeActionSheet extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
               node.text,
-              style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ),
           const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.star_border),
+            title: const Text('学习标记'),
+            subtitle: const Text('标记或取消已学习'),
+            onTap: () {
+              Navigator.pop(context);
+              onToggleLearned();
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.menu_book),
             title: const Text('查看讲义'),
@@ -992,11 +1088,14 @@ class _NodeActionSheet extends ConsumerWidget {
             },
           ),
           ListTile(
-            leading: Icon(Icons.delete_outline,
-                color: Theme.of(context).colorScheme.error),
-            title: Text('删除节点',
-                style:
-                    TextStyle(color: Theme.of(context).colorScheme.error)),
+            leading: Icon(
+              Icons.delete_outline,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            title: Text(
+              '删除节点',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
             onTap: () {
               Navigator.pop(context);
               onDelete();
@@ -1038,7 +1137,10 @@ class _GeneratingDialogState extends State<_GeneratingDialog> {
       if (!mounted) return;
       setState(() {
         _progress = (_progress + 0.018).clamp(0.0, 0.9);
-        _stageIndex = (_progress * _stages.length).floor().clamp(0, _stages.length - 1);
+        _stageIndex = (_progress * _stages.length).floor().clamp(
+          0,
+          _stages.length - 1,
+        );
       });
     });
   }
@@ -1061,10 +1163,12 @@ class _GeneratingDialogState extends State<_GeneratingDialog> {
           children: [
             CircularProgressIndicator(value: null, color: cs.primary),
             const SizedBox(height: 20),
-            Text('AI 正在生成讲义',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    )),
+            Text(
+              'AI 正在生成讲义',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
             Text(
               _stages[_stageIndex],
@@ -1116,7 +1220,9 @@ class _KnowledgeGraphPlaceholderState
   Future<void> _generate() async {
     setState(() => _generating = true);
     try {
-      await ref.read(libraryServiceProvider).generateKnowledgeLinks(widget.sessionId);
+      await ref
+          .read(libraryServiceProvider)
+          .generateKnowledgeLinks(widget.sessionId);
       ref.invalidate(knowledgeLinksProvider(widget.sessionId));
     } catch (e) {
       if (mounted) {
@@ -1136,8 +1242,14 @@ class _KnowledgeGraphPlaceholderState
         title: const Text('重新生成'),
         content: const Text('将覆盖现有知识关联数据，确认重新生成？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('确认')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('确认'),
+          ),
         ],
       ),
     );
@@ -1165,8 +1277,14 @@ class _KnowledgeGraphPlaceholderState
           children: [
             Icon(Icons.hub_outlined, size: 64, color: cs.outlineVariant),
             const SizedBox(height: 16),
-            Text('知识关联图',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: cs.onSurface)),
+            Text(
+              '知识关联图',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+            ),
             const SizedBox(height: 8),
             Text(
               '展示跨章节概念的因果、依赖、对比、演进关系',
@@ -1177,8 +1295,14 @@ class _KnowledgeGraphPlaceholderState
             FilledButton.icon(
               onPressed: _generating ? null : _generate,
               icon: _generating
-                  ? const SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Icon(Icons.auto_awesome, size: 18),
               label: Text(_generating ? 'AI 分析中…' : '生成知识关联图'),
             ),
@@ -1188,14 +1312,21 @@ class _KnowledgeGraphPlaceholderState
               spacing: 12,
               runSpacing: 6,
               alignment: WrapAlignment.center,
-              children: _kLinkColors.entries.map((e) => Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(width: 12, height: 3, color: e.value),
-                  const SizedBox(width: 4),
-                  Text(_linkLabels[e.key]!, style: TextStyle(fontSize: 11, color: cs.outline)),
-                ],
-              )).toList(),
+              children: _kLinkColors.entries
+                  .map(
+                    (e) => Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(width: 12, height: 3, color: e.value),
+                        const SizedBox(width: 4),
+                        Text(
+                          _linkLabels[e.key]!,
+                          style: TextStyle(fontSize: 11, color: cs.outline),
+                        ),
+                      ],
+                    ),
+                  )
+                  .toList(),
             ),
           ],
         ),
@@ -1238,18 +1369,22 @@ class _KnowledgeGraphPlaceholderState
               Row(
                 children: [
                   Container(
-                    width: 10, height: 10,
+                    width: 10,
+                    height: 10,
                     decoration: BoxDecoration(
                       color: _kLinkColors[link.linkType] ?? cs.primary,
                       shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(_linkLabels[link.linkType] ?? link.linkType,
-                      style: TextStyle(
-                          fontSize: 13,
-                          color: _kLinkColors[link.linkType] ?? cs.primary,
-                          fontWeight: FontWeight.w600)),
+                  Text(
+                    _linkLabels[link.linkType] ?? link.linkType,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _kLinkColors[link.linkType] ?? cs.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -1257,26 +1392,42 @@ class _KnowledgeGraphPlaceholderState
                 children: [
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: cs.surfaceContainerHigh,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(link.sourceNodeText, style: const TextStyle(fontSize: 13)),
+                      child: Text(
+                        link.sourceNodeText,
+                        style: const TextStyle(fontSize: 13),
+                      ),
                     ),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Icon(Icons.arrow_forward, size: 16, color: cs.outline),
+                    child: Icon(
+                      Icons.arrow_forward,
+                      size: 16,
+                      color: cs.outline,
+                    ),
                   ),
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: cs.surfaceContainerHigh,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(link.targetNodeText, style: const TextStyle(fontSize: 13)),
+                      child: Text(
+                        link.targetNodeText,
+                        style: const TextStyle(fontSize: 13),
+                      ),
                     ),
                   ),
                 ],
@@ -1448,11 +1599,7 @@ class _KnowledgeGraphCanvasState extends State<_KnowledgeGraphCanvas> {
           ),
         ),
         // 图例
-        Positioned(
-          top: 12,
-          right: 12,
-          child: _Legend(cs: cs),
-        ),
+        Positioned(top: 12, right: 12, child: _Legend(cs: cs)),
         // 重新生成按钮
         Positioned(
           bottom: 16,
@@ -1464,7 +1611,8 @@ class _KnowledgeGraphCanvasState extends State<_KnowledgeGraphCanvas> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.refresh, size: 18),
           ),
         ),
@@ -1498,17 +1646,24 @@ class _Legend extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        children: _items.map((item) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 16, height: 2, color: item.$3),
-              const SizedBox(width: 6),
-              Text(item.$2, style: TextStyle(fontSize: 11, color: cs.onSurface)),
-            ],
-          ),
-        )).toList(),
+        children: _items
+            .map(
+              (item) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(width: 16, height: 2, color: item.$3),
+                    const SizedBox(width: 6),
+                    Text(
+                      item.$2,
+                      style: TextStyle(fontSize: 11, color: cs.onSurface),
+                    ),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
       ),
     );
   }
@@ -1544,10 +1699,7 @@ class _KnowledgeGraphPainter extends CustomPainter {
         ..strokeWidth = 1.8
         ..style = PaintingStyle.stroke;
 
-      final mid = Offset(
-        (src.dx + dst.dx) / 2,
-        (src.dy + dst.dy) / 2 - 40,
-      );
+      final mid = Offset((src.dx + dst.dx) / 2, (src.dy + dst.dy) / 2 - 40);
       final path = Path()
         ..moveTo(src.dx, src.dy)
         ..quadraticBezierTo(mid.dx, mid.dy, dst.dx, dst.dy);
@@ -1604,10 +1756,7 @@ class _KnowledgeGraphPainter extends CustomPainter {
         maxLines: 1,
       )..layout(maxWidth: nodeR * 2);
 
-      tp.paint(
-        canvas,
-        Offset(pos.dx - tp.width / 2, pos.dy - tp.height / 2),
-      );
+      tp.paint(canvas, Offset(pos.dx - tp.width / 2, pos.dy - tp.height / 2));
 
       // 节点下方完整文字标签
       final fullTp = TextPainter(
