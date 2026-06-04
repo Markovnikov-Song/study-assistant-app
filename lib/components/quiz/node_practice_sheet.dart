@@ -3,7 +3,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:math_keyboard/math_keyboard.dart';
 import '../../core/network/dio_client.dart';
+import '../../widgets/markdown_latex_view.dart';
 
 // ── 数据模型 ──────────────────────────────────────────────────────────────────
 
@@ -159,6 +161,8 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
   bool _submitted = false; // 当前题目是否已提交
   Map<String, dynamic>? _result; // 提交结果
   final _fillCtrl = TextEditingController();
+  final _mathCtrl = MathFieldEditingController();
+  bool _useFormulaKeyboard = false;
 
   // 统计
   int _correctCount = 0;
@@ -173,6 +177,7 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
   @override
   void dispose() {
     _fillCtrl.dispose();
+    _mathCtrl.dispose();
     super.dispose();
   }
 
@@ -252,6 +257,7 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
         _submitted = false;
         _result = null;
         _fillCtrl.clear();
+        _mathCtrl.clear();
       });
     } else {
       _showSummary();
@@ -314,92 +320,98 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      maxChildSize: 0.95,
-      minChildSize: 0.5,
-      expand: false,
-      builder: (_, scrollCtrl) => Container(
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            // 拖动条
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: cs.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
+    return MathKeyboardViewInsets(
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (_, scrollCtrl) => Container(
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // 拖动条
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: cs.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            // 标题
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '练习：${widget.nodeText}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+              // 标题
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '练习：${widget.nodeText}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Divider(height: 1),
-            // 内容
-            Expanded(
-              child: _loading
-                  ? const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 16),
-                          Text('AI 正在出题…', style: TextStyle(fontSize: 13)),
-                        ],
-                      ),
-                    )
-                  : _error != null
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.error_outline, size: 48, color: cs.error),
-                          const SizedBox(height: 12),
-                          Text('出题失败：$_error'),
-                          const SizedBox(height: 16),
-                          FilledButton(
-                            onPressed: () {
-                              setState(() {
-                                _loading = true;
-                                _error = null;
-                              });
-                              _loadQuestions();
-                            },
-                            child: const Text('重试'),
-                          ),
-                        ],
-                      ),
-                    )
-                  : _questions.isEmpty
-                  ? const Center(child: Text('暂无题目'))
-                  : _buildQuestion(scrollCtrl, cs),
-            ),
-          ],
+              const Divider(height: 1),
+              // 内容
+              Expanded(
+                child: _loading
+                    ? const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('AI 正在出题…', style: TextStyle(fontSize: 13)),
+                          ],
+                        ),
+                      )
+                    : _error != null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: cs.error,
+                            ),
+                            const SizedBox(height: 12),
+                            Text('出题失败：$_error'),
+                            const SizedBox(height: 16),
+                            FilledButton(
+                              onPressed: () {
+                                setState(() {
+                                  _loading = true;
+                                  _error = null;
+                                });
+                                _loadQuestions();
+                              },
+                              child: const Text('重试'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _questions.isEmpty
+                    ? const Center(child: Text('暂无题目'))
+                    : _buildQuestion(scrollCtrl, cs),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -443,7 +455,10 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
         const SizedBox(height: 20),
 
         // 题目
-        Text(q.question, style: const TextStyle(fontSize: 15, height: 1.6)),
+        MarkdownLatexView(
+          data: q.question,
+          textStyle: const TextStyle(fontSize: 15, height: 1.6),
+        ),
         const SizedBox(height: 16),
 
         // 选项 / 输入框
@@ -484,16 +499,13 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
             }).toList(),
           )
         else
-          TextField(
-            controller: _fillCtrl,
+          _AnswerInput(
+            textController: _fillCtrl,
+            mathController: _mathCtrl,
+            useFormulaKeyboard: _useFormulaKeyboard,
             enabled: !_submitted,
-            decoration: InputDecoration(
-              hintText: '输入你的答案',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            maxLines: 3,
+            onModeChanged: (value) =>
+                setState(() => _useFormulaKeyboard = value),
           ),
 
         const SizedBox(height: 20),
@@ -552,16 +564,19 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
                 ),
                 if (!isCorrect) ...[
                   const SizedBox(height: 8),
-                  Text(
-                    '正确答案：${q.correctAnswer}',
-                    style: TextStyle(fontSize: 13, color: Colors.red.shade700),
+                  MarkdownLatexView(
+                    data: '正确答案：${q.correctAnswer}',
+                    textStyle: TextStyle(
+                      fontSize: 13,
+                      color: Colors.red.shade700,
+                    ),
                   ),
                 ],
                 if (q.explanation.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Text(
-                    '解析：${q.explanation}',
-                    style: TextStyle(
+                  MarkdownLatexView(
+                    data: '解析：${q.explanation}',
+                    textStyle: TextStyle(
                       fontSize: 13,
                       color: cs.onSurface.withValues(alpha: 0.7),
                     ),
@@ -581,6 +596,113 @@ class _NodePracticeSheetState extends ConsumerState<NodePracticeSheet> {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+class _AnswerInput extends StatelessWidget {
+  final TextEditingController textController;
+  final MathFieldEditingController mathController;
+  final bool useFormulaKeyboard;
+  final bool enabled;
+  final ValueChanged<bool> onModeChanged;
+
+  const _AnswerInput({
+    required this.textController,
+    required this.mathController,
+    required this.useFormulaKeyboard,
+    required this.enabled,
+    required this.onModeChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(
+                value: false,
+                icon: Icon(Icons.keyboard_outlined, size: 16),
+                label: Text('文字'),
+              ),
+              ButtonSegment(
+                value: true,
+                icon: Icon(Icons.functions, size: 16),
+                label: Text('公式'),
+              ),
+            ],
+            selected: {useFormulaKeyboard},
+            showSelectedIcon: false,
+            onSelectionChanged: enabled
+                ? (values) => onModeChanged(values.first)
+                : null,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (useFormulaKeyboard)
+          MathField(
+            controller: mathController,
+            keyboardType: MathKeyboardType.expression,
+            variables: const ['x', 'y', 'z', 'h', 'n', 't'],
+            opensKeyboard: enabled,
+            decoration: InputDecoration(
+              hintText: r'输入公式，如 \frac{x+1}{2}',
+              helperText: '公式会以 TeX 形式提交',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              enabled: enabled,
+            ),
+            onChanged: (value) => textController.text = value,
+          )
+        else
+          TextField(
+            controller: textController,
+            enabled: enabled,
+            decoration: InputDecoration(
+              hintText: '输入你的答案',
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.functions),
+                tooltip: '切换到公式键盘',
+                onPressed: enabled ? () => onModeChanged(true) : null,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            maxLines: 3,
+          ),
+        if (useFormulaKeyboard)
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: textController,
+            builder: (context, value, _) {
+              if (value.text.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: cs.outlineVariant),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: MarkdownLatexView(
+                      data: r'$' + value.text + r'$',
+                      textStyle: const TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
       ],
     );
   }
@@ -652,7 +774,10 @@ class _ChoiceOption extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(option.content, style: const TextStyle(fontSize: 14)),
+              child: MarkdownLatexView(
+                data: option.content,
+                textStyle: const TextStyle(fontSize: 14),
+              ),
             ),
             if (submitted && option.isCorrect)
               Icon(Icons.check_circle, size: 18, color: Colors.green.shade600),

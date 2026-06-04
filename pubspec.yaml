@@ -103,6 +103,7 @@ dependencies:
   # Keep App Awake During Tasks
   wakelock_plus: ^1.2.8
   url_launcher: ^6.3.2
+  math_keyboard: ^0.3.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
