@@ -6,6 +6,7 @@ import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../../models/mindmap_library.dart';
+import '../../../providers/document_provider.dart';
 import '../../../services/library_service.dart';
 import '../../../services/notebook_service.dart';
 import '../../../providers/library_provider.dart';
@@ -1916,6 +1917,7 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
   int? _selectedNotebookId;
   int? _selectedSubjectId;
   bool _loading = false;
+  bool _importToResourceLibrary = true;
 
   @override
   void initState() {
@@ -1932,7 +1934,8 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
     }
     setState(() => _loading = true);
     try {
-      await NotebookService().createNotes([
+      final service = NotebookService();
+      final notes = await service.createNotes([
         {
           'notebook_id': _selectedNotebookId,
           'subject_id': _selectedSubjectId,
@@ -1942,12 +1945,21 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
           'note_type': 'general',
         },
       ]);
+      final shouldImport =
+          _importToResourceLibrary &&
+          _selectedSubjectId != null &&
+          notes.isNotEmpty;
+      if (shouldImport) {
+        await service.importToRag(notes.first.id);
+        ref.invalidate(documentsProvider(_selectedSubjectId!));
+        ref.invalidate(subjectKnowledgeBaseProvider(_selectedSubjectId!));
+      }
       ref.invalidate(notebookNotesProvider(_selectedNotebookId!));
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('讲义已保存到笔记本')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(shouldImport ? '讲义已保存，并导入资料库' : '讲义已保存到笔记本')),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -2064,9 +2076,12 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
                                           ),
                                         ),
                                       ],
-                                      onChanged: (v) => setState(
-                                        () => _selectedSubjectId = v,
-                                      ),
+                                      onChanged: (v) => setState(() {
+                                        _selectedSubjectId = v;
+                                        if (v == null) {
+                                          _importToResourceLibrary = false;
+                                        }
+                                      }),
                                     ),
                                   ],
                                 ),
@@ -2081,6 +2096,18 @@ class _SaveToNotebookSheetState extends ConsumerState<_SaveToNotebookSheet> {
             },
           ),
           const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('同时导入资料库'),
+              subtitle: const Text('用于后续问答、解题和生成讲义时检索'),
+              value: _importToResourceLibrary,
+              onChanged: _selectedSubjectId == null || _loading
+                  ? null
+                  : (v) => setState(() => _importToResourceLibrary = v),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: FilledButton(

@@ -79,17 +79,7 @@ class DocsTab extends ConsumerWidget {
                         child: _EmptyDocsView(),
                       )
                     else
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                        sliver: SliverList.separated(
-                          itemCount: docs.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _DocTile(
-                            doc: docs[i],
-                            subjectId: subjectId,
-                          ),
-                        ),
-                      ),
+                      ..._buildDocSections(docs),
                   ],
                 );
               },
@@ -104,9 +94,9 @@ class DocsTab extends ConsumerWidget {
     try {
       await ref.read(documentActionsProvider(subjectId).notifier).reindexAll();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已开始重建索引')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已开始重建索引')));
       }
     } catch (e) {
       if (context.mounted) {
@@ -118,6 +108,151 @@ class DocsTab extends ConsumerWidget {
         );
       }
     }
+  }
+
+  List<Widget> _buildDocSections(List<StudyDocument> docs) {
+    final grouped = <_ResourceCategory, List<StudyDocument>>{};
+    for (final doc in docs) {
+      final category = _inferResourceCategory(doc);
+      grouped.putIfAbsent(category, () => []).add(doc);
+    }
+
+    return [
+      for (final category in _resourceCategoryOrder)
+        if ((grouped[category] ?? const <StudyDocument>[]).isNotEmpty) ...[
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            sliver: SliverToBoxAdapter(
+              child: _ResourceSectionHeader(
+                category: category,
+                count: grouped[category]!.length,
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+            sliver: SliverList.separated(
+              itemCount: grouped[category]!.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
+              itemBuilder: (_, i) => _DocTile(
+                doc: grouped[category]![i],
+                subjectId: subjectId,
+                category: category,
+              ),
+            ),
+          ),
+        ],
+      const SliverToBoxAdapter(child: SizedBox(height: 6)),
+    ];
+  }
+}
+
+enum _ResourceCategory { textbook, lecture, note, exam, other }
+
+const _resourceCategoryOrder = [
+  _ResourceCategory.textbook,
+  _ResourceCategory.lecture,
+  _ResourceCategory.note,
+  _ResourceCategory.exam,
+  _ResourceCategory.other,
+];
+
+_ResourceCategory _inferResourceCategory(StudyDocument doc) {
+  final name = doc.filename.toLowerCase();
+  if (name.contains('真题') ||
+      name.contains('试卷') ||
+      name.contains('exam') ||
+      name.contains('test') ||
+      name.contains('paper')) {
+    return _ResourceCategory.exam;
+  }
+  if (name.contains('讲义') ||
+      name.contains('lecture') ||
+      name.contains('lesson')) {
+    return _ResourceCategory.lecture;
+  }
+  if (name.contains('笔记') || name.contains('note') || name.contains('notes')) {
+    return _ResourceCategory.note;
+  }
+  if (name.contains('教材') ||
+      name.contains('课本') ||
+      name.contains('textbook') ||
+      name.contains('book')) {
+    return _ResourceCategory.textbook;
+  }
+  return _ResourceCategory.other;
+}
+
+String _resourceCategoryLabel(_ResourceCategory category) {
+  return switch (category) {
+    _ResourceCategory.textbook => '教材资料',
+    _ResourceCategory.lecture => '生成讲义',
+    _ResourceCategory.note => '笔记导入',
+    _ResourceCategory.exam => '真题练习',
+    _ResourceCategory.other => '其他资料',
+  };
+}
+
+String _resourceCategoryHint(_ResourceCategory category) {
+  return switch (category) {
+    _ResourceCategory.textbook => '原始教材、课件和资料包',
+    _ResourceCategory.lecture => 'AI 或人工整理出的讲义产物',
+    _ResourceCategory.note => '从笔记本回写到资料库的内容',
+    _ResourceCategory.exam => '试卷、真题和专项练习材料',
+    _ResourceCategory.other => '暂未归类的参考资料',
+  };
+}
+
+IconData _resourceCategoryIcon(_ResourceCategory category) {
+  return switch (category) {
+    _ResourceCategory.textbook => Icons.menu_book_outlined,
+    _ResourceCategory.lecture => Icons.article_outlined,
+    _ResourceCategory.note => Icons.sticky_note_2_outlined,
+    _ResourceCategory.exam => Icons.fact_check_outlined,
+    _ResourceCategory.other => Icons.folder_outlined,
+  };
+}
+
+class _ResourceSectionHeader extends StatelessWidget {
+  final _ResourceCategory category;
+  final int count;
+
+  const _ResourceSectionHeader({required this.category, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Row(
+      children: [
+        Icon(_resourceCategoryIcon(category), size: 18, color: cs.primary),
+        const SizedBox(width: 8),
+        Text(
+          _resourceCategoryLabel(category),
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '$count',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: cs.onSurfaceVariant,
+          ),
+        ),
+        const Spacer(),
+        Flexible(
+          child: Text(
+            _resourceCategoryHint(category),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -148,11 +283,15 @@ class _KnowledgeBasePanel extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: (ready ? cs.primary : cs.tertiary).withValues(alpha: 0.12),
+                  color: (ready ? cs.primary : cs.tertiary).withValues(
+                    alpha: 0.12,
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
-                  ready ? Icons.account_tree_rounded : Icons.folder_open_rounded,
+                  ready
+                      ? Icons.account_tree_rounded
+                      : Icons.folder_open_rounded,
                   color: ready ? cs.primary : cs.tertiary,
                 ),
               ),
@@ -311,7 +450,12 @@ class _ActionBar extends StatelessWidget {
 class _DocTile extends ConsumerWidget {
   final StudyDocument doc;
   final int subjectId;
-  const _DocTile({required this.doc, required this.subjectId});
+  final _ResourceCategory category;
+  const _DocTile({
+    required this.doc,
+    required this.subjectId,
+    required this.category,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -325,7 +469,9 @@ class _DocTile extends ConsumerWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: cs.surface,
-        border: Border.all(color: _statusColor(cs, doc.status).withValues(alpha: 0.36)),
+        border: Border.all(
+          color: _statusColor(cs, doc.status).withValues(alpha: 0.36),
+        ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -351,7 +497,11 @@ class _DocTile extends ConsumerWidget {
                       spacing: 6,
                       runSpacing: 6,
                       children: [
-                        _StatusChip(label: _stageLabel(doc), status: doc.status),
+                        _ResourceCategoryChip(category: category),
+                        _StatusChip(
+                          label: _stageLabel(doc),
+                          status: doc.status,
+                        ),
                         if (doc.chunkCount > 0)
                           _TinyChip(
                             icon: Icons.grid_view_rounded,
@@ -409,7 +559,10 @@ class _DocTile extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Text('${doc.progress.clamp(0, 100)}%', style: theme.textTheme.labelSmall),
+            Text(
+              '${doc.progress.clamp(0, 100)}%',
+              style: theme.textTheme.labelSmall,
+            ),
           ],
           if (doc.error != null && doc.error!.isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -427,11 +580,13 @@ class _DocTile extends ConsumerWidget {
 
   Future<void> _reindex(BuildContext context, WidgetRef ref) async {
     try {
-      await ref.read(documentActionsProvider(subjectId).notifier).reindex(doc.id);
+      await ref
+          .read(documentActionsProvider(subjectId).notifier)
+          .reindex(doc.id);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已开始重建索引')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已开始重建索引')));
       }
     } catch (e) {
       if (context.mounted) {
@@ -475,6 +630,41 @@ class _DocTile extends ConsumerWidget {
               }
             },
             child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResourceCategoryChip extends StatelessWidget {
+  final _ResourceCategory category;
+
+  const _ResourceCategoryChip({required this.category});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer.withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _resourceCategoryIcon(category),
+            size: 13,
+            color: cs.onPrimaryContainer,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _resourceCategoryLabel(category),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: cs.onPrimaryContainer),
           ),
         ],
       ),
