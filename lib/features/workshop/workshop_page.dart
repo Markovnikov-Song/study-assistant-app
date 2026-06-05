@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../routes/app_router.dart';
@@ -59,6 +60,25 @@ class WorkshopPage extends ConsumerWidget {
                   ),
                 ),
               ),
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(padding, 14, padding, 0),
+                sliver: SliverToBoxAdapter(
+                  child: _WorkshopActionStrip(
+                    apps: apps,
+                    isDesktop: isDesktop,
+                    onCreate: () => context.push(R.workshopBuilder),
+                    onRunLatest: apps.isEmpty
+                        ? null
+                        : () => context.push(R.workshopApp(apps.first.id)),
+                    onReviseLatest: apps.isEmpty
+                        ? null
+                        : () => _showReviseDialog(context, ref, apps.first),
+                    onShareLatest: apps.isEmpty
+                        ? null
+                        : () => _copyShareText(context, apps.first),
+                  ),
+                ),
+              ),
               if (apps.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
@@ -78,7 +98,13 @@ class WorkshopPage extends ConsumerWidget {
                       childAspectRatio: isDesktop ? 1.5 : 1.35,
                     ),
                     itemBuilder: (context, index) {
-                      return _MiniAppCard(app: apps[index]);
+                      final app = apps[index];
+                      return _MiniAppCard(
+                        app: app,
+                        onRun: () => context.push(R.workshopApp(app.id)),
+                        onRevise: () => _showReviseDialog(context, ref, app),
+                        onShare: () => _copyShareText(context, app),
+                      );
                     },
                   ),
                 ),
@@ -86,6 +112,145 @@ class WorkshopPage extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _copyShareText(BuildContext context, MiniAppSummary app) async {
+    final text = [
+      '学习小工具：${app.title}',
+      '类型：${_miniAppTypeLabel(app.appType)}',
+      '状态：${app.status}',
+      if (app.description.trim().isNotEmpty) '说明：${app.description.trim()}',
+      '入口：${R.workshopApp(app.id)}',
+    ].join('\n');
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已复制小工具分享文案')));
+  }
+
+  Future<void> _showReviseDialog(
+    BuildContext context,
+    WidgetRef ref,
+    MiniAppSummary app,
+  ) async {
+    final revised = await showDialog<MiniAppRecord>(
+      context: context,
+      builder: (dialogContext) => _ReviseMiniAppDialog(
+        app: app,
+        onSubmit: (instruction) => ref
+            .read(miniAppServiceProvider)
+            .reviseApp(id: app.id, instruction: instruction),
+      ),
+    );
+    if (revised == null || !context.mounted) return;
+    ref.invalidate(miniAppsProvider);
+    ref.invalidate(miniAppProvider(app.id));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          revised.validation.ok
+              ? '已改造并校验通过'
+              : '已改造，但还有 ${revised.validation.errors.length} 个校验问题',
+        ),
+      ),
+    );
+    context.push(R.workshopApp(app.id));
+  }
+}
+
+class _ReviseMiniAppDialog extends StatefulWidget {
+  final MiniAppSummary app;
+  final Future<MiniAppRecord> Function(String instruction) onSubmit;
+
+  const _ReviseMiniAppDialog({required this.app, required this.onSubmit});
+
+  @override
+  State<_ReviseMiniAppDialog> createState() => _ReviseMiniAppDialogState();
+}
+
+class _ReviseMiniAppDialogState extends State<_ReviseMiniAppDialog> {
+  late final TextEditingController _controller;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: '把这个小工具改成更适合我现在复习的版本：保留核心内容，增强反馈和复习节奏。',
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final instruction = _controller.text.trim();
+    if (instruction.isEmpty || _saving) return;
+    setState(() => _saving = true);
+    try {
+      final revised = await widget.onSubmit(instruction);
+      if (!mounted) return;
+      Navigator.pop(context, revised);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('改造失败：$error')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('改造：${widget.app.title}'),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '说清楚要怎么改，助教会基于现有文档和运行配置生成新版本。',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              minLines: 4,
+              maxLines: 7,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: '例如：改成错题优先、每轮 8 题、答错后先提示再讲解。',
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton.icon(
+          onPressed: _saving ? null : _submit,
+          icon: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.auto_fix_high_rounded),
+          label: Text(_saving ? '改造中' : '开始改造'),
+        ),
+      ],
     );
   }
 }
@@ -120,7 +285,7 @@ class _WorkshopHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '用文档拼装学习小软件',
+                  '生成、改造、运行、分享学习小工具',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: isDesktop ? 30 : 24,
@@ -129,7 +294,7 @@ class _WorkshopHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  '告诉助教你的学习方法想法，系统会生成教学模板、内容包、练习流程、反馈策略和复习算法，并在后端编译成可校验的隐形积木画布。',
+                  '软件工坊先收敛成四个入口：从一句需求生成，对已有工具提出改造，打开运行页试用，再复制给同学或老师。复杂配置都藏在这四个动作后面。',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
                     fontSize: isDesktop ? 15 : 13,
@@ -142,9 +307,10 @@ class _WorkshopHero extends StatelessWidget {
                   runSpacing: 8,
                   children: [
                     _StatPill(label: '$count 个小软件'),
-                    const _StatPill(label: '文档驱动'),
-                    const _StatPill(label: '隐形画布'),
-                    const _StatPill(label: '可运行预览'),
+                    const _StatPill(label: '生成'),
+                    const _StatPill(label: '改造'),
+                    const _StatPill(label: '运行'),
+                    const _StatPill(label: '分享'),
                   ],
                 ),
               ],
@@ -164,10 +330,161 @@ class _WorkshopHero extends StatelessWidget {
   }
 }
 
+class _WorkshopActionStrip extends StatelessWidget {
+  final List<MiniAppSummary> apps;
+  final bool isDesktop;
+  final VoidCallback onCreate;
+  final VoidCallback? onRunLatest;
+  final VoidCallback? onReviseLatest;
+  final VoidCallback? onShareLatest;
+
+  const _WorkshopActionStrip({
+    required this.apps,
+    required this.isDesktop,
+    required this.onCreate,
+    required this.onRunLatest,
+    required this.onReviseLatest,
+    required this.onShareLatest,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final latestLabel = apps.isEmpty ? '暂无小工具' : '最近：${apps.first.title}';
+    final actions = [
+      _WorkshopAction(
+        icon: Icons.auto_awesome_rounded,
+        title: '生成小工具',
+        description: '说一句需求，追问补齐后生成可运行草稿。',
+        actionLabel: '去生成',
+        onPressed: onCreate,
+      ),
+      _WorkshopAction(
+        icon: Icons.auto_fix_high_rounded,
+        title: '改造小工具',
+        description: latestLabel,
+        actionLabel: '改造最近',
+        onPressed: onReviseLatest,
+      ),
+      _WorkshopAction(
+        icon: Icons.play_circle_outline_rounded,
+        title: '运行小工具',
+        description: latestLabel,
+        actionLabel: '运行最近',
+        onPressed: onRunLatest,
+      ),
+      _WorkshopAction(
+        icon: Icons.ios_share_rounded,
+        title: '保存/分享小工具',
+        description: latestLabel,
+        actionLabel: '复制分享',
+        onPressed: onShareLatest,
+      ),
+    ];
+
+    if (!isDesktop) {
+      return Column(
+        children: actions
+            .map(
+              (action) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: action,
+              ),
+            )
+            .toList(),
+      );
+    }
+
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 4,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.45,
+      children: actions,
+    );
+  }
+}
+
+class _WorkshopAction extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final String actionLabel;
+  final VoidCallback? onPressed;
+
+  const _WorkshopAction({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.actionLabel,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: cs.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurfaceVariant,
+              fontSize: 12,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonal(
+              onPressed: onPressed,
+              child: Text(actionLabel),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MiniAppCard extends StatelessWidget {
   final MiniAppSummary app;
+  final VoidCallback onRun;
+  final VoidCallback onRevise;
+  final VoidCallback onShare;
 
-  const _MiniAppCard({required this.app});
+  const _MiniAppCard({
+    required this.app,
+    required this.onRun,
+    required this.onRevise,
+    required this.onShare,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -176,7 +493,7 @@ class _MiniAppCard extends StatelessWidget {
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        onTap: () => context.push(R.workshopApp(app.id)),
+        onTap: onRun,
         borderRadius: BorderRadius.circular(18),
         child: Ink(
           padding: const EdgeInsets.all(16),
@@ -202,7 +519,10 @@ class _MiniAppCard extends StatelessWidget {
                           ),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Icon(_icon(app.appType), color: Colors.white),
+                        child: Icon(
+                          _miniAppTypeIcon(app.appType),
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -220,7 +540,7 @@ class _MiniAppCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              _typeLabel(app.appType),
+                              _miniAppTypeLabel(app.appType),
                               style: TextStyle(
                                 color: cs.primary,
                                 fontSize: 12,
@@ -251,35 +571,55 @@ class _MiniAppCard extends StatelessWidget {
                         _Badge(label: '${app.validation.warnings.length} 条提示'),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: onRun,
+                          icon: const Icon(Icons.play_arrow_rounded),
+                          label: const Text('运行'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        onPressed: onRevise,
+                        icon: const Icon(Icons.auto_fix_high_rounded),
+                        tooltip: '改造小工具',
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        onPressed: onShare,
+                        icon: const Icon(Icons.ios_share_rounded),
+                        tooltip: '复制分享文案',
+                      ),
+                    ],
+                  ),
                 ],
               ),
-              const Positioned(
-                top: 0,
-                right: 0,
-                child: DiyCornerBadge(),
-              ),
+              const Positioned(top: 0, right: 0, child: DiyCornerBadge()),
             ],
           ),
         ),
       ),
     );
   }
+}
 
-  static IconData _icon(String type) {
-    return switch (type) {
-      'mistake_drill' => Icons.replay_circle_filled_rounded,
-      'quest' => Icons.route_rounded,
-      _ => Icons.style_rounded,
-    };
-  }
+IconData _miniAppTypeIcon(String type) {
+  return switch (type) {
+    'mistake_drill' => Icons.replay_circle_filled_rounded,
+    'quest' => Icons.route_rounded,
+    _ => Icons.style_rounded,
+  };
+}
 
-  static String _typeLabel(String type) {
-    return switch (type) {
-      'mistake_drill' => '错题训练',
-      'quest' => '闯关练习',
-      _ => '背记练习',
-    };
-  }
+String _miniAppTypeLabel(String type) {
+  return switch (type) {
+    'mistake_drill' => '错题训练',
+    'quest' => '闯关练习',
+    _ => '背记练习',
+  };
 }
 
 class _EmptyState extends StatelessWidget {

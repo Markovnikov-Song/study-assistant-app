@@ -47,12 +47,13 @@ Playwright 主要覆盖 L1-L4，不能替代 L5。
 | 笔记 | 详情、AI 润色、导入资料库、保存请求 | `tests/playwright/notebook_flow.spec.ts` | 已通过 |
 | 科目和资源 | 新建科目、资料库状态、重建索引 | `tests/playwright/subject_resource_flow.spec.ts` | 已通过 |
 | RAG 来源 | SSE `[SOURCES]` 帧解析到 assistant 消息 | `test/providers/chat_provider_sources_test.dart` | 已通过 |
+| 软件工坊 | 四入口展示、运行最近小工具、从首页改造已有小工具 | `test/features/workshop/workshop_page_test.dart` | 已通过 |
 
 ## 仍需补强
 
 | 范围 | 原因 | 下一步 |
 | --- | --- | --- |
-| 软件工坊核心流 | 目前主要是入口和部分框架，生成、运行、保存、复用闭环仍不足 | 新增 WORKSHOP-P2-01/02 用例 |
+| 软件工坊深层运行器 | 四入口 MVP 已有自动化，选择题、错题训练、资料问答等运行器仍需扩展 | 为每种 runtime renderer 补 L2/L3 用例 |
 | 真实后端 E2E | 多数 Playwright 仍用 mock，能验前端业务流，但不能完全证明真实数据链路 | 将关键 L2 用例升级为 L3 |
 | 文件上传细节 | Web 文件选择器、单文档菜单和原生权限需要更稳定语义 | 补语义 key 后继续自动化 |
 | 锁屏通知和应用锁 | 属于 L5 平台能力，Playwright 无法证明锁屏弹出、悬浮窗或跨应用限制 | Android/iOS 真机验收 |
@@ -83,7 +84,7 @@ Playwright 主要覆盖 L1-L4，不能替代 L5。
 1. 运行 `npm run web:build`。
 2. 运行 `npm run test:web-smoke`。
 3. 运行 Flutter 合同测试和后端合约测试。
-4. 补软件工坊 WORKSHOP-P2-01/02。
+4. 将软件工坊 WORKSHOP-P2-01 从 Widget 测试扩展为 Web/真实后端 E2E。
 5. 将日历、资源、练习、错题中的关键 mock 用例升级为真实后端 E2E。
 6. 补 L4 截图基线。
 7. 最后做 L5 真机平台能力验收。
