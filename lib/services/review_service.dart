@@ -11,7 +11,7 @@ class ReviewService {
 
   /// 获取错题列表
   Future<List<Mistake>> getMistakes({
-    String? status,  // pending | reviewed
+    String? status, // pending | reviewed
     int? subjectId,
     int limit = 50,
   }) async {
@@ -37,6 +37,21 @@ class ReviewService {
     try {
       final res = await _dio.get('${ApiConstants.reviewMistakes}/$noteId');
       return Mistake.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<int> importMistakeToRag(int noteId) async {
+    try {
+      final res = await _dio.post(
+        '${ApiConstants.reviewMistakes}/$noteId/import-to-rag',
+      );
+      final rawId = (res.data as Map<String, dynamic>)['doc_id'];
+      if (rawId is int) return rawId;
+      if (rawId is num) return rawId.toInt();
+      if (rawId is String) return int.tryParse(rawId) ?? 0;
+      return 0;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -78,7 +93,7 @@ class ReviewService {
   /// 提交复盘结果
   Future<ReviewSubmitResult> submitReview({
     required int noteId,
-    required int quality,  // 0-3: 忘了/模糊/想起/巩固
+    required int quality, // 0-3: 忘了/模糊/想起/巩固
     String? reviewContent,
     bool? practiceCorrect,
   }) async {
@@ -128,7 +143,7 @@ class ReviewService {
   /// 对复习卡片评分
   Future<Map<String, dynamic>> rateReviewCard({
     required int cardId,
-    required int quality,  // 0-3
+    required int quality, // 0-3
   }) async {
     try {
       final res = await _dio.post(

@@ -24,7 +24,7 @@ class Mistake {
   final String content;
   final String noteType;
   final String? mistakeStatus;
-  
+
   // 扩展字段
   final String? nodeId;
   final String? questionText;
@@ -32,10 +32,11 @@ class Mistake {
   final String? correctAnswer;
   final String? mistakeCategory;
   final int? reviewCardId;
+  final int? importedToDocId;
   final int masteryScore;
   final int reviewCount;
   final DateTime? lastReviewedAt;
-  
+
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -53,6 +54,7 @@ class Mistake {
     this.correctAnswer,
     this.mistakeCategory,
     this.reviewCardId,
+    this.importedToDocId,
     this.masteryScore = 0,
     this.reviewCount = 0,
     this.lastReviewedAt,
@@ -75,6 +77,7 @@ class Mistake {
       correctAnswer: json['correct_answer'] as String?,
       mistakeCategory: json['mistake_category'] as String?,
       reviewCardId: _toIntOrNull(json['review_card_id']),
+      importedToDocId: _toIntOrNull(json['imported_to_doc_id']),
       masteryScore: _toInt(json['mastery_score']),
       reviewCount: _toInt(json['review_count']),
       lastReviewedAt: json['last_reviewed_at'] != null
@@ -87,6 +90,7 @@ class Mistake {
 
   bool get isPending => mistakeStatus == 'pending';
   bool get isReviewed => mistakeStatus == 'reviewed';
+  bool get isImported => importedToDocId != null;
 }
 
 /// 复习队列项
@@ -135,10 +139,14 @@ class ReviewItem {
 
   String get difficultyLabel {
     switch (difficulty) {
-      case 1: return '简单';
-      case 2: return '中等';
-      case 3: return '困难';
-      default: return '中等';
+      case 1:
+        return '简单';
+      case 2:
+        return '中等';
+      case 3:
+        return '困难';
+      default:
+        return '中等';
     }
   }
 }

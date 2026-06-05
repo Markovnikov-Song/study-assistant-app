@@ -82,6 +82,8 @@ class _PendingMistakesTab extends ConsumerWidget {
             return _MistakeCard(
               mistake: mistakes[index],
               onTap: () => _startReview(context, ref, mistakes[index]),
+              onImport: () =>
+                  _importToResourceLibrary(context, ref, mistakes[index]),
             );
           },
         );
@@ -99,6 +101,20 @@ class _PendingMistakesTab extends ConsumerWidget {
       MaterialPageRoute(builder: (_) => ReviewSessionPage(mistake: mistake)),
     );
     await ref.read(reviewLoopCoordinatorProvider).afterReviewSubmitted();
+  }
+
+  Future<void> _importToResourceLibrary(
+    BuildContext context,
+    WidgetRef ref,
+    Mistake mistake,
+  ) async {
+    final docId = await ref
+        .read(reviewNotifierProvider.notifier)
+        .importMistakeToRag(mistake);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(docId == null ? '导入失败' : '错题已导入资料库')),
+    );
   }
 }
 
@@ -130,6 +146,8 @@ class _ReviewedMistakesTab extends ConsumerWidget {
               mistake: mistakes[index],
               onTap: () => _startReview(context, ref, mistakes[index]),
               showMastery: true,
+              onImport: () =>
+                  _importToResourceLibrary(context, ref, mistakes[index]),
             );
           },
         );
@@ -147,6 +165,20 @@ class _ReviewedMistakesTab extends ConsumerWidget {
       MaterialPageRoute(builder: (_) => ReviewSessionPage(mistake: mistake)),
     );
     await ref.read(reviewLoopCoordinatorProvider).afterReviewSubmitted();
+  }
+
+  Future<void> _importToResourceLibrary(
+    BuildContext context,
+    WidgetRef ref,
+    Mistake mistake,
+  ) async {
+    final docId = await ref
+        .read(reviewNotifierProvider.notifier)
+        .importMistakeToRag(mistake);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(docId == null ? '导入失败' : '错题已导入资料库')),
+    );
   }
 }
 
@@ -190,11 +222,13 @@ class _EmptyState extends StatelessWidget {
 class _MistakeCard extends StatelessWidget {
   final Mistake mistake;
   final VoidCallback onTap;
+  final VoidCallback onImport;
   final bool showMastery;
 
   const _MistakeCard({
     required this.mistake,
     required this.onTap,
+    required this.onImport,
     this.showMastery = false,
   });
 
@@ -258,6 +292,18 @@ class _MistakeCard extends StatelessWidget {
                     ),
                   ],
                   const Spacer(),
+                  if (mistake.isImported)
+                    _ImportedChip()
+                  else
+                    TextButton.icon(
+                      onPressed: onImport,
+                      icon: const Icon(
+                        Icons.drive_folder_upload_outlined,
+                        size: 16,
+                      ),
+                      label: const Text('入库'),
+                    ),
+                  const SizedBox(width: 4),
                   if (showMastery) _buildMasteryIndicator(mistake.masteryScore),
                   const Icon(Icons.chevron_right, size: 20),
                 ],
@@ -366,5 +412,26 @@ class _MistakeCard extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+}
+
+class _ImportedChip extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        '已入库',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: cs.onPrimaryContainer,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
   }
 }

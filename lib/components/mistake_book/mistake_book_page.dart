@@ -22,12 +22,7 @@ class MistakeBookPage extends ConsumerWidget {
             ],
           ),
         ),
-        body: const TabBarView(
-          children: [
-            _PendingTab(),
-            _ReviewedTab(),
-          ],
-        ),
+        body: const TabBarView(children: [_PendingTab(), _ReviewedTab()]),
       ),
     );
   }
@@ -56,6 +51,7 @@ class _PendingTab extends ConsumerWidget {
           itemBuilder: (_, i) => _MistakeCard(
             mistake: mistakes[i],
             onTap: () => _startReview(context, mistakes[i]),
+            onImport: () => _importToResourceLibrary(context, ref, mistakes[i]),
           ),
         );
       },
@@ -66,6 +62,20 @@ class _PendingTab extends ConsumerWidget {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => ReviewSessionPage(mistake: mistake)),
+    );
+  }
+
+  Future<void> _importToResourceLibrary(
+    BuildContext context,
+    WidgetRef ref,
+    Mistake mistake,
+  ) async {
+    final docId = await ref
+        .read(reviewNotifierProvider.notifier)
+        .importMistakeToRag(mistake);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(docId == null ? '导入失败' : '错题已导入资料库')),
     );
   }
 }
@@ -94,6 +104,7 @@ class _ReviewedTab extends ConsumerWidget {
             mistake: mistakes[i],
             showMastery: true,
             onTap: () => _startReview(context, mistakes[i]),
+            onImport: () => _importToResourceLibrary(context, ref, mistakes[i]),
           ),
         );
       },
@@ -106,16 +117,32 @@ class _ReviewedTab extends ConsumerWidget {
       MaterialPageRoute(builder: (_) => ReviewSessionPage(mistake: mistake)),
     );
   }
+
+  Future<void> _importToResourceLibrary(
+    BuildContext context,
+    WidgetRef ref,
+    Mistake mistake,
+  ) async {
+    final docId = await ref
+        .read(reviewNotifierProvider.notifier)
+        .importMistakeToRag(mistake);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(docId == null ? '导入失败' : '错题已导入资料库')),
+    );
+  }
 }
 
 class _MistakeCard extends StatelessWidget {
   final Mistake mistake;
   final VoidCallback onTap;
+  final VoidCallback onImport;
   final bool showMastery;
 
   const _MistakeCard({
     required this.mistake,
     required this.onTap,
+    required this.onImport,
     this.showMastery = false,
   });
 
@@ -152,7 +179,9 @@ class _MistakeCard extends StatelessWidget {
                         Text(
                           dateStr,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.55,
+                            ),
                           ),
                         ),
                         if (mistake.reviewCount > 0) ...[
@@ -160,7 +189,9 @@ class _MistakeCard extends StatelessWidget {
                           Text(
                             '复习 ${mistake.reviewCount} 次',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.45,
+                              ),
                             ),
                           ),
                         ],
@@ -170,13 +201,28 @@ class _MistakeCard extends StatelessWidget {
                 ),
               ),
               if (showMastery) _MasteryChip(score: mistake.masteryScore),
+              if (mistake.isImported)
+                _ImportedChip()
+              else
+                IconButton(
+                  tooltip: '导入资料库',
+                  onPressed: onImport,
+                  icon: const Icon(
+                    Icons.drive_folder_upload_outlined,
+                    size: 18,
+                  ),
+                ),
               Chip(
                 label: Text(isPending ? '待复盘' : '已复盘'),
                 labelStyle: TextStyle(
                   fontSize: 11,
-                  color: isPending ? Colors.orange.shade800 : Colors.green.shade800,
+                  color: isPending
+                      ? Colors.orange.shade800
+                      : Colors.green.shade800,
                 ),
-                backgroundColor: isPending ? Colors.orange.shade50 : Colors.green.shade50,
+                backgroundColor: isPending
+                    ? Colors.orange.shade50
+                    : Colors.green.shade50,
                 side: BorderSide.none,
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
@@ -191,13 +237,39 @@ class _MistakeCard extends StatelessWidget {
   }
 }
 
+class _ImportedChip extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        '已入库',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: cs.onPrimaryContainer,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
 class _MasteryChip extends StatelessWidget {
   final int score;
   const _MasteryChip({required this.score});
 
   @override
   Widget build(BuildContext context) {
-    final color = score >= 4 ? Colors.green : score >= 2 ? Colors.orange : Colors.red;
+    final color = score >= 4
+        ? Colors.green
+        : score >= 2
+        ? Colors.orange
+        : Colors.red;
     return Container(
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -210,7 +282,14 @@ class _MasteryChip extends StatelessWidget {
         children: [
           Icon(Icons.star, size: 12, color: color),
           const SizedBox(width: 3),
-          Text('$score/5', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+          Text(
+            '$score/5',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -236,9 +315,19 @@ class _EmptyState extends StatelessWidget {
         children: [
           Icon(icon, size: 64, color: Colors.grey.shade300),
           const SizedBox(height: 16),
-          Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text(subtitle, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+          Text(
+            subtitle,
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+          ),
         ],
       ),
     );

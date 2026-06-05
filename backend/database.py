@@ -368,11 +368,15 @@ class NodeLecture(Base):
     node_id = Column(String(512), nullable=False)
     content = Column(JSONB, nullable=False)
     resource_scope = Column(JSONB, nullable=True)
+    imported_to_doc_id = Column(
+        Integer, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
+    )
     created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
 
     user = relationship("User")
     session = relationship("ConversationSession")
+    imported_doc = relationship("Document")
 
 
 class HintSuggestion(Base):

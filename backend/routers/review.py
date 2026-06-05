@@ -64,6 +64,7 @@ class MistakeOut(BaseModel):
     correct_answer: Optional[str]
     mistake_category: Optional[str]
     review_card_id: Optional[int]
+    imported_to_doc_id: Optional[int]
     mastery_score: int
     review_count: int
     last_reviewed_at: Optional[str]
@@ -87,6 +88,7 @@ class MistakeOut(BaseModel):
             correct_answer=note.correct_answer,
             mistake_category=note.mistake_category,
             review_card_id=note.review_card_id,
+            imported_to_doc_id=note.imported_to_doc_id,
             mastery_score=note.mastery_score,
             review_count=note.review_count,
             last_reviewed_at=note.last_reviewed_at.isoformat() if note.last_reviewed_at else None,
@@ -139,6 +141,11 @@ class SubjectMasteryOut(BaseModel):
     mastered_cards: int
     avg_mastery: float
     avg_ease_factor: float
+
+
+class ImportToRagOut(BaseModel):
+    doc_id: int
+    message: str
 
 
 # ============================================================================
@@ -217,6 +224,82 @@ def get_mistake(
             raise HTTPException(404, "错题不存在")
         
         return MistakeOut.from_orm(note)
+
+
+def _mistake_to_resource_text(note: Note) -> str:
+    parts: list[str] = []
+    title = note.title or "错题"
+    parts.append(f"# {title}")
+    if note.question_text:
+        parts.extend(["", "## 原题", note.question_text])
+    if note.user_answer:
+        parts.extend(["", "## 我的答案", note.user_answer])
+    if note.correct_answer:
+        parts.extend(["", "## 正确答案", note.correct_answer])
+    if note.mistake_category:
+        parts.extend(["", "## 错因分类", note.mistake_category])
+    if note.original_content:
+        parts.extend(["", "## 解析与记录", note.original_content])
+    if note.mastery_score or note.review_count:
+        parts.extend([
+            "",
+            "## 复习状态",
+            f"- 掌握度：{note.mastery_score}/5",
+            f"- 复习次数：{note.review_count}",
+        ])
+    return "\n".join(parts).strip()
+
+
+@router.post("/mistakes/{note_id}/import-to-rag", response_model=ImportToRagOut)
+def import_mistake_to_rag(
+    note_id: int,
+    user=Depends(get_current_user),
+):
+    """将错题直接导入资料库，保留错题 Note 到 Document 的指针。"""
+    with get_session() as db:
+        note = db.query(Note).join(Notebook).filter(
+            Note.id == note_id,
+            Notebook.user_id == user["id"],
+            Note.note_type == "mistake",
+        ).first()
+
+        if not note:
+            raise HTTPException(404, "错题不存在")
+        if not note.subject_id:
+            raise HTTPException(400, "错题未关联科目，无法导入资料库")
+
+        subject_id = note.subject_id
+        title = note.title or "错题"
+        full_text = _mistake_to_resource_text(note)
+        replace_doc_id = note.imported_to_doc_id
+
+    try:
+        from services.document_service import DocumentService
+
+        doc_id = DocumentService().import_text_resource(
+            subject_id=subject_id,
+            user_id=user["id"],
+            filename=f"错题：{title}",
+            full_text=full_text,
+            parser_backend="mistake",
+            replace_doc_id=replace_doc_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"导入错题失败：{exc}")
+
+    with get_session() as db:
+        note = db.query(Note).join(Notebook).filter(
+            Note.id == note_id,
+            Notebook.user_id == user["id"],
+            Note.note_type == "mistake",
+        ).first()
+        if note:
+            note.imported_to_doc_id = doc_id
+            db.flush()
+
+    return ImportToRagOut(doc_id=doc_id, message="错题已导入资料库")
 
 
 @router.post("/mistakes", response_model=MistakeOut, status_code=201)

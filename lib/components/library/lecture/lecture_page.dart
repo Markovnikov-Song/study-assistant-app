@@ -1005,6 +1005,16 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                   );
                 },
               ),
+            if (lectureId != null)
+              ListTile(
+                leading: const Icon(Icons.drive_folder_upload_outlined),
+                title: const Text('导入资料库'),
+                subtitle: const Text('不经过笔记本，直接作为讲义资源参与检索'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _importLectureToResourceLibrary(context, lectureId);
+                },
+              ),
             // ── 保存为笔记 ──────────────────────────────────────────────────
             ListTile(
               leading: const Icon(Icons.bookmark_add_outlined),
@@ -1096,6 +1106,31 @@ class _LecturePageState extends ConsumerState<LecturePage> {
         subjectId: widget.subjectId,
       ),
     );
+  }
+
+  Future<void> _importLectureToResourceLibrary(
+    BuildContext context,
+    int lectureId,
+  ) async {
+    try {
+      await ref
+          .read(libraryServiceProvider)
+          .importLectureToRag(
+            lectureId: lectureId,
+            subjectId: widget.subjectId,
+          );
+      ref.invalidate(documentsProvider(widget.subjectId));
+      ref.invalidate(subjectKnowledgeBaseProvider(widget.subjectId));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('讲义已导入资料库')));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('导入失败：$e'), backgroundColor: Colors.red),
+      );
+    }
   }
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/calendar/providers/calendar_providers.dart';
 import '../features/spec/providers/study_planner_providers.dart';
 import '../models/review.dart';
+import '../providers/document_provider.dart';
 import '../services/review_service.dart';
 import '../services/notification_service.dart';
 
@@ -280,6 +281,29 @@ class ReviewNotifier extends StateNotifier<ReviewState> {
       await _ref.read(reviewLoopCoordinatorProvider).afterReviewCardRated();
       state = state.copyWith(isLoading: false);
       return result;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      return null;
+    }
+  }
+
+  Future<int?> importMistakeToRag(Mistake mistake) async {
+    final subjectId = mistake.subjectId;
+    if (subjectId == null) {
+      state = state.copyWith(error: '错题未关联科目，无法导入资料库');
+      return null;
+    }
+
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final docId = await _service.importMistakeToRag(mistake.id);
+      _ref.invalidate(documentsProvider(subjectId));
+      _ref.invalidate(subjectKnowledgeBaseProvider(subjectId));
+      _ref.invalidate(pendingMistakesProvider);
+      _ref.invalidate(reviewedMistakesProvider);
+      _ref.invalidate(reviewQueueProvider);
+      state = state.copyWith(isLoading: false);
+      return docId;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       return null;

@@ -461,6 +461,131 @@ class DocumentService:
                 for doc in docs
             ]
 
+    def import_text_resource(
+        self,
+        *,
+        subject_id: int,
+        user_id: int,
+        filename: str,
+        full_text: str,
+        parser_backend: str,
+        replace_doc_id: int | None = None,
+    ) -> int:
+        """Import generated text as a searchable resource document.
+
+        The caller owns the source object (note, mistake, lecture). This method
+        creates or replaces the resource-library Document/Chunk/vector mirror and
+        returns the Document id, so the source object can store a pointer to it.
+        """
+        from database import Chunk, Document, Subject, get_session
+
+        content = (full_text or "").strip()
+        if not content:
+            raise ValueError("内容为空，无法导入资料库")
+
+        with get_session() as db:
+            subject = db.query(Subject).filter_by(
+                id=subject_id,
+                user_id=user_id,
+            ).first()
+            if not subject:
+                raise ValueError("学科不存在或无权访问")
+
+            if replace_doc_id:
+                old_doc = db.query(Document).filter_by(
+                    id=replace_doc_id,
+                    subject_id=subject_id,
+                    user_id=user_id,
+                ).first()
+                if old_doc:
+                    try:
+                        self._delete_vectors(
+                            replace_doc_id,
+                            subject_id,
+                            user_id=user_id,
+                        )
+                    except Exception as exc:
+                        logger.warning("删除旧向量失败：%s", exc)
+                    db.delete(old_doc)
+                    db.flush()
+
+            doc = Document(
+                subject_id=subject_id,
+                user_id=user_id,
+                filename=filename[:256],
+                status="processing",
+                processing_stage="indexing",
+                progress=40,
+                parser_backend=parser_backend,
+                mindmap_ready=False,
+            )
+            db.add(doc)
+            db.flush()
+            doc_id = doc.id
+
+            try:
+                from services.chunker import HierarchicalChunker
+
+                try:
+                    chunks = HierarchicalChunker().chunk(
+                        content,
+                        {"filename": filename, "source_type": parser_backend},
+                    )
+                except Exception as exc:
+                    logger.warning("文本资源结构化切片失败，降级普通切片：%s", exc)
+                    chunks = [
+                        {
+                            "content": item,
+                            "heading_path": "",
+                            "chunk_index": idx,
+                            "filename": filename,
+                            "is_secondary": False,
+                            "token_count": max(1, len(item) // 4),
+                        }
+                        for idx, item in enumerate(self.chunk_text(content))
+                    ]
+
+                outline = self._build_outline(chunks)
+                if chunks:
+                    self._store_vectors(
+                        chunks,
+                        doc_id,
+                        subject_id,
+                        filename,
+                        user_id=user_id,
+                    )
+
+                for idx, chunk in enumerate(chunks):
+                    db.add(Chunk(
+                        document_id=doc_id,
+                        subject_id=subject_id,
+                        chunk_index=self._chunk_index(chunk, idx),
+                        content=self._chunk_for_storage(chunk),
+                        heading_path=self._chunk_heading_path(chunk),
+                        token_count=int(
+                            self._chunk_attr(chunk, "token_count", 0) or 0
+                        ),
+                        is_secondary=bool(
+                            self._chunk_attr(chunk, "is_secondary", False)
+                        ),
+                    ))
+
+                doc.status = "completed"
+                doc.processing_stage = "ready"
+                doc.progress = 100
+                doc.parser_backend = parser_backend
+                doc.chunk_count = len(chunks)
+                doc.outline = outline
+                doc.mindmap_ready = True
+                db.flush()
+            except Exception:
+                db.delete(doc)
+                db.flush()
+                raise
+
+        self._refresh_subject_knowledge_base(subject_id, user_id)
+        return doc_id
+
     def delete_document(
         self, doc_id: int, subject_id: int, user_id: int
     ) -> dict:

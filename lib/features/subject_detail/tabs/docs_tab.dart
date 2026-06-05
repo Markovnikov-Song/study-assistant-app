@@ -147,18 +147,27 @@ class DocsTab extends ConsumerWidget {
   }
 }
 
-enum _ResourceCategory { textbook, lecture, note, exam, other }
+enum _ResourceCategory { textbook, lecture, mistake, note, exam, other }
 
 const _resourceCategoryOrder = [
   _ResourceCategory.textbook,
   _ResourceCategory.lecture,
+  _ResourceCategory.mistake,
   _ResourceCategory.note,
   _ResourceCategory.exam,
   _ResourceCategory.other,
 ];
 
 _ResourceCategory _inferResourceCategory(StudyDocument doc) {
+  final backend = (doc.parserBackend ?? '').toLowerCase();
+  if (backend == 'lecture') return _ResourceCategory.lecture;
+  if (backend == 'mistake') return _ResourceCategory.mistake;
+  if (backend == 'note') return _ResourceCategory.note;
+
   final name = doc.filename.toLowerCase();
+  if (name.startsWith('错题：') || name.contains('错题')) {
+    return _ResourceCategory.mistake;
+  }
   if (name.contains('真题') ||
       name.contains('试卷') ||
       name.contains('exam') ||
@@ -187,6 +196,7 @@ String _resourceCategoryLabel(_ResourceCategory category) {
   return switch (category) {
     _ResourceCategory.textbook => '教材资料',
     _ResourceCategory.lecture => '生成讲义',
+    _ResourceCategory.mistake => '错题资源',
     _ResourceCategory.note => '笔记导入',
     _ResourceCategory.exam => '真题练习',
     _ResourceCategory.other => '其他资料',
@@ -197,6 +207,7 @@ String _resourceCategoryHint(_ResourceCategory category) {
   return switch (category) {
     _ResourceCategory.textbook => '原始教材、课件和资料包',
     _ResourceCategory.lecture => 'AI 或人工整理出的讲义产物',
+    _ResourceCategory.mistake => '错题、错因和复盘记录',
     _ResourceCategory.note => '从笔记本回写到资料库的内容',
     _ResourceCategory.exam => '试卷、真题和专项练习材料',
     _ResourceCategory.other => '暂未归类的参考资料',
@@ -207,6 +218,7 @@ IconData _resourceCategoryIcon(_ResourceCategory category) {
   return switch (category) {
     _ResourceCategory.textbook => Icons.menu_book_outlined,
     _ResourceCategory.lecture => Icons.article_outlined,
+    _ResourceCategory.mistake => Icons.error_outline_rounded,
     _ResourceCategory.note => Icons.sticky_note_2_outlined,
     _ResourceCategory.exam => Icons.fact_check_outlined,
     _ResourceCategory.other => Icons.folder_outlined,

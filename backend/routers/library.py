@@ -1292,6 +1292,81 @@ def _parse_text_from_node_id(node_id: str) -> str:
     return text or node_id
 
 
+def _lecture_blocks_to_markdown(blocks: list[dict[str, Any]]) -> str:
+    lines: list[str] = []
+    for block in blocks:
+        btype = str(block.get("type") or "paragraph")
+        text_value = str(block.get("text") or "").strip()
+        if not text_value:
+            continue
+        if btype == "heading":
+            level = int(block.get("level") or 2)
+            level = max(1, min(level, 4))
+            lines.append(f"{'#' * level} {text_value}")
+        elif btype == "code":
+            language = str(block.get("language") or "").strip()
+            lines.append(f"```{language}")
+            lines.append(text_value)
+            lines.append("```")
+        elif btype == "list":
+            lines.append(f"- {text_value}")
+        elif btype == "quote":
+            lines.append(f"> {text_value}")
+        elif btype == "formula":
+            lines.append(r"\[")
+            lines.append(text_value)
+            lines.append(r"\]")
+        else:
+            lines.append(text_value)
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+@router.post("/lectures/{lecture_id}/import-to-rag")
+def import_lecture_to_rag(lecture_id: int, subject_id: int, user=Depends(get_current_user)):
+    """将讲义直接导入资料库，不需要先保存为笔记。"""
+    with db_session() as db:
+        lecture = db.query(NodeLecture).filter_by(id=lecture_id, user_id=user["id"]).first()
+        if not lecture:
+            raise HTTPException(404, "讲义不存在")
+
+        session = _assert_session_owner(db, lecture.session_id, user["id"])
+        if session.subject_id != subject_id:
+            raise HTTPException(400, "讲义所属科目与导入科目不一致")
+
+        blocks = (lecture.content or {}).get("blocks", [])
+        markdown = _lecture_blocks_to_markdown(blocks)
+        if not markdown:
+            raise HTTPException(422, "讲义内容为空，无法导入资料库")
+
+        node_title = _parse_text_from_node_id(lecture.node_id)
+        replace_doc_id = lecture.imported_to_doc_id
+
+    try:
+        from services.document_service import DocumentService
+
+        doc_id = DocumentService().import_text_resource(
+            subject_id=subject_id,
+            user_id=user["id"],
+            filename=f"讲义：{node_title}",
+            full_text=f"# {node_title}\n\n{markdown}",
+            parser_backend="lecture",
+            replace_doc_id=replace_doc_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"导入讲义失败：{exc}")
+
+    with db_session() as db:
+        lecture = db.query(NodeLecture).filter_by(id=lecture_id, user_id=user["id"]).first()
+        if lecture:
+            lecture.imported_to_doc_id = doc_id
+            db.flush()
+
+    return {"doc_id": doc_id, "message": "讲义已导入资料库"}
+
+
 @router.post("/sessions/{session_id}/export-book")
 def export_book(session_id: int, body: ExportBookIn, user=Depends(get_current_user)):
     """将多个节点的讲义合并导出为 PDF 或 Word 书籍。
