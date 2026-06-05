@@ -302,6 +302,9 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       if (cancelled && buffer.isEmpty) {
         state = AsyncValue.data([...current, userMsg]);
       }
+      if (cancelled && buffer.isNotEmpty) {
+        _appendLastAssistantNote('已停止。你可以换个问法，或补充条件后继续。');
+      }
 
       // AI 回复为空（如 422 错误、CAS 跳转后无回复）：移除空的 AI 占位消息
       if (!cancelled && buffer.isEmpty) {
@@ -420,6 +423,21 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       role: MessageRole.assistant,
       content: last.content + text,
       type: last.type,
+    );
+    state = AsyncValue.data([...msgs.sublist(0, msgs.length - 1), updated]);
+  }
+
+  void _appendLastAssistantNote(String note) {
+    final msgs = state.value;
+    if (msgs == null || msgs.isEmpty) return;
+    final last = msgs.last;
+    if (last.role != MessageRole.assistant) return;
+    final updated = ChatMessage.local(
+      role: MessageRole.assistant,
+      content: '${last.content}\n\n_${note}_',
+      type: last.type,
+      sources: last.sources,
+      sceneCardData: last.sceneCardData,
     );
     state = AsyncValue.data([...msgs.sublist(0, msgs.length - 1), updated]);
   }

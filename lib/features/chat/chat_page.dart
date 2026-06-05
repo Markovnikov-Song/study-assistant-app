@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +20,7 @@ import '../../widgets/scene_card.dart';
 import '../../widgets/session_history_sheet.dart';
 import '../../widgets/markdown_latex_view.dart';
 import '../../widgets/mcp_status_indicator.dart';
+import '../../widgets/ai_task_status_bar.dart';
 import '../../widgets/multimodal_input_bar.dart';
 import '../../widgets/solve_result_action_bar.dart';
 import '../../widgets/chat_message_images.dart';
@@ -66,6 +68,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   // 多模态解题：正在流式接收中
   bool _solveSending = false;
+  StreamSubscription<SolveSSEEvent>? _solveSubscription;
 
   // chatKey: 'general' for general chat, subjectId string for subject chat, chatId for task chat
   String get _chatKey {
@@ -125,6 +128,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   @override
   void dispose() {
+    _solveSubscription?.cancel();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -644,6 +648,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   void _cancelSending() {
     ref.read(chatProvider(_key).notifier).cancelSending();
+    if (_solveSending) {
+      _solveSubscription?.cancel();
+      _solveSubscription = null;
+      ref
+          .read(chatProvider(_key).notifier)
+          .appendToLastMessage('\n\n_已停止。你可以补充条件后继续追问。_');
+      setState(() => _solveSending = false);
+    }
   }
 
   Future<void> _pickAndOcr(ImageSource source) async {
@@ -804,23 +816,38 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         token: token,
       );
 
-      await for (final event in stream) {
-        if (!mounted) break;
-        switch (event) {
-          case SolveTokenEvent(:final text):
-            ref.read(chatProvider(_key).notifier).appendToLastMessage(text);
-            _scrollToBottom();
-          case SolveDoneEvent():
-            break;
-          case SolveChartEvent():
-            // chat_page 不渲染图表，忽略该事件
-            break;
-          case SolveErrorEvent(:final message):
-            ref
-                .read(chatProvider(_key).notifier)
-                .replaceLastAssistantWithError(message);
-        }
-      }
+      final completer = Completer<void>();
+      _solveSubscription = stream.listen(
+        (event) {
+          if (!mounted) {
+            if (!completer.isCompleted) completer.complete();
+            return;
+          }
+          switch (event) {
+            case SolveTokenEvent(:final text):
+              ref.read(chatProvider(_key).notifier).appendToLastMessage(text);
+              _scrollToBottom();
+            case SolveDoneEvent():
+              if (!completer.isCompleted) completer.complete();
+            case SolveChartEvent():
+              // chat_page 不渲染图表，忽略该事件
+              break;
+            case SolveErrorEvent(:final message):
+              ref
+                  .read(chatProvider(_key).notifier)
+                  .replaceLastAssistantWithError(message);
+              if (!completer.isCompleted) completer.complete();
+          }
+        },
+        onError: (e) {
+          if (!completer.isCompleted) completer.completeError(e);
+        },
+        onDone: () {
+          if (!completer.isCompleted) completer.complete();
+        },
+        cancelOnError: true,
+      );
+      await completer.future;
     } catch (e) {
       if (mounted) {
         ref
@@ -831,6 +858,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ).showSnackBar(const SnackBar(content: Text('解题失败，请稍后重试')));
       }
     } finally {
+      await _solveSubscription?.cancel();
+      _solveSubscription = null;
       if (mounted) setState(() => _solveSending = false);
     }
     _scrollToBottom();
@@ -1148,6 +1177,15 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
           ),
         ),
         if (!multiSelect.isActive) ...[
+          AiTaskStatusBar(
+            active: widget.sending || widget.solveSending,
+            title: widget.solveSending ? '正在解题' : '正在生成回答',
+            subtitle: '可以随时停止，已生成的内容会保留。',
+            onCancel: widget.onCancel,
+            tone: widget.solveSending
+                ? AiTaskTone.secondary
+                : AiTaskTone.primary,
+          ),
           // 通用对话不显示「结合通用知识」checkbox（没有知识库）
           if (!widget.isGeneral)
             Container(
@@ -1179,6 +1217,7 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
               onSend: widget.onMultimodalSend,
               hintText: '输入问题…',
               isSending: widget.sending || widget.solveSending,
+              onCancel: widget.onCancel,
             ),
           ),
         ] else

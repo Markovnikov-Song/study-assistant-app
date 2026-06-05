@@ -29,6 +29,7 @@ class MultimodalInputBar extends StatefulWidget {
 
   /// 是否正在发送中（禁用输入）
   final bool isSending;
+  final VoidCallback? onCancel;
 
   const MultimodalInputBar({
     super.key,
@@ -36,6 +37,7 @@ class MultimodalInputBar extends StatefulWidget {
     this.controller,
     this.hintText = '输入补充说明（可选）',
     this.isSending = false,
+    this.onCancel,
   });
 
   @override
@@ -357,21 +359,17 @@ class _MultimodalInputBarState extends State<MultimodalInputBar> {
   /// 发送按钮
   Widget _buildSendButton(ColorScheme cs) {
     return AnimatedOpacity(
-      opacity: _canSend ? 1.0 : 0.4,
+      opacity: (widget.isSending || _canSend) ? 1.0 : 0.4,
       duration: const Duration(milliseconds: 150),
       child: IconButton(
-        icon: widget.isSending
-            ? SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: cs.primary,
-                ),
-              )
-            : Icon(Icons.send_rounded, color: cs.primary),
-        onPressed: _canSend ? _handleSend : null,
-        tooltip: '发送',
+        icon: Icon(
+          widget.isSending ? Icons.stop_rounded : Icons.send_rounded,
+          color: widget.isSending ? cs.error : cs.primary,
+        ),
+        onPressed: widget.isSending
+            ? widget.onCancel
+            : (_canSend ? _handleSend : null),
+        tooltip: widget.isSending ? '停止生成' : '发送',
         visualDensity: VisualDensity.compact,
       ),
     );

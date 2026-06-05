@@ -12,7 +12,9 @@ import '../../../providers/library_provider.dart';
 import '../../../providers/notebook_provider.dart';
 import '../../../providers/subject_provider.dart';
 import '../../../providers/rag_sync_settings_provider.dart';
+import '../../../services/background_task_service.dart';
 import '../../../widgets/markdown_latex_view.dart';
+import '../../../widgets/ai_task_status_bar.dart';
 import '../../../tools/document/block_converter.dart';
 import 'export_book_dialog.dart';
 import '../../../tools/document/lecture_exporter.dart';
@@ -293,6 +295,8 @@ class _LecturePageState extends ConsumerState<LecturePage> {
   final Map<String, String?> _nodeError = {};
   final Map<String, bool> _expandedNodes = {};
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  StreamSubscription<String>? _lectureGenerationSub;
+  bool _lectureTaskActive = false;
 
   // 流式生成时的实时文本（nodeId → 累积 markdown）
   final Map<String, String> _streamingText = {};
@@ -362,6 +366,8 @@ class _LecturePageState extends ConsumerState<LecturePage> {
 
   @override
   void dispose() {
+    _lectureGenerationSub?.cancel();
+    unawaited(_endLectureTask());
     _controllers.forEach((_, ctrl) => ctrl.dispose());
     super.dispose();
   }
@@ -533,6 +539,8 @@ class _LecturePageState extends ConsumerState<LecturePage> {
   // ── Generate lecture ──────────────────────────────────────────────────────
 
   Future<void> _generateLecture(String nodeId, String nodeText) async {
+    await _lectureGenerationSub?.cancel();
+    await _beginLectureTask();
     setState(() {
       _generatingNodeIds.add(nodeId);
       _streamingText[nodeId] = '';
@@ -544,20 +552,39 @@ class _LecturePageState extends ConsumerState<LecturePage> {
           .generateLectureStream(sessionId: widget.sessionId, nodeId: nodeId);
       bool hasError = false;
       String? errorMsg;
-      await for (final event in stream) {
-        if (!mounted) return; // 页面已销毁，立即停止，不再操作任何状态
-        if (event == '[DONE]') break;
-        if (event.startsWith('[ERROR]')) {
+      final completer = Completer<void>();
+      _lectureGenerationSub = stream.listen(
+        (event) {
+          if (!mounted) {
+            if (!completer.isCompleted) completer.complete();
+            return;
+          }
+          if (event == '[DONE]') {
+            if (!completer.isCompleted) completer.complete();
+            return;
+          }
+          if (event.startsWith('[ERROR]')) {
+            hasError = true;
+            errorMsg = event.substring(7);
+            if (!completer.isCompleted) completer.complete();
+            return;
+          }
+          // 反转义换行符
+          final token = event.replaceAll(r'\n', '\n');
+          setState(() {
+            _streamingText[nodeId] = (_streamingText[nodeId] ?? '') + token;
+          });
+        },
+        onError: (e) {
           hasError = true;
-          errorMsg = event.substring(7);
-          break;
-        }
-        // 反转义换行符
-        final token = event.replaceAll(r'\n', '\n');
-        setState(() {
-          _streamingText[nodeId] = (_streamingText[nodeId] ?? '') + token;
-        });
-      }
+          errorMsg = e.toString();
+          if (!completer.isCompleted) completer.complete();
+        },
+        onDone: () {
+          if (!completer.isCompleted) completer.complete();
+        },
+      );
+      await completer.future;
       if (hasError) {
         if (mounted) {
           setState(() {
@@ -610,7 +637,41 @@ class _LecturePageState extends ConsumerState<LecturePage> {
           SnackBar(content: Text('生成失败：$e'), backgroundColor: Colors.red),
         );
       }
+    } finally {
+      await _lectureGenerationSub?.cancel();
+      _lectureGenerationSub = null;
+      await _endLectureTask();
     }
+  }
+
+  Future<void> _beginLectureTask() async {
+    if (_lectureTaskActive) return;
+    _lectureTaskActive = true;
+    await BackgroundTaskService.instance.startTask(
+      BackgroundTaskType.aiStreaming,
+    );
+  }
+
+  Future<void> _endLectureTask() async {
+    if (!_lectureTaskActive) return;
+    _lectureTaskActive = false;
+    await BackgroundTaskService.instance.endTask(
+      BackgroundTaskType.aiStreaming,
+    );
+  }
+
+  Future<void> _cancelLectureGeneration() async {
+    final nodeId = _currentNodeId;
+    await _lectureGenerationSub?.cancel();
+    _lectureGenerationSub = null;
+    await _endLectureTask();
+    if (!mounted) return;
+    setState(() {
+      _generatingNodeIds.remove(nodeId);
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已停止生成，可以调整方向后重新生成。')));
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -625,6 +686,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
 
     final roots = nodesAsync.valueOrNull ?? [];
     final currentNodeText = _currentNodeText(roots);
+    final isGeneratingCurrent = _generatingNodeIds.contains(_currentNodeId);
     final subjectName = ref
         .watch(schoolSubjectsProvider)
         .maybeWhen(
@@ -763,13 +825,47 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                   ),
                 ),
               ),
-        body: isWide
-            ? Row(
-                children: [
-                  SizedBox(width: 240, child: outlinePanel),
-                  const VerticalDivider(width: 1, thickness: 1),
-                  Expanded(
-                    child: _RightPanel(
+        body: Column(
+          children: [
+            AiTaskStatusBar(
+              active: isGeneratingCurrent,
+              title: '正在生成讲义',
+              subtitle: '可以随时停止，再调整方向后重新生成。',
+              onCancel: _cancelLectureGeneration,
+              tone: AiTaskTone.secondary,
+            ),
+            Expanded(
+              child: isWide
+                  ? Row(
+                      children: [
+                        SizedBox(width: 240, child: outlinePanel),
+                        const VerticalDivider(width: 1, thickness: 1),
+                        Expanded(
+                          child: _RightPanel(
+                            key: ValueKey(_currentNodeId),
+                            nodeId: _currentNodeId,
+                            nodeText: currentNodeText,
+                            sessionId: widget.sessionId,
+                            subjectId: widget.subjectId,
+                            controller: _controllers.get(_currentNodeId),
+                            markdown: _markdownCache.get(_currentNodeId),
+                            editorState: editorState,
+                            isLoading: _nodeLoading[_currentNodeId] == true,
+                            isChecked: _checkedNodeIds.contains(_currentNodeId),
+                            hasLecture: _hasLectureNodeIds.contains(
+                              _currentNodeId,
+                            ),
+                            isGenerating: isGeneratingCurrent,
+                            streamingText: _streamingText[_currentNodeId],
+                            onGenerate: () => _generateLecture(
+                              _currentNodeId,
+                              currentNodeText,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : _RightPanel(
                       key: ValueKey(_currentNodeId),
                       nodeId: _currentNodeId,
                       nodeText: currentNodeText,
@@ -781,31 +877,14 @@ class _LecturePageState extends ConsumerState<LecturePage> {
                       isLoading: _nodeLoading[_currentNodeId] == true,
                       isChecked: _checkedNodeIds.contains(_currentNodeId),
                       hasLecture: _hasLectureNodeIds.contains(_currentNodeId),
-                      isGenerating: _generatingNodeIds.contains(_currentNodeId),
+                      isGenerating: isGeneratingCurrent,
                       streamingText: _streamingText[_currentNodeId],
                       onGenerate: () =>
                           _generateLecture(_currentNodeId, currentNodeText),
                     ),
-                  ),
-                ],
-              )
-            : _RightPanel(
-                key: ValueKey(_currentNodeId),
-                nodeId: _currentNodeId,
-                nodeText: currentNodeText,
-                sessionId: widget.sessionId,
-                subjectId: widget.subjectId,
-                controller: _controllers.get(_currentNodeId),
-                markdown: _markdownCache.get(_currentNodeId),
-                editorState: editorState,
-                isLoading: _nodeLoading[_currentNodeId] == true,
-                isChecked: _checkedNodeIds.contains(_currentNodeId),
-                hasLecture: _hasLectureNodeIds.contains(_currentNodeId),
-                isGenerating: _generatingNodeIds.contains(_currentNodeId),
-                streamingText: _streamingText[_currentNodeId],
-                onGenerate: () =>
-                    _generateLecture(_currentNodeId, currentNodeText),
-              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1201,8 +1280,9 @@ class _RightPanelState extends State<_RightPanel> {
       // 用户选择手动编写时，显示空白编辑器
       if (_manualEdit) {
         final ctrl = widget.controller;
-        if (ctrl == null)
+        if (ctrl == null) {
           return const Center(child: CircularProgressIndicator());
+        }
 
         return Column(
           children: [

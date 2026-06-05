@@ -20,10 +20,12 @@ import '../../models/subject.dart';
 import '../../providers/notebook_provider.dart';
 import '../../providers/solve_prefill_provider.dart';
 import '../../providers/subject_provider.dart';
+import '../../services/background_task_service.dart';
 import '../../services/notebook_service.dart';
 import '../../services/review_service.dart';
 import '../../services/solve_sse_client.dart';
 import '../../widgets/cot_collapsible_view.dart';
+import '../../widgets/ai_task_status_bar.dart';
 import '../../widgets/markdown_latex_view.dart';
 import '../../widgets/multimodal_input_bar.dart';
 import '../../widgets/solve_result_action_bar.dart';
@@ -34,12 +36,16 @@ class _SolveSessionNotifier extends StateNotifier<SolveSessionModel> {
   _SolveSessionNotifier() : super(SolveSessionModel.empty());
 
   StreamSubscription<SolveSSEEvent>? _subscription;
+  bool _backgroundTaskActive = false;
 
   /// 开始新的解题请求（首次或追问）
   Future<void> send({
     required Map<String, dynamic> payload,
     required Dio dio,
   }) async {
+    if (state.isStreaming) {
+      cancelStreaming();
+    }
     // 追加用户消息气泡
     final images = (payload['images'] as List?)?.cast<String>() ?? [];
     final text = payload['supplement_text'] as String? ?? '';
@@ -53,6 +59,7 @@ class _SolveSessionNotifier extends StateNotifier<SolveSessionModel> {
     // 追加空 AI 气泡（流式填充）
     final aiMsg = const SolveMessage(role: 'assistant', content: '');
     state = state.addMessage(aiMsg);
+    await _beginBackgroundTask();
 
     // 构建请求 payload（追问时注入历史）
     final history = state
@@ -90,9 +97,7 @@ class _SolveSessionNotifier extends StateNotifier<SolveSessionModel> {
           _onEvent,
           onError: (e) => _onError(e.toString()),
           onDone: () {
-            if (state.isStreaming) {
-              state = state.copyWith(isStreaming: false);
-            }
+            _finishStreaming();
           },
         );
   }
@@ -119,6 +124,7 @@ class _SolveSessionNotifier extends StateNotifier<SolveSessionModel> {
         } else {
           state = state.copyWith(isStreaming: false);
         }
+        unawaited(_endBackgroundTask());
       case SolveChartEvent(:final imageBase64):
         // 将图表数据存储到当前 AI 消息
         _attachChartToLastMessage(imageBase64);
@@ -157,6 +163,58 @@ class _SolveSessionNotifier extends StateNotifier<SolveSessionModel> {
     } else {
       state = state.copyWith(isStreaming: false);
     }
+    unawaited(_endBackgroundTask());
+  }
+
+  Future<void> _beginBackgroundTask() async {
+    if (_backgroundTaskActive) return;
+    _backgroundTaskActive = true;
+    await BackgroundTaskService.instance.startTask(
+      BackgroundTaskType.aiStreaming,
+    );
+  }
+
+  Future<void> _endBackgroundTask() async {
+    if (!_backgroundTaskActive) return;
+    _backgroundTaskActive = false;
+    await BackgroundTaskService.instance.endTask(
+      BackgroundTaskType.aiStreaming,
+    );
+  }
+
+  void _finishStreaming() {
+    if (state.isStreaming) {
+      state = state.copyWith(isStreaming: false);
+    }
+    unawaited(_endBackgroundTask());
+  }
+
+  void cancelStreaming() {
+    _subscription?.cancel();
+    _subscription = null;
+    if (state.messages.isNotEmpty && state.messages.last.role == 'assistant') {
+      final last = state.messages.last;
+      if (last.content.isEmpty) {
+        state = state.copyWith(
+          messages: state.messages.sublist(0, state.messages.length - 1),
+          isStreaming: false,
+        );
+      } else {
+        final updated = last.copyWith(
+          content: '${last.content}\n\n_已停止。你可以补充条件后继续追问。_',
+        );
+        state = state.copyWith(
+          messages: [
+            ...state.messages.sublist(0, state.messages.length - 1),
+            updated,
+          ],
+          isStreaming: false,
+        );
+      }
+    } else {
+      state = state.copyWith(isStreaming: false);
+    }
+    unawaited(_endBackgroundTask());
   }
 
   /// 从历史记录恢复会话
@@ -211,12 +269,14 @@ class _SolveSessionNotifier extends StateNotifier<SolveSessionModel> {
   /// 开始新会话
   void newSession() {
     _subscription?.cancel();
+    unawaited(_endBackgroundTask());
     state = SolveSessionModel.empty();
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
+    unawaited(_endBackgroundTask());
     super.dispose();
   }
 }
@@ -433,11 +493,21 @@ class _SolvePageState extends ConsumerState<SolvePage> {
                     },
                   ),
           ),
+          AiTaskStatusBar(
+            active: session.isStreaming,
+            title: '正在解题',
+            subtitle: '可以随时停止，已生成的步骤会保留。',
+            onCancel: () =>
+                ref.read(_solveSessionProvider.notifier).cancelStreaming(),
+            tone: AiTaskTone.secondary,
+          ),
           // 底部多模态输入栏
           MultimodalInputBar(
             onSend: _handleSend,
             hintText: '输入题目或补充说明…',
             isSending: session.isStreaming,
+            onCancel: () =>
+                ref.read(_solveSessionProvider.notifier).cancelStreaming(),
           ),
         ],
       ),
