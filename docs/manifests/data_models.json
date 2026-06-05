@@ -55,7 +55,14 @@
       "domain": "软件工坊 Mini App",
       "dart_models": ["lib/features/workshop/mini_app_models.dart"],
       "backend_tables": ["mini_apps"],
-      "key_fields": ["id", "name", "spec", "documents", "runtime_config", "created_at", "updated_at"],
+      "key_fields": ["id", "name", "spec", "documents", "runtime_config", "workflow", "versions", "created_at", "updated_at"],
+      "features": ["workshop.mini_apps"]
+    },
+    {
+      "domain": "软件工坊积木与资源角色",
+      "dart_models": ["planned: workflow/block/resource actor models"],
+      "backend_tables": ["planned: mini_app_versions", "planned: mini_app_runs", "planned: workshop_resource_refs"],
+      "key_fields": ["workflow.schema_version", "scripts", "blocks", "params", "actors", "resource_refs", "version_id", "workflow_hash"],
       "features": ["workshop.mini_apps"]
     }
   ],

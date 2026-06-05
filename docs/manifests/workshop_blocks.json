@@ -1,0 +1,331 @@
+{
+  "schema_version": "0.1.0",
+  "updated_at": "2026-06-05",
+  "feature": "workshop.mini_apps",
+  "status": "design_draft",
+  "design_doc": "docs/features/software_workshop_blocks.md",
+  "principles": [
+    "Scratch-like categories, shapes, slots, scripts, reporters, predicates, C-blocks, and custom blocks.",
+    "Natural language, user editing, and system automation all modify the same structured workflow AST.",
+    "Resource actors are references to project data, not copied content by default.",
+    "Run history binds to a MiniAppVersion snapshot."
+  ],
+  "shapes": [
+    {"id": "hat", "name": "帽子块", "can_start_script": true, "can_have_previous": false, "can_have_next": true},
+    {"id": "stack", "name": "命令块", "can_start_script": false, "can_have_previous": true, "can_have_next": true},
+    {"id": "c_block", "name": "C 形块", "can_start_script": false, "can_have_previous": true, "can_have_next": true, "has_substack": true},
+    {"id": "reporter", "name": "表达式块", "returns_value": true, "can_embed_in_slots": true},
+    {"id": "boolean", "name": "布尔块", "returns_value": true, "value_type": "boolean", "can_embed_in_slots": true},
+    {"id": "cap", "name": "结束块", "can_start_script": false, "can_have_previous": true, "can_have_next": false}
+  ],
+  "slot_types": [
+    {"id": "number", "name": "数字", "value_types": ["int", "float"]},
+    {"id": "text", "name": "文本", "value_types": ["string"]},
+    {"id": "enum", "name": "下拉枚举", "value_types": ["string"]},
+    {"id": "boolean_expression", "name": "布尔条件", "accepts_shapes": ["boolean"]},
+    {"id": "reporter_expression", "name": "表达式", "accepts_shapes": ["reporter"]},
+    {"id": "resource_ref", "name": "资源引用", "value_types": ["ResourceRef"]},
+    {"id": "resource_set", "name": "资源集合", "value_types": ["ResourceSet"]},
+    {"id": "resource_query", "name": "资源查询", "value_types": ["ResourceQuery"]},
+    {"id": "substack", "name": "子脚本", "value_types": ["BlockList"]},
+    {"id": "llm_config", "name": "LLM 配置", "value_types": ["LlmConfig"]},
+    {"id": "write_policy", "name": "写回策略", "value_types": ["WritePolicy"]}
+  ],
+  "resource_actor_types": [
+    {"id": "subject", "name": "科目", "source_feature": "subjects.resources_rag", "read": true, "write": false},
+    {"id": "library.document", "name": "资料文档", "source_feature": "subjects.resources_rag", "read": true, "write": false},
+    {"id": "library.chunk", "name": "资料片段", "source_feature": "subjects.resources_rag", "read": true, "write": false},
+    {"id": "mindmap.session", "name": "思维导图", "source_feature": "course_space.mindmap_lecture", "read": true, "write": false},
+    {"id": "mindmap.node", "name": "导图节点", "source_feature": "course_space.mindmap_lecture", "read": true, "write": true},
+    {"id": "lecture", "name": "讲义", "source_feature": "course_space.mindmap_lecture", "read": true, "write": true},
+    {"id": "note", "name": "笔记", "source_feature": "notes.notebooks", "read": true, "write": true},
+    {"id": "mistake", "name": "错题", "source_feature": "review.mistakes", "read": true, "write": true},
+    {"id": "review_card", "name": "复习卡", "source_feature": "review.mistakes", "read": true, "write": true},
+    {"id": "quiz_item", "name": "题目", "source_feature": "quiz.generation_practice", "read": true, "write": true},
+    {"id": "calendar_event", "name": "日历计划", "source_feature": "calendar.learning_calendar", "read": true, "write": true},
+    {"id": "generated_artifact", "name": "生成资源", "source_feature": "workshop.mini_apps", "read": true, "write": true}
+  ],
+  "categories": [
+    {"id": "event", "name": "事件", "color": "#FFBF00"},
+    {"id": "control", "name": "控制", "color": "#FFAB19"},
+    {"id": "state", "name": "变量", "color": "#FF8C1A"},
+    {"id": "resource", "name": "资料", "color": "#4C97FF"},
+    {"id": "content", "name": "内容处理", "color": "#40BF4A"},
+    {"id": "llm", "name": "LLM", "color": "#9966FF"},
+    {"id": "interaction", "name": "交互", "color": "#9966FF"},
+    {"id": "judge", "name": "判断", "color": "#59C059"},
+    {"id": "writeback", "name": "写回", "color": "#FF6680"},
+    {"id": "tool", "name": "工具", "color": "#5CB1D6"},
+    {"id": "custom", "name": "自定义", "color": "#FF6680"}
+  ],
+  "blocks": [
+    {
+      "id": "event.on_start",
+      "category": "event",
+      "shape": "hat",
+      "label": "当小工具开始运行"
+    },
+    {
+      "id": "control.if_else",
+      "category": "control",
+      "shape": "c_block",
+      "label": "如果 {condition} 那么 / 否则",
+      "params": [
+        {"name": "condition", "slot": "boolean_expression", "required": true},
+        {"name": "then", "slot": "substack", "required": true},
+        {"name": "else", "slot": "substack", "required": false}
+      ]
+    },
+    {
+      "id": "control.repeat",
+      "category": "control",
+      "shape": "c_block",
+      "label": "重复 {times} 次",
+      "params": [
+        {"name": "times", "slot": "number", "required": true, "default": 10, "min": 1, "max": 200},
+        {"name": "body", "slot": "substack", "required": true}
+      ]
+    },
+    {
+      "id": "control.for_each",
+      "category": "control",
+      "shape": "c_block",
+      "label": "对每个 {items} 项执行",
+      "params": [
+        {"name": "items", "slot": "reporter_expression", "required": true},
+        {"name": "item_name", "slot": "text", "required": true, "default": "item"},
+        {"name": "body", "slot": "substack", "required": true}
+      ]
+    },
+    {
+      "id": "state.set",
+      "category": "state",
+      "shape": "stack",
+      "label": "设置 {variable} 为 {value}",
+      "params": [
+        {"name": "variable", "slot": "text", "required": true},
+        {"name": "value", "slot": "reporter_expression", "required": true}
+      ]
+    },
+    {
+      "id": "state.variable",
+      "category": "state",
+      "shape": "reporter",
+      "label": "{variable}",
+      "returns": "any",
+      "params": [
+        {"name": "variable", "slot": "text", "required": true}
+      ]
+    },
+    {
+      "id": "resource.bind_actor",
+      "category": "resource",
+      "shape": "stack",
+      "label": "绑定资料角色 {actor_name} 为 {source}",
+      "params": [
+        {"name": "actor_name", "slot": "text", "required": true},
+        {"name": "source", "slot": "resource_ref", "required": true}
+      ],
+      "outputs": [{"name": "actor", "type": "ResourceActor"}]
+    },
+    {
+      "id": "resource.query",
+      "category": "resource",
+      "shape": "reporter",
+      "label": "从资料库查询 {query}",
+      "returns": "ResourceSet",
+      "params": [
+        {
+          "name": "query",
+          "slot": "resource_query",
+          "required": true,
+          "accepts": ["library.document", "library.chunk", "mindmap.node", "lecture", "note", "mistake", "review_card"]
+        }
+      ]
+    },
+    {
+      "id": "resource.read_content",
+      "category": "resource",
+      "shape": "reporter",
+      "label": "读取 {resource} 的内容",
+      "returns": "ContentText",
+      "params": [
+        {"name": "resource", "slot": "resource_ref", "required": true}
+      ]
+    },
+    {
+      "id": "resource.get_children",
+      "category": "resource",
+      "shape": "reporter",
+      "label": "获取 {resource} 的子资源",
+      "returns": "ResourceSet",
+      "params": [
+        {"name": "resource", "slot": "resource_ref", "required": true, "accepts": ["subject", "mindmap.session", "mindmap.node", "lecture"]}
+      ]
+    },
+    {
+      "id": "content.extract_knowledge_points",
+      "category": "content",
+      "shape": "reporter",
+      "label": "从 {materials} 提取知识点",
+      "returns": "KnowledgePointSet",
+      "params": [
+        {"name": "materials", "slot": "reporter_expression", "required": true},
+        {"name": "limit", "slot": "number", "required": false, "default": 20}
+      ]
+    },
+    {
+      "id": "llm.generate_quiz",
+      "category": "llm",
+      "shape": "reporter",
+      "label": "让 AI 根据 {materials} 生成 {count} 道题",
+      "returns": "QuestionSet",
+      "params": [
+        {"name": "materials", "slot": "reporter_expression", "required": true},
+        {"name": "count", "slot": "number", "required": true, "default": 10, "min": 1, "max": 100},
+        {"name": "question_type", "slot": "enum", "required": true, "options": ["choice", "blank", "flashcard", "mixed"], "default": "choice"},
+        {"name": "llm", "slot": "llm_config", "required": true}
+      ],
+      "failure_policy_required": true
+    },
+    {
+      "id": "interaction.show_question",
+      "category": "interaction",
+      "shape": "stack",
+      "label": "展示题目 {question}",
+      "params": [
+        {"name": "question", "slot": "reporter_expression", "required": true}
+      ],
+      "outputs": [{"name": "answer_event", "type": "AnswerEvent"}]
+    },
+    {
+      "id": "judge.answer_correct",
+      "category": "judge",
+      "shape": "boolean",
+      "label": "答案 {answer_event} 正确",
+      "params": [
+        {"name": "answer_event", "slot": "reporter_expression", "required": true}
+      ]
+    },
+    {
+      "id": "writeback.write_mistake",
+      "category": "writeback",
+      "shape": "stack",
+      "label": "写入错题本 {answer_event}",
+      "params": [
+        {"name": "answer_event", "slot": "reporter_expression", "required": true},
+        {"name": "policy", "slot": "write_policy", "required": true}
+      ],
+      "side_effects": ["review.mistakes"],
+      "requires_run_context": true,
+      "requires_idempotency_key": true
+    },
+    {
+      "id": "writeback.save_to_library",
+      "category": "writeback",
+      "shape": "stack",
+      "label": "保存 {artifact} 到资料库",
+      "params": [
+        {"name": "artifact", "slot": "reporter_expression", "required": true},
+        {"name": "resource_type", "slot": "enum", "required": true, "options": ["lecture", "note", "quiz_set", "flashcards", "report"]},
+        {"name": "policy", "slot": "write_policy", "required": true}
+      ],
+      "side_effects": ["subjects.resources_rag", "course_space.mindmap_lecture", "notes.notebooks"],
+      "requires_run_context": true,
+      "requires_idempotency_key": true
+    }
+  ],
+  "example_workflow": {
+    "schema_version": "workshop.workflow.v1",
+    "actors": [
+      {
+        "id": "active_subject",
+        "name": "当前科目",
+        "type": "subject",
+        "ref": {"type": "subject", "id": "$current_subject"}
+      },
+      {
+        "id": "all_learning_materials",
+        "name": "本章资料",
+        "type": "resource.collection",
+        "query": {
+          "subject_id": "$current_subject",
+          "resource_types": ["mindmap.node", "lecture", "note", "mistake"],
+          "knowledge_points": ["导数定义"]
+        }
+      }
+    ],
+    "scripts": [
+      {
+        "id": "script_on_start",
+        "hat": {"block": "event.on_start"},
+        "body": [
+          {
+            "block": "resource.query",
+            "params": {
+              "query": {
+                "subject_id": "$current_subject",
+                "resource_types": ["mindmap.node", "lecture", "note", "mistake"],
+                "knowledge_points": ["导数定义"],
+                "limit": 12
+              }
+            },
+            "output": "materials"
+          },
+          {
+            "block": "llm.generate_quiz",
+            "params": {
+              "materials": "$materials",
+              "count": 10,
+              "question_type": "mixed",
+              "llm": {
+                "model": "default",
+                "temperature": 0.2,
+                "must_cite_resources": true,
+                "on_failure": "fallback_to_rule"
+              }
+            },
+            "output": "questions"
+          },
+          {
+            "block": "control.for_each",
+            "params": {"items": "$questions", "item_name": "question"},
+            "body": [
+              {
+                "block": "interaction.show_question",
+                "params": {"question": "$question"},
+                "output": "answer_event"
+              },
+              {
+                "block": "control.if_else",
+                "condition": {
+                  "block": "judge.answer_correct",
+                  "params": {"answer_event": "$answer_event"}
+                },
+                "then": [
+                  {
+                    "block": "state.set",
+                    "params": {"variable": "last_result", "value": "correct"}
+                  }
+                ],
+                "else": [
+                  {
+                    "block": "writeback.write_mistake",
+                    "params": {
+                      "answer_event": "$answer_event",
+                      "policy": {
+                        "target": "review.mistakes",
+                        "idempotency_key": "$run_id:$answer_event.question_id",
+                        "bind_version": true
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

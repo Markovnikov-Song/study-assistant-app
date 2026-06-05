@@ -207,8 +207,16 @@
       "services": ["lib/features/workshop/mini_app_service.dart"],
       "models": ["lib/features/workshop/mini_app_models.dart"],
       "backend": ["backend/routers/mini_apps.py"],
-      "tests": ["tests/playwright/p1_shell_flow.spec.ts"],
-      "notes": "目前主要覆盖入口，核心构建和运行流仍待补。"
-    }
+      "tests": [
+        "tests/playwright/p1_shell_flow.spec.ts",
+        "test/features/workshop/workshop_page_test.dart"
+      ],
+      "docs": [
+        "docs/features/software_workshop.md",
+        "docs/features/software_workshop_blocks.md",
+        "docs/manifests/workshop_blocks.json"
+      ],
+      "notes": "四入口 MVP 已有入口和 Widget 覆盖；Scratch 风格积木、资源角色、版本追溯和 AI patch 仍是设计草案。"
+      }
   }
 }

@@ -48,6 +48,7 @@ docs/
     mistakes_review.md
     notes.md
     software_workshop.md
+    software_workshop_blocks.md
     software_workshop_runtime_schema.md
     learning_workflow_state_machines.md
     feature_manifest.json
@@ -58,6 +59,7 @@ docs/
     routes.json
     apis.json
     data_models.json
+    workshop_blocks.json
     test_matrix.json
 
   inventory/
@@ -79,6 +81,7 @@ docs/
 - `manifests/routes.json`：路由、页面类、登录要求和说明。
 - `manifests/apis.json`：关键 API、方法、请求/响应概要和测试覆盖。
 - `manifests/data_models.json`：核心数据表、Dart 模型和用途。
+- `manifests/workshop_blocks.json`：软件工坊 Scratch 风格积木、参数插槽、资源角色和示例 workflow。
 - `manifests/test_matrix.json`：业务验收用例、测试文件、层级和状态。
 
 ## 当前结论
