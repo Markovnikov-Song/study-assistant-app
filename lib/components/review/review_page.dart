@@ -81,7 +81,7 @@ class _PendingMistakesTab extends ConsumerWidget {
           itemBuilder: (context, index) {
             return _MistakeCard(
               mistake: mistakes[index],
-              onTap: () => _startReview(context, mistakes[index]),
+              onTap: () => _startReview(context, ref, mistakes[index]),
             );
           },
         );
@@ -89,13 +89,16 @@ class _PendingMistakesTab extends ConsumerWidget {
     );
   }
 
-  void _startReview(BuildContext context, Mistake mistake) {
-    Navigator.push(
+  Future<void> _startReview(
+    BuildContext context,
+    WidgetRef ref,
+    Mistake mistake,
+  ) async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ReviewSessionPage(mistake: mistake),
-      ),
+      MaterialPageRoute(builder: (_) => ReviewSessionPage(mistake: mistake)),
     );
+    await ref.read(reviewLoopCoordinatorProvider).afterReviewSubmitted();
   }
 }
 
@@ -125,7 +128,7 @@ class _ReviewedMistakesTab extends ConsumerWidget {
           itemBuilder: (context, index) {
             return _MistakeCard(
               mistake: mistakes[index],
-              onTap: () => _startReview(context, mistakes[index]),
+              onTap: () => _startReview(context, ref, mistakes[index]),
               showMastery: true,
             );
           },
@@ -134,13 +137,16 @@ class _ReviewedMistakesTab extends ConsumerWidget {
     );
   }
 
-  void _startReview(BuildContext context, Mistake mistake) {
-    Navigator.push(
+  Future<void> _startReview(
+    BuildContext context,
+    WidgetRef ref,
+    Mistake mistake,
+  ) async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ReviewSessionPage(mistake: mistake),
-      ),
+      MaterialPageRoute(builder: (_) => ReviewSessionPage(mistake: mistake)),
     );
+    await ref.read(reviewLoopCoordinatorProvider).afterReviewSubmitted();
   }
 }
 
@@ -173,10 +179,7 @@ class _EmptyState extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            subtitle,
-            style: TextStyle(color: Colors.grey.shade500),
-          ),
+          Text(subtitle, style: TextStyle(color: Colors.grey.shade500)),
         ],
       ),
     );
@@ -213,7 +216,10 @@ class _MistakeCard extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: isPending
                           ? Colors.orange.shade50
@@ -234,7 +240,10 @@ class _MistakeCard extends StatelessWidget {
                   if (mistake.mistakeCategory != null) ...[
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: theme.colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(6),
@@ -284,18 +293,11 @@ class _MistakeCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Text(
                     _formatDate(mistake.createdAt),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                   ),
                   if (mistake.reviewCount > 0) ...[
                     const SizedBox(width: 16),
-                    Icon(
-                      Icons.replay,
-                      size: 14,
-                      color: Colors.grey.shade500,
-                    ),
+                    Icon(Icons.replay, size: 14, color: Colors.grey.shade500),
                     const SizedBox(width: 4),
                     Text(
                       '复习 ${mistake.reviewCount} 次',

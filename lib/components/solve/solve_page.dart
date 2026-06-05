@@ -18,11 +18,11 @@ import '../../models/notebook.dart';
 import '../../models/solve_session_model.dart';
 import '../../models/subject.dart';
 import '../../providers/notebook_provider.dart';
+import '../../providers/ai_task_provider.dart';
+import '../../providers/review_provider.dart';
 import '../../providers/solve_prefill_provider.dart';
 import '../../providers/subject_provider.dart';
-import '../../services/background_task_service.dart';
 import '../../services/notebook_service.dart';
-import '../../services/review_service.dart';
 import '../../services/solve_sse_client.dart';
 import '../../widgets/cot_collapsible_view.dart';
 import '../../widgets/ai_task_status_bar.dart';
@@ -33,10 +33,12 @@ import '../../widgets/solve_result_action_bar.dart';
 // ── 解题会话 StateNotifier ────────────────────────────────────────────────────
 
 class _SolveSessionNotifier extends StateNotifier<SolveSessionModel> {
-  _SolveSessionNotifier() : super(SolveSessionModel.empty());
+  _SolveSessionNotifier(this._ref) : super(SolveSessionModel.empty());
+
+  final Ref _ref;
 
   StreamSubscription<SolveSSEEvent>? _subscription;
-  bool _backgroundTaskActive = false;
+  String get _taskId => 'solve:${state.sessionId}';
 
   /// 开始新的解题请求（首次或追问）
   Future<void> send({
@@ -163,23 +165,33 @@ class _SolveSessionNotifier extends StateNotifier<SolveSessionModel> {
     } else {
       state = state.copyWith(isStreaming: false);
     }
-    unawaited(_endBackgroundTask());
+    unawaited(_failBackgroundTask(message));
   }
 
   Future<void> _beginBackgroundTask() async {
-    if (_backgroundTaskActive) return;
-    _backgroundTaskActive = true;
-    await BackgroundTaskService.instance.startTask(
-      BackgroundTaskType.aiStreaming,
-    );
+    await _ref
+        .read(aiTaskControllerProvider.notifier)
+        .start(
+          AiTaskStartOptions(
+            id: _taskId,
+            kind: AiTaskKind.solve,
+            title: '正在解题',
+            subtitle: '可以随时停止，已生成的步骤会保留。',
+            onCancel: cancelStreaming,
+          ),
+        );
   }
 
   Future<void> _endBackgroundTask() async {
-    if (!_backgroundTaskActive) return;
-    _backgroundTaskActive = false;
-    await BackgroundTaskService.instance.endTask(
-      BackgroundTaskType.aiStreaming,
-    );
+    await _ref.read(aiTaskControllerProvider.notifier).complete(_taskId);
+  }
+
+  Future<void> _stopBackgroundTask() async {
+    await _ref.read(aiTaskControllerProvider.notifier).stop(_taskId);
+  }
+
+  Future<void> _failBackgroundTask(String message) async {
+    await _ref.read(aiTaskControllerProvider.notifier).fail(_taskId, message);
   }
 
   void _finishStreaming() {
@@ -214,7 +226,7 @@ class _SolveSessionNotifier extends StateNotifier<SolveSessionModel> {
     } else {
       state = state.copyWith(isStreaming: false);
     }
-    unawaited(_endBackgroundTask());
+    unawaited(_stopBackgroundTask());
   }
 
   /// 从历史记录恢复会话
@@ -269,21 +281,21 @@ class _SolveSessionNotifier extends StateNotifier<SolveSessionModel> {
   /// 开始新会话
   void newSession() {
     _subscription?.cancel();
-    unawaited(_endBackgroundTask());
+    unawaited(_stopBackgroundTask());
     state = SolveSessionModel.empty();
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
-    unawaited(_endBackgroundTask());
+    unawaited(_stopBackgroundTask());
     super.dispose();
   }
 }
 
 final _solveSessionProvider =
     StateNotifierProvider.autoDispose<_SolveSessionNotifier, SolveSessionModel>(
-      (ref) => _SolveSessionNotifier(),
+      (ref) => _SolveSessionNotifier(ref),
     );
 
 // ── SolvePage ─────────────────────────────────────────────────────────────────
@@ -854,13 +866,18 @@ class _AiBubble extends ConsumerWidget {
         message.content,
       ].join('\n');
 
-      await ReviewService().createMistakeFromPractice(
-        subjectId: options.subjectId,
-        title: '解题错题',
-        content: mistakeContent,
-        questionText: questionText,
-        mistakeCategory: options.category,
-      );
+      final mistake = await ref
+          .read(reviewNotifierProvider.notifier)
+          .createMistakeFromPractice(
+            subjectId: options.subjectId,
+            title: '解题错题',
+            content: mistakeContent,
+            questionText: questionText,
+            mistakeCategory: options.category,
+          );
+      if (mistake == null) {
+        throw Exception('保存失败');
+      }
       onSavedToMistakes();
       if (context.mounted) {
         ScaffoldMessenger.of(

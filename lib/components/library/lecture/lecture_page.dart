@@ -12,7 +12,7 @@ import '../../../providers/library_provider.dart';
 import '../../../providers/notebook_provider.dart';
 import '../../../providers/subject_provider.dart';
 import '../../../providers/rag_sync_settings_provider.dart';
-import '../../../services/background_task_service.dart';
+import '../../../providers/ai_task_provider.dart';
 import '../../../widgets/markdown_latex_view.dart';
 import '../../../widgets/ai_task_status_bar.dart';
 import '../../../tools/document/block_converter.dart';
@@ -296,7 +296,8 @@ class _LecturePageState extends ConsumerState<LecturePage> {
   final Map<String, bool> _expandedNodes = {};
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   StreamSubscription<String>? _lectureGenerationSub;
-  bool _lectureTaskActive = false;
+  String? _activeLectureTaskId;
+  bool _lectureCancelled = false;
 
   // 流式生成时的实时文本（nodeId → 累积 markdown）
   final Map<String, String> _streamingText = {};
@@ -367,7 +368,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
   @override
   void dispose() {
     _lectureGenerationSub?.cancel();
-    unawaited(_endLectureTask());
+    unawaited(_stopLectureTask());
     _controllers.forEach((_, ctrl) => ctrl.dispose());
     super.dispose();
   }
@@ -384,7 +385,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
     await ref
         .read(lectureEditorProvider(_keyFor(_currentNodeId)).notifier)
         .forceSave();
-    if (!context.mounted) return;
+    if (!mounted) return;
     if (Navigator.of(context).canPop()) {
       context.pop();
       return;
@@ -396,7 +397,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
     await ref
         .read(lectureEditorProvider(_keyFor(_currentNodeId)).notifier)
         .forceSave();
-    if (context.mounted) context.go(location);
+    if (mounted) context.go(location);
   }
 
   String _currentNodeText(List<TreeNode> roots) {
@@ -540,18 +541,21 @@ class _LecturePageState extends ConsumerState<LecturePage> {
 
   Future<void> _generateLecture(String nodeId, String nodeText) async {
     await _lectureGenerationSub?.cancel();
-    await _beginLectureTask();
+    await _stopLectureTask();
+    await _beginLectureTask(nodeId);
+    _lectureCancelled = false;
     setState(() {
       _generatingNodeIds.add(nodeId);
       _streamingText[nodeId] = '';
       _currentNodeId = nodeId;
     });
+    var hasError = false;
+    String? errorMsg;
+    Object? caughtError;
     try {
       final stream = ref
           .read(libraryServiceProvider)
           .generateLectureStream(sessionId: widget.sessionId, nodeId: nodeId);
-      bool hasError = false;
-      String? errorMsg;
       final completer = Completer<void>();
       _lectureGenerationSub = stream.listen(
         (event) {
@@ -628,6 +632,7 @@ class _LecturePageState extends ConsumerState<LecturePage> {
         );
       }
     } catch (e) {
+      caughtError = e;
       if (mounted) {
         setState(() {
           _generatingNodeIds.remove(nodeId);
@@ -640,31 +645,61 @@ class _LecturePageState extends ConsumerState<LecturePage> {
     } finally {
       await _lectureGenerationSub?.cancel();
       _lectureGenerationSub = null;
-      await _endLectureTask();
+      if (_lectureCancelled) {
+        await _stopLectureTask();
+      } else if (hasError || caughtError != null) {
+        await _failLectureTask(errorMsg ?? caughtError ?? '讲义生成失败');
+      } else {
+        await _completeLectureTask();
+      }
     }
   }
 
-  Future<void> _beginLectureTask() async {
-    if (_lectureTaskActive) return;
-    _lectureTaskActive = true;
-    await BackgroundTaskService.instance.startTask(
-      BackgroundTaskType.aiStreaming,
-    );
+  String _lectureTaskId(String nodeId) => 'lecture:${widget.sessionId}:$nodeId';
+
+  Future<void> _beginLectureTask(String nodeId) async {
+    final taskId = _lectureTaskId(nodeId);
+    _activeLectureTaskId = taskId;
+    await ref
+        .read(aiTaskControllerProvider.notifier)
+        .start(
+          AiTaskStartOptions(
+            id: taskId,
+            kind: AiTaskKind.lecture,
+            title: '正在生成讲义',
+            subtitle: '可以随时停止，再调整方向后重新生成。',
+            onCancel: _cancelLectureGeneration,
+          ),
+        );
   }
 
-  Future<void> _endLectureTask() async {
-    if (!_lectureTaskActive) return;
-    _lectureTaskActive = false;
-    await BackgroundTaskService.instance.endTask(
-      BackgroundTaskType.aiStreaming,
-    );
+  Future<void> _completeLectureTask() async {
+    final taskId = _activeLectureTaskId;
+    _activeLectureTaskId = null;
+    if (taskId == null) return;
+    await ref.read(aiTaskControllerProvider.notifier).complete(taskId);
+  }
+
+  Future<void> _stopLectureTask() async {
+    final taskId = _activeLectureTaskId;
+    _activeLectureTaskId = null;
+    if (taskId == null) return;
+    await ref.read(aiTaskControllerProvider.notifier).stop(taskId);
+  }
+
+  Future<void> _failLectureTask(Object error) async {
+    final taskId = _activeLectureTaskId;
+    _activeLectureTaskId = null;
+    if (taskId == null) return;
+    await ref.read(aiTaskControllerProvider.notifier).fail(taskId, error);
   }
 
   Future<void> _cancelLectureGeneration() async {
     final nodeId = _currentNodeId;
+    _lectureCancelled = true;
     await _lectureGenerationSub?.cancel();
     _lectureGenerationSub = null;
-    await _endLectureTask();
+    await _stopLectureTask();
     if (!mounted) return;
     setState(() {
       _generatingNodeIds.remove(nodeId);

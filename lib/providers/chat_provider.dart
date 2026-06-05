@@ -20,9 +20,9 @@ import 'package:flutter/foundation.dart'; // VoidCallback
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 状态管理
 import '../core/network/api_exception.dart';
 import '../models/chat_message.dart';
+import '../providers/ai_task_provider.dart';
 import '../providers/history_provider.dart';
 import '../services/chat_service.dart';
-import '../services/background_task_service.dart';
 
 // ─── Provider 1：ChatService 实例 ────────────────────────────
 // Provider<ChatService>：提供一个 ChatService 实例
@@ -56,8 +56,10 @@ final chatProvider =
       ref.keepAlive(); // 防止切换 Tab 时被 dispose
       final subjectId = int.tryParse(key.$1) ?? 0;
       return ChatNotifier(
+        ref,
         ref.watch(chatServiceProvider),
         chatKey: key.$1,
+        sessionType: key.$2,
         subjectId: subjectId,
         // 新会话创建后刷新历史列表：
         // - sessionsProvider(subjectId)：助教页左上角历史记录
@@ -96,8 +98,10 @@ class DioCancel implements Exception {}
 // 继承语法：class A extends B — A 继承 B，类似 Python 的 class A(B)
 // super(...)：调用父类构造函数，类似 Python 的 super().__init__(...)
 class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
+  final Ref _ref;
   final ChatService _service; // HTTP 服务，用于发请求
   final String _chatKey; // 对话 key：通用对话为 'general'，学科对话为 subjectId 字符串
+  final String _sessionType;
   final int _subjectId; // 学科 ID（从 chatKey 解析，通用对话时为 0）
   int? _currentSessionId; // 当前会话 ID，null 表示还没开始对话
   CancelToken? _cancelToken; // Dio 的取消令牌，null 表示没有进行中的请求
@@ -115,16 +119,20 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
 
   // 构造函数
   ChatNotifier(
+    this._ref,
     this._service, {
     required String chatKey,
+    required String sessionType,
     required int subjectId,
     this.onSessionCreated,
   }) : _chatKey = chatKey,
+       _sessionType = sessionType,
        _subjectId = subjectId,
        super(const AsyncValue.data([]));
 
   int? get currentSessionId => _currentSessionId;
   String get chatKey => _chatKey;
+  String get aiTaskId => 'chat:$_chatKey:$_sessionType';
 
   // ─── 发送消息（流式打字机效果）──────────────────────────
   Future<void> sendMessage(
@@ -151,11 +159,19 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
     final buffer = StringBuffer();
     StreamSubscription<String>? sub;
     bool cancelled = false;
+    bool failed = false;
 
-    // 启动后台任务保活，防止切换应用时中断 AI 输出
-    await BackgroundTaskService.instance.startTask(
-      BackgroundTaskType.aiStreaming,
-    );
+    await _ref
+        .read(aiTaskControllerProvider.notifier)
+        .start(
+          AiTaskStartOptions(
+            id: aiTaskId,
+            kind: AiTaskKind.chat,
+            title: '正在生成回答',
+            subtitle: '可以随时停止，已生成的内容会保留。',
+            onCancel: cancelSending,
+          ),
+        );
 
     try {
       final stream = _service.sendMessageStream(
@@ -262,6 +278,7 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
 
       await completer.future;
     } catch (e) {
+      failed = true;
       if (buffer.isEmpty) {
         // 出错时保留用户消息，显示友好的错误消息
         final errorMessage = _formatErrorMessage(e);
@@ -293,17 +310,21 @@ class ChatNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       _cancelToken = null;
       onSendingChanged?.call(false);
 
-      // 结束后台任务保活
-      await BackgroundTaskService.instance.endTask(
-        BackgroundTaskType.aiStreaming,
-      );
-
       // 取消时：保留用户消息，移除空的 AI 占位消息
       if (cancelled && buffer.isEmpty) {
         state = AsyncValue.data([...current, userMsg]);
       }
       if (cancelled && buffer.isNotEmpty) {
         _appendLastAssistantNote('已停止。你可以换个问法，或补充条件后继续。');
+      }
+
+      final taskController = _ref.read(aiTaskControllerProvider.notifier);
+      if (cancelled) {
+        await taskController.stop(aiTaskId);
+      } else if (failed) {
+        await taskController.fail(aiTaskId, '生成失败');
+      } else {
+        await taskController.complete(aiTaskId);
       }
 
       // AI 回复为空（如 422 错误、CAS 跳转后无回复）：移除空的 AI 占位消息

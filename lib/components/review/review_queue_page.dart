@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/review.dart';
 import '../../providers/review_provider.dart';
+import 'review_session_page.dart';
 
 /// 复习队列页面
 class ReviewQueuePage extends ConsumerWidget {
@@ -30,9 +31,7 @@ class ReviewQueuePage extends ConsumerWidget {
     return CustomScrollView(
       slivers: [
         // 统计卡片
-        SliverToBoxAdapter(
-          child: _buildStatsCards(context, queue),
-        ),
+        SliverToBoxAdapter(child: _buildStatsCards(context, queue)),
         // 复习列表
         SliverPadding(
           padding: const EdgeInsets.all(16),
@@ -40,7 +39,9 @@ class ReviewQueuePage extends ConsumerWidget {
             delegate: SliverChildBuilderDelegate(
               (context, index) => _ReviewCardItem(
                 item: queue.items[index],
-                onRate: (quality) => _rateCard(ref, queue.items[index].id, quality),
+                onStart: () => _startReview(context, ref, queue.items[index]),
+                onRate: (quality) =>
+                    _rateCard(ref, queue.items[index].id, quality),
               ),
               childCount: queue.items.length,
             ),
@@ -109,6 +110,34 @@ class ReviewQueuePage extends ConsumerWidget {
     final notifier = ref.read(reviewNotifierProvider.notifier);
     await notifier.rateCard(cardId: cardId, quality: quality);
   }
+
+  Future<void> _startReview(
+    BuildContext context,
+    WidgetRef ref,
+    ReviewItem item,
+  ) async {
+    final noteId = item.noteId;
+    if (noteId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('这个复习项暂未关联错题')));
+      return;
+    }
+
+    try {
+      final mistake = await ref.read(reviewServiceProvider).getMistake(noteId);
+      if (!context.mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ReviewSessionPage(mistake: mistake)),
+      );
+      await ref.read(reviewLoopCoordinatorProvider).afterReviewSubmitted();
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('打开复盘失败：$e')));
+    }
+  }
 }
 
 /// 统计卡片
@@ -139,10 +168,7 @@ class _StatCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: TextStyle(
-              fontSize: 12,
-              color: color.withValues(alpha: 0.8),
-            ),
+            style: TextStyle(fontSize: 12, color: color.withValues(alpha: 0.8)),
           ),
           const SizedBox(height: 4),
           Text(
@@ -156,10 +182,7 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: TextStyle(
-              fontSize: 11,
-              color: color.withValues(alpha: 0.7),
-            ),
+            style: TextStyle(fontSize: 11, color: color.withValues(alpha: 0.7)),
           ),
         ],
       ),
@@ -188,10 +211,7 @@ class _EmptyQueueState extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            '暂无待复习的题目',
-            style: TextStyle(color: Colors.grey.shade500),
-          ),
+          Text('暂无待复习的题目', style: TextStyle(color: Colors.grey.shade500)),
           const SizedBox(height: 8),
           Text(
             '去「练习」或「复盘」学习新知识吧',
@@ -206,10 +226,12 @@ class _EmptyQueueState extends StatelessWidget {
 /// 复习卡片项
 class _ReviewCardItem extends StatefulWidget {
   final ReviewItem item;
+  final VoidCallback onStart;
   final Function(int quality) onRate;
 
   const _ReviewCardItem({
     required this.item,
+    required this.onStart,
     required this.onRate,
   });
 
@@ -241,7 +263,9 @@ class _ReviewCardItemState extends State<_ReviewCardItem> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: _masteryColor(item.masteryScore).withValues(alpha: 0.1),
+                      color: _masteryColor(
+                        item.masteryScore,
+                      ).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
@@ -316,13 +340,19 @@ class _ReviewCardItemState extends State<_ReviewCardItem> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '这次答得怎么样？',
-                    style: theme.textTheme.titleSmall,
-                  ),
+                  Text('这次答得怎么样？', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 12),
                   Row(
                     children: [
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton.icon(
+                          onPressed: widget.onStart,
+                          icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                          label: const Text('开始复盘'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       _QualityButton(
                         label: '忘了',
                         quality: 0,

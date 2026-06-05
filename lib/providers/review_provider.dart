@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../features/calendar/providers/calendar_providers.dart';
+import '../features/spec/providers/study_planner_providers.dart';
 import '../models/review.dart';
 import '../services/review_service.dart';
 import '../services/notification_service.dart';
@@ -24,11 +26,7 @@ class MistakeFilter {
   final int? subjectId;
   final int limit;
 
-  MistakeFilter({
-    this.status,
-    this.subjectId,
-    this.limit = 50,
-  });
+  MistakeFilter({this.status, this.subjectId, this.limit = 50});
 
   @override
   bool operator ==(Object other) {
@@ -62,13 +60,17 @@ final reviewQueueProvider = FutureProvider<ReviewQueue>((ref) async {
 });
 
 /// 学科掌握度 Provider
-final subjectMasteryProvider = FutureProvider<List<SubjectMastery>>((ref) async {
+final subjectMasteryProvider = FutureProvider<List<SubjectMastery>>((
+  ref,
+) async {
   final service = ref.read(reviewServiceProvider);
   return service.getSubjectMastery();
 });
 
 /// 学习进度汇总 Provider
-final progressSummaryProvider = FutureProvider<List<LearningProgress>>((ref) async {
+final progressSummaryProvider = FutureProvider<List<LearningProgress>>((
+  ref,
+) async {
   final service = ref.read(reviewServiceProvider);
   return service.getProgressSummary();
 });
@@ -148,6 +150,57 @@ class ReviewReminderService {
   }
 }
 
+/// 复习闭环协调器
+///
+/// 错题、复习队列、计划和日历由不同接口提供。这里集中刷新它们，
+/// 避免“加入错题本成功了，但复习队列/今日计划/日历还停在旧状态”。
+class ReviewLoopCoordinator {
+  final Ref _ref;
+
+  ReviewLoopCoordinator(this._ref);
+
+  Future<void> afterMistakeCreated({int? subjectId}) async {
+    _invalidateReviewLoop();
+    await _rescheduleReviewReminders();
+  }
+
+  Future<void> afterReviewSubmitted({int? subjectId}) async {
+    _invalidateReviewLoop();
+    await _rescheduleReviewReminders();
+  }
+
+  Future<void> afterReviewCardRated({int? subjectId}) async {
+    _invalidateReviewLoop();
+    await _rescheduleReviewReminders();
+  }
+
+  void _invalidateReviewLoop() {
+    _ref.invalidate(pendingMistakesProvider);
+    _ref.invalidate(reviewedMistakesProvider);
+    _ref.invalidate(reviewQueueProvider);
+    _ref.invalidate(subjectMasteryProvider);
+    _ref.invalidate(progressSummaryProvider);
+    _ref.invalidate(activePlanProvider);
+    _ref.invalidate(todayPlanItemsProvider);
+    _ref.invalidate(todayEventsProvider);
+    _ref.invalidate(calendarEventsProvider);
+    _ref.invalidate(calendarStatsProvider);
+  }
+
+  Future<void> _rescheduleReviewReminders() async {
+    try {
+      final queue = await _ref.read(reviewServiceProvider).getReviewQueue();
+      await _ref.read(reviewReminderServiceProvider).scheduleFromQueue(queue);
+    } catch (_) {
+      // 提醒调度失败不影响错题/复习主流程，用户下次打开时还能重新刷新。
+    }
+  }
+}
+
+final reviewLoopCoordinatorProvider = Provider<ReviewLoopCoordinator>((ref) {
+  return ReviewLoopCoordinator(ref);
+});
+
 /// 复盘状态管理
 class ReviewNotifier extends StateNotifier<ReviewState> {
   final ReviewService _service;
@@ -178,9 +231,9 @@ class ReviewNotifier extends StateNotifier<ReviewState> {
         correctAnswer: correctAnswer,
         mistakeCategory: mistakeCategory,
       );
-      // 刷新错题列表
-      _ref.invalidate(pendingMistakesProvider);
-      _ref.invalidate(reviewedMistakesProvider);
+      await _ref
+          .read(reviewLoopCoordinatorProvider)
+          .afterMistakeCreated(subjectId: subjectId);
       state = state.copyWith(isLoading: false);
       return mistake;
     } catch (e) {
@@ -204,10 +257,7 @@ class ReviewNotifier extends StateNotifier<ReviewState> {
         reviewContent: reviewContent,
         practiceCorrect: practiceCorrect,
       );
-      // 刷新数据
-      _ref.invalidate(pendingMistakesProvider);
-      _ref.invalidate(reviewedMistakesProvider);
-      _ref.invalidate(reviewQueueProvider);
+      await _ref.read(reviewLoopCoordinatorProvider).afterReviewSubmitted();
       state = state.copyWith(isLoading: false);
       return result;
     } catch (e) {
@@ -227,7 +277,7 @@ class ReviewNotifier extends StateNotifier<ReviewState> {
         cardId: cardId,
         quality: quality,
       );
-      _ref.invalidate(reviewQueueProvider);
+      await _ref.read(reviewLoopCoordinatorProvider).afterReviewCardRated();
       state = state.copyWith(isLoading: false);
       return result;
     } catch (e) {
@@ -242,25 +292,16 @@ class ReviewState {
   final bool isLoading;
   final String? error;
 
-  const ReviewState({
-    this.isLoading = false,
-    this.error,
-  });
+  const ReviewState({this.isLoading = false, this.error});
 
-  ReviewState copyWith({
-    bool? isLoading,
-    String? error,
-  }) {
-    return ReviewState(
-      isLoading: isLoading ?? this.isLoading,
-      error: error,
-    );
+  ReviewState copyWith({bool? isLoading, String? error}) {
+    return ReviewState(isLoading: isLoading ?? this.isLoading, error: error);
   }
 }
 
 /// 复盘状态 Provider
 final reviewNotifierProvider =
     StateNotifierProvider<ReviewNotifier, ReviewState>((ref) {
-  final service = ref.read(reviewServiceProvider);
-  return ReviewNotifier(service, ref);
-});
+      final service = ref.read(reviewServiceProvider);
+      return ReviewNotifier(service, ref);
+    });

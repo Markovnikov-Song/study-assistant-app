@@ -12,6 +12,7 @@ class AiTaskStatusBar extends StatelessWidget {
   final VoidCallback? onCancel;
   final VoidCallback? onRetry;
   final AiTaskTone tone;
+  final bool showWhenIdle;
 
   const AiTaskStatusBar({
     super.key,
@@ -22,6 +23,7 @@ class AiTaskStatusBar extends StatelessWidget {
     this.onCancel,
     this.onRetry,
     this.tone = AiTaskTone.primary,
+    this.showWhenIdle = false,
   });
 
   @override
@@ -33,7 +35,7 @@ class AiTaskStatusBar extends StatelessWidget {
       AiTaskTone.warning => Colors.orange,
     };
 
-    if (!active && subtitle == null && onRetry == null) {
+    if (!active && !showWhenIdle && onRetry == null) {
       return const SizedBox.shrink();
     }
 

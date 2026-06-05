@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/chat_message.dart';
+import '../../providers/ai_task_provider.dart';
 import '../../models/subject.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/current_session_provider.dart';
@@ -68,6 +69,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   // 多模态解题：正在流式接收中
   bool _solveSending = false;
+  bool _solveCancelled = false;
   StreamSubscription<SolveSSEEvent>? _solveSubscription;
 
   // chatKey: 'general' for general chat, subjectId string for subject chat, chatId for task chat
@@ -85,6 +87,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   (String, String) get _key => (_chatKey, _sessionType);
+  String get _chatSolveTaskId => 'chat-solve:$_chatKey:$_sessionType';
 
   @override
   void initState() {
@@ -649,6 +652,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void _cancelSending() {
     ref.read(chatProvider(_key).notifier).cancelSending();
     if (_solveSending) {
+      _solveCancelled = true;
       _solveSubscription?.cancel();
       _solveSubscription = null;
       ref
@@ -796,8 +800,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           ),
         );
     setState(() => _solveSending = true);
+    _solveCancelled = false;
     _scrollToBottom();
 
+    await ref
+        .read(aiTaskControllerProvider.notifier)
+        .start(
+          AiTaskStartOptions(
+            id: _chatSolveTaskId,
+            kind: AiTaskKind.solve,
+            title: '正在解题',
+            subtitle: '可以随时停止，已生成的步骤会保留。',
+            onCancel: _cancelSending,
+          ),
+        );
+
+    var failed = false;
     try {
       final token = await StorageService.instance.getToken() ?? '';
       final dio = DioClient.instance.dio;
@@ -849,6 +867,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       );
       await completer.future;
     } catch (e) {
+      failed = true;
       if (mounted) {
         ref
             .read(chatProvider(_key).notifier)
@@ -861,6 +880,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       await _solveSubscription?.cancel();
       _solveSubscription = null;
       if (mounted) setState(() => _solveSending = false);
+
+      final taskController = ref.read(aiTaskControllerProvider.notifier);
+      if (_solveCancelled) {
+        await taskController.stop(_chatSolveTaskId);
+      } else if (failed) {
+        await taskController.fail(_chatSolveTaskId, '解题失败');
+      } else {
+        await taskController.complete(_chatSolveTaskId);
+      }
     }
     _scrollToBottom();
   }
