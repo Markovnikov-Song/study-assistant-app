@@ -63,6 +63,13 @@ from mini_apps.store import (
     list_apps,
     save_app,
 )
+from mini_apps.workflow import (
+    WorkflowValidateIn,
+    WorkflowValidateOut,
+    get_workflow_blocks_registry,
+    list_resource_actor_types,
+    validate_workflow_definition,
+)
 
 router = APIRouter()
 
@@ -182,6 +189,21 @@ def validate_mini_app_spec(body: ValidateSpecIn, user=Depends(get_current_user))
 @router.get("/blocks")
 def list_mini_app_blocks(user=Depends(get_current_user)):
     return get_block_registry().as_dict()
+
+
+@router.get("/workflow/registry")
+def list_workshop_workflow_registry(user=Depends(get_current_user)):
+    return get_workflow_blocks_registry()
+
+
+@router.get("/workflow/resource-actors")
+def list_workshop_resource_actor_types(user=Depends(get_current_user)):
+    return list_resource_actor_types()
+
+
+@router.post("/workflow/validate", response_model=WorkflowValidateOut)
+def validate_workshop_workflow(body: WorkflowValidateIn, user=Depends(get_current_user)):
+    return validate_workflow_definition(body.workflow)
 
 
 @router.post("/generate-cards", response_model=GenerateCardsOut)

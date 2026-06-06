@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "updated_at": "2026-06-05",
+  "updated_at": "2026-06-06",
   "levels": {
     "L0": "静态分析、单元测试、后端合同测试",
     "L1": "页面 smoke 和入口渲染",
@@ -27,11 +27,12 @@
     {"id": "NOTE-P1-01", "feature": "notes.notebooks", "level": "L2", "file": "tests/playwright/notebook_flow.spec.ts", "status": "passed", "coverage": "笔记详情 AI 润色和导入资料库"},
     {"id": "REVIEW-NOTE-CONTRACT", "feature": "review.mistakes", "level": "L0", "file": "backend/tests/test_review_note_contracts.py", "status": "passed", "coverage": "判题、错题收录、SM-2 卡片和笔记合同"},
     {"id": "WORKSHOP-P2-ENTRY", "feature": "workshop.mini_apps", "level": "L1", "file": "tests/playwright/p1_shell_flow.spec.ts", "status": "passed", "coverage": "软件工坊入口渲染"},
-    {"id": "WORKSHOP-P2-01", "feature": "workshop.mini_apps", "level": "L0", "file": "test/features/workshop/workshop_page_test.dart", "status": "passed", "coverage": "四入口展示、运行最近小工具、从首页改造已有小工具"}
+    {"id": "WORKSHOP-P2-01", "feature": "workshop.mini_apps", "level": "L0", "file": "test/features/workshop/workshop_page_test.dart", "status": "passed", "coverage": "四入口展示、运行最近小工具、从首页改造已有小工具"},
+    {"id": "WORKSHOP-BLOCKS-L0", "feature": "workshop.mini_apps", "level": "L0", "file": "backend/tests/test_workshop_workflow.py", "status": "passed", "coverage": "Scratch 风格积木 registry、资源角色类型、workflow validator、LLM 失败策略和非法积木拒绝"}
   ],
   "known_gaps": [
     "Android/iOS 通知和应用锁需要 L5 真机验收。",
-    "软件工坊已收敛为四入口 MVP，但分享实体、版本回滚和更多运行器类型仍需补强。",
+    "软件工坊已收敛为四入口 MVP，积木 registry 和 validator 已有后端底座，但前端积木编辑器、版本回滚、分享实体和更多运行器类型仍需补强。",
     "文件上传真实选择器需补稳定测试方式。"
   ]
 }

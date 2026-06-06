@@ -5,7 +5,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | 功能 ID | `workshop.mini_apps` |
-| 当前状态 | MVP 已收敛为四个入口：生成、改造、运行、保存/分享 |
+| 当前状态 | MVP 已收敛为四个入口；Scratch 风格积木 registry 和 workflow validator 已有后端底座 |
 | 主要入口 | `/workshop`、`/workshop/builder`、`/workshop/apps/:appId` |
 | 后端前缀 | `/api/mini-apps` |
 | 自动化覆盖 | 入口 smoke：`ENTRY-P1-07`；四入口 Widget：`WORKSHOP-P2-01` |
@@ -36,6 +36,7 @@
 - 运行时会创建后端 run session，并记录答题事件。
 - 运行页支持保存文档、保存运行配置、请求助教改造。
 - 后端提供 Mini App CRUD、访谈、改造、图谱校验、运行记录和资料生成卡片接口。
+- 后端提供 Scratch 风格 workflow registry、资源角色类型清单和 `workshop.workflow.v1` 校验器。
 
 ## 关键数据
 
@@ -67,7 +68,8 @@
 | 后端构建 | `backend/mini_apps/builder.py`、`backend/mini_apps/content_pipeline.py` | 草稿构建、资料到卡片 |
 | 积木图谱 | `backend/mini_apps/canvas.py` | Block registry、图谱编译和校验 |
 | 积木设计 | `docs/features/software_workshop_blocks.md` | Scratch 风格学习智能体积木分类、形状、颗粒度和版本规则 |
-| 积木清单 | `docs/manifests/workshop_blocks.json` | 机器可读的 shape、slot、resource actor、block 和示例 workflow 草案 |
+| 积木清单 | `docs/manifests/workshop_blocks.json` | 机器可读的 shape、slot、resource actor、block 和示例 workflow |
+| workflow 底座 | `backend/mini_apps/workflow.py` | registry 加载、资源角色模型、workflow validator |
 
 ## 行为边界
 
@@ -75,19 +77,18 @@
 - 当前分享是复制小工具说明和入口路径，不是公开发布市场。
 - 当前改造会更新已有小工具，不做多版本分支、回滚和冲突合并。
 - 当前运行器主要覆盖闪卡/背记式内容，测验、错题训练和资料问答还需要继续扩展 runtime renderer。
-- 当前前端还没有 Scratch 风格积木编辑器；现阶段图谱主要用于后端安全校验和运行配置生成。
+- 当前前端还没有 Scratch 风格积木编辑器；现阶段积木 registry 和 workflow validator 已在后端，图谱主要用于后端安全校验和运行配置生成。
 
 ## 下一步优先级
 
-1. 定义 Scratch 风格 `workshop.workflow.v1` schema 和 block registry。
-2. 做版本管理：改造前保存旧版本，运行记录绑定版本快照。
-3. 做 Git 式追溯：workflow 文件树、commit 信息、版本 diff。
-4. 做第一版积木编辑器：事件、控制、变量、资料、LLM、交互、判断、写回。
-5. 做 AI patch：自然语言改造生成结构化补丁，并通过 schema 校验。
-6. 扩展运行器类型：把选择题、错题训练、资料问答从配置真正渲染成可交互页面。
-7. 做资源库联动：小工具生成的讲义、卡片、错题结果写回资料库分类。
-8. 做分享实体：从“复制说明”升级为导出包、局域网分享或服务器分享链接。
-9. 做业务 E2E：覆盖生成、改造、运行、事件写入、资料生成卡片、复制分享。
+1. 做版本管理：改造前保存旧版本，运行记录绑定版本快照。
+2. 做 Git 式追溯：workflow 文件树、commit 信息、版本 diff。
+3. 做第一版积木编辑器：事件、控制、变量、资料、LLM、交互、判断、写回。
+4. 做 AI patch：自然语言改造生成结构化补丁，并通过 schema 校验。
+5. 扩展运行器类型：把选择题、错题训练、资料问答从配置真正渲染成可交互页面。
+6. 做资源库联动：小工具生成的讲义、卡片、错题结果写回资料库分类。
+7. 做分享实体：从“复制说明”升级为导出包、局域网分享或服务器分享链接。
+8. 做业务 E2E：覆盖生成、改造、运行、事件写入、资料生成卡片、复制分享。
 
 ## 验收建议
 

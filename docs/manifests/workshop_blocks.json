@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "updated_at": "2026-06-05",
   "feature": "workshop.mini_apps",
-  "status": "design_draft",
+  "status": "backend_registry_and_validator_implemented",
   "design_doc": "docs/features/software_workshop_blocks.md",
   "principles": [
     "Scratch-like categories, shapes, slots, scripts, reporters, predicates, C-blocks, and custom blocks.",
@@ -43,7 +43,8 @@
     {"id": "review_card", "name": "复习卡", "source_feature": "review.mistakes", "read": true, "write": true},
     {"id": "quiz_item", "name": "题目", "source_feature": "quiz.generation_practice", "read": true, "write": true},
     {"id": "calendar_event", "name": "日历计划", "source_feature": "calendar.learning_calendar", "read": true, "write": true},
-    {"id": "generated_artifact", "name": "生成资源", "source_feature": "workshop.mini_apps", "read": true, "write": true}
+    {"id": "generated_artifact", "name": "生成资源", "source_feature": "workshop.mini_apps", "read": true, "write": true},
+    {"id": "resource.collection", "name": "资源集合", "source_feature": "workshop.mini_apps", "read": true, "write": false}
   ],
   "categories": [
     {"id": "event", "name": "事件", "color": "#FFBF00"},

@@ -206,17 +206,21 @@
       "providers": ["lib/features/workshop/mini_app_providers.dart"],
       "services": ["lib/features/workshop/mini_app_service.dart"],
       "models": ["lib/features/workshop/mini_app_models.dart"],
-      "backend": ["backend/routers/mini_apps.py"],
+        "backend": [
+          "backend/routers/mini_apps.py",
+          "backend/mini_apps/workflow.py"
+        ],
       "tests": [
-        "tests/playwright/p1_shell_flow.spec.ts",
-        "test/features/workshop/workshop_page_test.dart"
+          "tests/playwright/p1_shell_flow.spec.ts",
+          "test/features/workshop/workshop_page_test.dart",
+          "backend/tests/test_workshop_workflow.py"
       ],
       "docs": [
         "docs/features/software_workshop.md",
         "docs/features/software_workshop_blocks.md",
         "docs/manifests/workshop_blocks.json"
       ],
-      "notes": "四入口 MVP 已有入口和 Widget 覆盖；Scratch 风格积木、资源角色、版本追溯和 AI patch 仍是设计草案。"
+        "notes": "四入口 MVP 已有入口和 Widget 覆盖；Scratch 风格积木 registry、资源角色类型和 workflow validator 已有后端底座；版本追溯、AI patch 和前端积木编辑器仍待实现。"
       }
   }
 }
