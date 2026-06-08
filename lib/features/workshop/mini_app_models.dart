@@ -22,6 +22,208 @@ class MiniAppValidation {
   }
 }
 
+class WorkshopBlockCategory {
+  final String id;
+  final String name;
+  final String color;
+
+  const WorkshopBlockCategory({
+    required this.id,
+    required this.name,
+    required this.color,
+  });
+
+  factory WorkshopBlockCategory.fromJson(Map<String, dynamic> json) {
+    return WorkshopBlockCategory(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      color: json['color'] as String? ?? '#64748B',
+    );
+  }
+}
+
+class WorkshopBlockParam {
+  final String name;
+  final String slot;
+  final bool required;
+  final dynamic defaultValue;
+  final List<String> options;
+  final List<String> accepts;
+
+  const WorkshopBlockParam({
+    required this.name,
+    required this.slot,
+    required this.required,
+    this.defaultValue,
+    required this.options,
+    required this.accepts,
+  });
+
+  factory WorkshopBlockParam.fromJson(Map<String, dynamic> json) {
+    return WorkshopBlockParam(
+      name: json['name'] as String? ?? '',
+      slot: json['slot'] as String? ?? '',
+      required: json['required'] == true,
+      defaultValue: json['default'],
+      options: ((json['options'] as List?) ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      accepts: ((json['accepts'] as List?) ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+    );
+  }
+}
+
+class WorkshopBlockDefinition {
+  final String id;
+  final String category;
+  final String shape;
+  final String label;
+  final String? returns;
+  final List<WorkshopBlockParam> params;
+  final List<String> sideEffects;
+  final bool failurePolicyRequired;
+  final bool requiresRunContext;
+  final bool requiresIdempotencyKey;
+
+  const WorkshopBlockDefinition({
+    required this.id,
+    required this.category,
+    required this.shape,
+    required this.label,
+    this.returns,
+    required this.params,
+    required this.sideEffects,
+    required this.failurePolicyRequired,
+    required this.requiresRunContext,
+    required this.requiresIdempotencyKey,
+  });
+
+  factory WorkshopBlockDefinition.fromJson(Map<String, dynamic> json) {
+    return WorkshopBlockDefinition(
+      id: json['id'] as String? ?? '',
+      category: json['category'] as String? ?? '',
+      shape: json['shape'] as String? ?? '',
+      label: json['label'] as String? ?? '',
+      returns: json['returns'] as String?,
+      params: ((json['params'] as List?) ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) => WorkshopBlockParam.fromJson(item.cast<String, dynamic>()),
+          )
+          .toList(),
+      sideEffects: ((json['side_effects'] as List?) ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      failurePolicyRequired: json['failure_policy_required'] == true,
+      requiresRunContext: json['requires_run_context'] == true,
+      requiresIdempotencyKey: json['requires_idempotency_key'] == true,
+    );
+  }
+}
+
+class WorkshopResourceActorType {
+  final String id;
+  final String name;
+  final String sourceFeature;
+  final bool read;
+  final bool write;
+
+  const WorkshopResourceActorType({
+    required this.id,
+    required this.name,
+    required this.sourceFeature,
+    required this.read,
+    required this.write,
+  });
+
+  factory WorkshopResourceActorType.fromJson(Map<String, dynamic> json) {
+    return WorkshopResourceActorType(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      sourceFeature: json['source_feature'] as String? ?? '',
+      read: json['read'] == true,
+      write: json['write'] == true,
+    );
+  }
+}
+
+class WorkshopWorkflowRegistry {
+  final String schemaVersion;
+  final String runtimeSchemaVersion;
+  final List<WorkshopBlockCategory> categories;
+  final List<WorkshopBlockDefinition> blocks;
+  final List<WorkshopResourceActorType> resourceActorTypes;
+  final Map<String, dynamic> exampleWorkflow;
+
+  const WorkshopWorkflowRegistry({
+    required this.schemaVersion,
+    required this.runtimeSchemaVersion,
+    required this.categories,
+    required this.blocks,
+    required this.resourceActorTypes,
+    required this.exampleWorkflow,
+  });
+
+  factory WorkshopWorkflowRegistry.fromJson(Map<String, dynamic> json) {
+    return WorkshopWorkflowRegistry(
+      schemaVersion: json['schema_version'] as String? ?? '',
+      runtimeSchemaVersion:
+          json['runtime_schema_version'] as String? ?? 'workshop.workflow.v1',
+      categories: ((json['categories'] as List?) ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) =>
+                WorkshopBlockCategory.fromJson(item.cast<String, dynamic>()),
+          )
+          .toList(),
+      blocks: ((json['blocks'] as List?) ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) =>
+                WorkshopBlockDefinition.fromJson(item.cast<String, dynamic>()),
+          )
+          .toList(),
+      resourceActorTypes: ((json['resource_actor_types'] as List?) ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) => WorkshopResourceActorType.fromJson(
+              item.cast<String, dynamic>(),
+            ),
+          )
+          .toList(),
+      exampleWorkflow:
+          (json['example_workflow'] as Map?)?.cast<String, dynamic>() ??
+          const {},
+    );
+  }
+
+  List<WorkshopBlockDefinition> blocksForCategory(String categoryId) {
+    return blocks.where((block) => block.category == categoryId).toList();
+  }
+}
+
+class WorkshopWorkflowValidationResult {
+  final MiniAppValidation validation;
+  final Map<String, dynamic> normalized;
+
+  const WorkshopWorkflowValidationResult({
+    required this.validation,
+    required this.normalized,
+  });
+
+  factory WorkshopWorkflowValidationResult.fromJson(Map<String, dynamic> json) {
+    return WorkshopWorkflowValidationResult(
+      validation: MiniAppValidation.fromJson(
+        (json['validation'] as Map?)?.cast<String, dynamic>() ?? const {},
+      ),
+      normalized:
+          (json['normalized'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+}
+
 class MiniAppSummary {
   final String id;
   final String title;
@@ -117,9 +319,7 @@ class GenerateCardsResult {
 
   factory GenerateCardsResult.fromJson(Map<String, dynamic> json) {
     return GenerateCardsResult(
-      app: MiniAppRecord.fromJson(
-        (json['app'] as Map).cast<String, dynamic>(),
-      ),
+      app: MiniAppRecord.fromJson((json['app'] as Map).cast<String, dynamic>()),
       targetCardCount: (json['target_card_count'] as num?)?.toInt() ?? 0,
       actualCardCount: (json['actual_card_count'] as num?)?.toInt() ?? 0,
     );

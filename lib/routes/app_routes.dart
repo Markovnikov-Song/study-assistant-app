@@ -66,6 +66,7 @@ class R {
   static const skillDialogCreate = '/skill-create-dialog';
   static const workshop = '/workshop';
   static const workshopBuilder = '/workshop/builder';
+  static const workshopBlocks = '/workshop/blocks';
   static String workshopApp(String id) => '/workshop/apps/$id';
   static const mindmapEntry = '/mindmap-entry';
   static const mindmapGenerate = '/mindmap-entry?generate=1';

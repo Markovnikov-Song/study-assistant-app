@@ -154,6 +154,21 @@ class _FakeMiniAppService implements MiniAppService {
   Future<Map<String, dynamic>> getBlockRegistry() async => {};
 
   @override
+  Future<WorkshopWorkflowRegistry> getWorkflowRegistry() async =>
+      WorkshopWorkflowRegistry.fromJson(_workflowRegistryJson);
+
+  @override
+  Future<List<WorkshopResourceActorType>> getResourceActorTypes() async => [];
+
+  @override
+  Future<WorkshopWorkflowValidationResult> validateWorkflow({
+    required Map<String, dynamic> workflow,
+  }) async => WorkshopWorkflowValidationResult(
+    validation: _validation,
+    normalized: workflow,
+  );
+
+  @override
   Future<MiniAppValidation> validateGraph({
     required Map<String, dynamic> graph,
     Map<String, dynamic>? spec,
@@ -198,3 +213,30 @@ class _FakeMiniAppService implements MiniAppService {
     throw UnimplementedError();
   }
 }
+
+const _workflowRegistryJson = {
+  'schema_version': '0.1.0',
+  'runtime_schema_version': 'workshop.workflow.v1',
+  'categories': [
+    {'id': 'event', 'name': '事件', 'color': '#FFBF00'},
+  ],
+  'blocks': [
+    {
+      'id': 'event.on_start',
+      'category': 'event',
+      'shape': 'hat',
+      'label': '当小工具开始运行',
+    },
+  ],
+  'resource_actor_types': [],
+  'example_workflow': {
+    'schema_version': 'workshop.workflow.v1',
+    'scripts': [
+      {
+        'id': 'script_on_start',
+        'hat': {'block': 'event.on_start'},
+        'body': [],
+      },
+    ],
+  },
+};

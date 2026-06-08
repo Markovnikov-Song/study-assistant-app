@@ -27,6 +27,7 @@ import '../features/subject_detail/subject_detail_page.dart';
 import '../features/skill_marketplace/marketplace_page.dart';
 import '../features/skill_creation/dialog_creation_page.dart';
 import '../features/workshop/workshop_builder_page.dart';
+import '../features/workshop/workshop_blocks_page.dart';
 import '../features/workshop/workshop_page.dart';
 import '../features/workshop/mini_app_run_page.dart';
 import '../components/library/library_page.dart';
@@ -230,6 +231,16 @@ final routerProvider = Provider<GoRouter>((ref) {
           WorkshopBuilderPage(
             initialRequest: state.uri.queryParameters['request'],
           ),
+          motion: AppRouteMotion.drillIn,
+        ),
+      ),
+      GoRoute(
+        path: R.workshopBlocks,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => _motionPage(
+          context,
+          state,
+          const WorkshopBlocksPage(),
           motion: AppRouteMotion.drillIn,
         ),
       ),

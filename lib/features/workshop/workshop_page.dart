@@ -34,6 +34,11 @@ class WorkshopPage extends ConsumerWidget {
             tooltip: '刷新',
           ),
           IconButton(
+            onPressed: () => context.push(R.workshopBlocks),
+            icon: const Icon(Icons.account_tree_rounded),
+            tooltip: '积木脚本',
+          ),
+          IconButton(
             onPressed: () => context.push(R.workshopBuilder),
             icon: const Icon(Icons.add_circle_outline_rounded),
             tooltip: '创建学习小软件',
@@ -67,6 +72,7 @@ class WorkshopPage extends ConsumerWidget {
                     apps: apps,
                     isDesktop: isDesktop,
                     onCreate: () => context.push(R.workshopBuilder),
+                    onOpenBlocks: () => context.push(R.workshopBlocks),
                     onRunLatest: apps.isEmpty
                         ? null
                         : () => context.push(R.workshopApp(apps.first.id)),
@@ -334,6 +340,7 @@ class _WorkshopActionStrip extends StatelessWidget {
   final List<MiniAppSummary> apps;
   final bool isDesktop;
   final VoidCallback onCreate;
+  final VoidCallback onOpenBlocks;
   final VoidCallback? onRunLatest;
   final VoidCallback? onReviseLatest;
   final VoidCallback? onShareLatest;
@@ -342,6 +349,7 @@ class _WorkshopActionStrip extends StatelessWidget {
     required this.apps,
     required this.isDesktop,
     required this.onCreate,
+    required this.onOpenBlocks,
     required this.onRunLatest,
     required this.onReviseLatest,
     required this.onShareLatest,
@@ -357,6 +365,13 @@ class _WorkshopActionStrip extends StatelessWidget {
         description: '说一句需求，追问补齐后生成可运行草稿。',
         actionLabel: '去生成',
         onPressed: onCreate,
+      ),
+      _WorkshopAction(
+        icon: Icons.account_tree_rounded,
+        title: '编辑积木',
+        description: '查看积木库、资料角色和 workflow 脚本栈。',
+        actionLabel: '打开积木',
+        onPressed: onOpenBlocks,
       ),
       _WorkshopAction(
         icon: Icons.auto_fix_high_rounded,
@@ -397,10 +412,10 @@ class _WorkshopActionStrip extends StatelessWidget {
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 4,
+      crossAxisCount: 5,
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
-      childAspectRatio: 1.45,
+      childAspectRatio: 1.35,
       children: actions,
     );
   }

@@ -92,6 +92,51 @@ class MiniAppService {
     }
   }
 
+  Future<WorkshopWorkflowRegistry> getWorkflowRegistry() async {
+    try {
+      final res = await _dio.get('/api/mini-apps/workflow/registry');
+      return WorkshopWorkflowRegistry.fromJson(
+        (res.data as Map).cast<String, dynamic>(),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<List<WorkshopResourceActorType>> getResourceActorTypes() async {
+    try {
+      final res = await _dio.get('/api/mini-apps/workflow/resource-actors');
+      final data = (res.data as Map).cast<String, dynamic>();
+      final list = (data['resource_actor_types'] as List?) ?? const [];
+      return list
+          .whereType<Map>()
+          .map(
+            (item) => WorkshopResourceActorType.fromJson(
+              item.cast<String, dynamic>(),
+            ),
+          )
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<WorkshopWorkflowValidationResult> validateWorkflow({
+    required Map<String, dynamic> workflow,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '/api/mini-apps/workflow/validate',
+        data: {'workflow': workflow},
+      );
+      return WorkshopWorkflowValidationResult.fromJson(
+        (res.data as Map).cast<String, dynamic>(),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<MiniAppValidation> validateGraph({
     required Map<String, dynamic> graph,
     Map<String, dynamic>? spec,

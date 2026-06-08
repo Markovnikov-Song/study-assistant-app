@@ -112,10 +112,10 @@
       "name": "软件工坊",
       "status": "partial",
       "doc": "docs/features/software_workshop.md",
-      "entry_routes": ["/workshop", "/workshop/builder", "/workshop/apps/:appId"],
+      "entry_routes": ["/workshop", "/workshop/builder", "/workshop/blocks", "/workshop/apps/:appId"],
       "user_goal": "让用户用积木和资料生成小学习软件。",
       "platforms": {"android": "partial", "ios": "partial", "web": "partial"},
-      "known_gaps": ["Scratch 风格积木编辑器、资源角色引用、版本追溯、发布和安全边界仍需实现"]
+      "known_gaps": ["积木页面已能读取 registry 并校验示例 workflow；真正拖拽编辑、资源角色实例选择、版本追溯、发布和安全边界仍需实现"]
       }
   ]
 }

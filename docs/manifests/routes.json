@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "updated_at": "2026-06-04",
+  "updated_at": "2026-06-08",
   "routes": [
     {"path": "/", "name": "对话首页", "page": "ResponsiveShell/ChatPage", "auth": true, "feature": "chat.cas"},
     {"path": "/course-space", "name": "科目空间", "page": "LibraryPage", "auth": true, "feature": "course_space.mindmap_lecture"},
@@ -22,6 +22,7 @@
     {"path": "/profile/resources/:id", "name": "资料库详情", "page": "SubjectDetailPage", "auth": true, "feature": "subjects.resources_rag"},
     {"path": "/workshop", "name": "软件工坊", "page": "WorkshopPage", "auth": true, "feature": "workshop.mini_apps"},
     {"path": "/workshop/builder", "name": "软件工坊构建器", "page": "WorkshopBuilderPage", "auth": true, "feature": "workshop.mini_apps"},
+    {"path": "/workshop/blocks", "name": "软件工坊积木脚本", "page": "WorkshopBlocksPage", "auth": true, "feature": "workshop.mini_apps"},
     {"path": "/workshop/apps/:appId", "name": "Mini App 运行页", "page": "MiniAppRunPage", "auth": true, "feature": "workshop.mini_apps"},
     {"path": "/onboarding", "name": "引导页", "page": "OnboardingPage", "auth": false, "feature": "onboarding.demo_pack"},
     {"path": "/login", "name": "登录", "page": "LoginPage", "auth": false, "feature": "auth"},

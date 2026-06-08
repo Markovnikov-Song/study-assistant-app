@@ -17,6 +17,16 @@ final miniAppBlockRegistryProvider = FutureProvider<Map<String, dynamic>>((
   return ref.read(miniAppServiceProvider).getBlockRegistry();
 });
 
+final workshopWorkflowRegistryProvider =
+    FutureProvider<WorkshopWorkflowRegistry>((ref) async {
+      return ref.read(miniAppServiceProvider).getWorkflowRegistry();
+    });
+
+final workshopResourceActorTypesProvider =
+    FutureProvider<List<WorkshopResourceActorType>>((ref) async {
+      return ref.read(miniAppServiceProvider).getResourceActorTypes();
+    });
+
 final miniAppProvider = FutureProvider.family<MiniAppRecord, String>((
   ref,
   id,
