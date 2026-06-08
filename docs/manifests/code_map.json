@@ -222,7 +222,7 @@
         "docs/features/software_workshop_blocks.md",
         "docs/manifests/workshop_blocks.json"
       ],
-        "notes": "四入口 MVP 已有入口和 Widget 覆盖；Scratch 风格积木 registry、资源角色类型、workflow validator 和前端积木脚本页已有底座；真正拖拽编辑、资源角色实例选择、版本追溯和 AI patch 仍待实现。"
+        "notes": "四入口 MVP 已有入口和 Widget 覆盖；Scratch 风格积木 registry、资源角色类型、workflow validator 和第一版前端积木脚本编辑页已有底座；真正拖拽编辑、资源角色实例选择、版本追溯和 AI patch 仍待实现。"
       }
   }
 }

@@ -8,7 +8,7 @@ import 'package:study_assistant_app/features/workshop/workshop_blocks_page.dart'
 
 void main() {
   testWidgets(
-    'workshop blocks page loads registry and validates example workflow',
+    'workshop blocks page loads registry and validates current workflow',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1280, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -28,10 +28,66 @@ void main() {
       expect(find.text('资料角色'), findsOneWidget);
       expect(find.text('可引用资料'), findsOneWidget);
 
-      await tester.tap(find.text('校验示例'));
+      await tester.tap(find.text('校验当前脚本'));
       await tester.pumpAndSettle();
 
       expect(service.validatedWorkflow, isNotNull);
+      expect(find.text('通过'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'workshop blocks page can add a block, edit json, and validate it',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final service = _FakeMiniAppService();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [miniAppServiceProvider.overrideWithValue(service)],
+          child: const MaterialApp(home: WorkshopBlocksPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilterChip, '资料'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, '加入脚本'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('编辑第 2 个积木'), findsOneWidget);
+      await tester.enterText(
+        find.byType(TextField),
+        '''
+{
+  "block": "resource.query",
+  "params": {
+    "query": {
+      "subject_id": 1,
+      "resource_types": ["mistake"],
+      "limit": 5
+    }
+  },
+  "output": "custom_materials"
+}
+''',
+      );
+      await tester.tap(find.text('应用 JSON'));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('校验当前脚本'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(find.text('校验当前脚本'));
+      await tester.pumpAndSettle();
+
+      final scripts = service.validatedWorkflow?['scripts'] as List?;
+      final body = (scripts?.first as Map?)?['body'] as List?;
+      expect(body, hasLength(2));
+      expect((body?.last as Map?)?['output'], 'custom_materials');
       expect(find.text('通过'), findsOneWidget);
     },
   );
@@ -167,6 +223,9 @@ const _workflowRegistryJson = {
       'shape': 'reporter',
       'label': '从资料库查询 {query}',
       'returns': 'ResourceSet',
+      'outputs': [
+        {'name': 'materials', 'type': 'ResourceSet'},
+      ],
       'params': [
         {'name': 'query', 'slot': 'resource_query', 'required': true},
       ],

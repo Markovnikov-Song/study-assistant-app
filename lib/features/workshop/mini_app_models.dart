@@ -82,6 +82,7 @@ class WorkshopBlockDefinition {
   final String label;
   final String? returns;
   final List<WorkshopBlockParam> params;
+  final List<WorkshopBlockOutput> outputs;
   final List<String> sideEffects;
   final bool failurePolicyRequired;
   final bool requiresRunContext;
@@ -94,6 +95,7 @@ class WorkshopBlockDefinition {
     required this.label,
     this.returns,
     required this.params,
+    required this.outputs,
     required this.sideEffects,
     required this.failurePolicyRequired,
     required this.requiresRunContext,
@@ -113,12 +115,33 @@ class WorkshopBlockDefinition {
             (item) => WorkshopBlockParam.fromJson(item.cast<String, dynamic>()),
           )
           .toList(),
+      outputs: ((json['outputs'] as List?) ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) =>
+                WorkshopBlockOutput.fromJson(item.cast<String, dynamic>()),
+          )
+          .toList(),
       sideEffects: ((json['side_effects'] as List?) ?? const [])
           .map((item) => item.toString())
           .toList(),
       failurePolicyRequired: json['failure_policy_required'] == true,
       requiresRunContext: json['requires_run_context'] == true,
       requiresIdempotencyKey: json['requires_idempotency_key'] == true,
+    );
+  }
+}
+
+class WorkshopBlockOutput {
+  final String name;
+  final String type;
+
+  const WorkshopBlockOutput({required this.name, required this.type});
+
+  factory WorkshopBlockOutput.fromJson(Map<String, dynamic> json) {
+    return WorkshopBlockOutput(
+      name: json['name'] as String? ?? '',
+      type: json['type'] as String? ?? '',
     );
   }
 }
