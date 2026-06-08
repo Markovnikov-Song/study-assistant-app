@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../providers/auth_provider.dart';
 import '../services/incident_report_service.dart';
@@ -31,7 +30,9 @@ class IncidentCapture {
 
 /// 右下角反馈按钮（登录后显示）。
 class IncidentFeedbackFab extends ConsumerStatefulWidget {
-  const IncidentFeedbackFab({super.key});
+  const IncidentFeedbackFab({super.key, required this.currentRoute});
+
+  final String currentRoute;
 
   @override
   ConsumerState<IncidentFeedbackFab> createState() =>
@@ -41,16 +42,8 @@ class IncidentFeedbackFab extends ConsumerStatefulWidget {
 class _IncidentFeedbackFabState extends ConsumerState<IncidentFeedbackFab> {
   bool _submitting = false;
 
-  String? _route(BuildContext context) {
-    try {
-      return GoRouterState.of(context).matchedLocation;
-    } catch (_) {
-      return null;
-    }
-  }
-
   Future<void> _submit(BuildContext context) async {
-    final route = _route(context) ?? '';
+    final route = widget.currentRoute;
     final descCtrl = TextEditingController();
     final contactCtrl = TextEditingController();
     String? description;
@@ -142,7 +135,7 @@ class _IncidentFeedbackFabState extends ConsumerState<IncidentFeedbackFab> {
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
-    final route = _route(context);
+    final route = widget.currentRoute;
     if (!auth.isAuthenticated ||
         auth.isRestoring ||
         !IncidentReportService.instance.shouldShowFab(route)) {

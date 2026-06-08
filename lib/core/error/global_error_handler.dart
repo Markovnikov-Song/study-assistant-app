@@ -1,11 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+
 import '../../services/error_service.dart';
 
-/// 全局错误处理器
-/// 自动捕获未处理的异常并记录到日志
+/// Centralized client-side error capture.
 class GlobalErrorHandler {
-  /// 在 main() 里、runApp 之前调用。
+  /// Call before runApp() in main().
   static void setupFlutterErrorHandler() {
     final defaultOnError = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {
@@ -20,9 +20,19 @@ class GlobalErrorHandler {
         FlutterError.dumpErrorToConsole(details);
       }
     };
+
+    PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+      ErrorService.instance.record(
+        message: error.toString(),
+        level: ErrorLevel.error,
+        stackTrace: stack.toString(),
+        context: 'Platform Dispatcher Error',
+      );
+      return false;
+    };
   }
 
-  /// runZonedGuarded 的 error 回调。
+  /// Error callback for runZonedGuarded.
   static void handleZoneError(Object error, StackTrace stackTrace) {
     ErrorService.instance.record(
       message: error.toString(),
@@ -32,9 +42,9 @@ class GlobalErrorHandler {
     );
   }
 
-  /// 处理 Dio 请求错误
+  /// Records Dio request failures.
   static void handleDioError(dynamic error, String endpoint) {
-    String message = '网络请求失败';
+    String message = 'Network request failed';
     int? statusCode;
 
     if (error is DioException) {
@@ -42,20 +52,20 @@ class GlobalErrorHandler {
         case DioExceptionType.connectionTimeout:
         case DioExceptionType.sendTimeout:
         case DioExceptionType.receiveTimeout:
-          message = '请求超时';
+          message = 'Request timed out';
           break;
         case DioExceptionType.badResponse:
           statusCode = error.response?.statusCode;
           message =
               error.response?.data?['message']?.toString() ??
               error.response?.statusMessage ??
-              'HTTP 错误 $statusCode';
+              'HTTP error $statusCode';
           break;
         case DioExceptionType.cancel:
-          message = '请求已取消';
+          message = 'Request cancelled';
           break;
         default:
-          message = error.message ?? '网络错误';
+          message = error.message ?? 'Network error';
       }
     } else {
       message = error.toString();
@@ -71,7 +81,7 @@ class GlobalErrorHandler {
     );
   }
 
-  /// 处理通用业务错误
+  /// Records business-level warnings.
   static void handleBusinessError(String message, {String? context}) {
     ErrorService.instance.record(
       message: message,
@@ -80,7 +90,7 @@ class GlobalErrorHandler {
     );
   }
 
-  /// 记录信息日志
+  /// Records an info log.
   static void logInfo(String message, {String? context}) {
     ErrorService.instance.record(
       message: message,
@@ -89,7 +99,7 @@ class GlobalErrorHandler {
     );
   }
 
-  /// 记录调试日志
+  /// Records a debug log.
   static void logDebug(String message, {String? context}) {
     ErrorService.instance.record(
       message: message,
@@ -98,7 +108,7 @@ class GlobalErrorHandler {
     );
   }
 
-  /// 记录警告日志
+  /// Records a warning log.
   static void logWarning(String message, {String? context}) {
     ErrorService.instance.record(
       message: message,

@@ -18,8 +18,12 @@ class IncidentReportService {
 
   bool shouldShowFab(String? route) {
     if (route == null || route.isEmpty) return false;
+    final path = Uri.tryParse(route)?.path;
+    final normalizedRoute = (path == null || path.isEmpty) ? route : path;
     for (final r in hiddenRoutes) {
-      if (route == r || route.startsWith('$r/')) return false;
+      if (normalizedRoute == r || normalizedRoute.startsWith('$r/')) {
+        return false;
+      }
     }
     return true;
   }

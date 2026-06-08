@@ -31,19 +31,26 @@ class App extends ConsumerWidget {
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,
       builder: (context, child) {
-        return RepaintBoundary(
-          key: IncidentCapture.boundaryKey,
-          child: MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.noScaling),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                child ?? const SizedBox(),
-                const IncidentFeedbackFab(),
-              ],
-            ),
+        return MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.noScaling),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              RepaintBoundary(
+                key: IncidentCapture.boundaryKey,
+                child: child ?? const SizedBox(),
+              ),
+              ValueListenableBuilder<RouteInformation>(
+                valueListenable: router.routeInformationProvider,
+                builder: (context, routeInfo, _) {
+                  final uri = routeInfo.uri;
+                  final route = uri.hasQuery ? uri.toString() : uri.path;
+                  return IncidentFeedbackFab(currentRoute: route);
+                },
+              ),
+            ],
           ),
         );
       },
