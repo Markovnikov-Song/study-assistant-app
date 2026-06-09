@@ -89,6 +89,25 @@ def test_workflow_validator_rejects_unknown_block_and_resource_actor():
     assert any("unknown block" in error for error in result.validation.errors)
 
 
+def test_workflow_validator_reports_slot_specific_errors():
+    registry = get_workflow_blocks_registry()
+    workflow = deepcopy(registry["example_workflow"])
+    quiz_params = workflow["scripts"][0]["body"][1]["params"]
+    quiz_params["count"] = 0
+    quiz_params["question_type"] = "essay"
+    quiz_params["llm"]["model"] = ""
+    workflow["scripts"][0]["body"][0]["params"]["query"] = "all materials"
+
+    result = validate_workflow_definition(workflow)
+
+    assert not result.validation.ok
+    errors = "\n".join(result.validation.errors)
+    assert "count must be >= 1" in errors
+    assert "question_type must be one of" in errors
+    assert "llm.model is required" in errors
+    assert "query must be a resource query object" in errors
+
+
 def test_workflow_registry_and_validate_routes():
     app = create_app()
     app.dependency_overrides[get_current_user] = lambda: {"id": 1, "username": "test"}

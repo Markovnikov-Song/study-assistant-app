@@ -758,51 +758,14 @@ def validate_graph(graph: dict[str, Any], spec: dict[str, Any] | None = None) ->
     registry = get_block_registry()
     errors: list[str] = []
     warnings: list[str] = []
-    nodes = graph.get("nodes") if isinstance(graph.get("nodes"), list) else []
-    edges = graph.get("edges") if isinstance(graph.get("edges"), list) else []
-    node_by_id = {node.get("id"): node for node in nodes if isinstance(node, dict)}
+    _validate_graph_collections(graph, errors)
+    nodes, edges = _graph_parts(graph)
+    node_by_id = _node_by_id(nodes)
 
     entry = graph.get("entry")
-    if not entry or entry not in node_by_id:
-        errors.append("graph.entry must reference an existing node")
-
-    for node in nodes:
-        block_id = node.get("block")
-        block = registry.get(str(block_id))
-        if block is None:
-            errors.append(f"Unknown block: {block_id}")
-            continue
-        params = node.get("params") or {}
-        for key, expected in (block.get("params_schema") or {}).items():
-            if key not in params:
-                errors.append(f"{node.get('id')}.{key} is required")
-                continue
-            if not _matches_type(params[key], expected):
-                errors.append(f"{node.get('id')}.{key} must be {expected}")
-
-    for edge in edges:
-        source = node_by_id.get(edge.get("from"))
-        target = node_by_id.get(edge.get("to"))
-        if source is None or target is None:
-            errors.append(f"Edge references missing node: {edge}")
-            continue
-        source_block = registry.get(str(source.get("block"))) or {}
-        target_block = registry.get(str(target.get("block"))) or {}
-        source_type = (source_block.get("output_ports") or {}).get(edge.get("output"))
-        target_type = (target_block.get("input_ports") or {}).get(edge.get("input"))
-        if source_type is None:
-            errors.append(f"{source.get('id')} has no output port {edge.get('output')}")
-        if target_type is None:
-            errors.append(f"{target.get('id')} has no input port {edge.get('input')}")
-        if source_type and target_type and source_type != target_type and edge.get("adapter") is None:
-            errors.append(
-                f"Type mismatch: {source.get('id')}.{edge.get('output')} "
-                f"{source_type} -> {target.get('id')}.{edge.get('input')} {target_type}"
-            )
-        if source_type and target_type and source_type != target_type and edge.get("adapter") is not None:
-            warnings.append(
-                f"Adapter {edge.get('adapter')} bridges {source_type} -> {target_type}"
-            )
+    _validate_graph_entry(entry, node_by_id, errors)
+    _validate_graph_nodes(nodes, registry, errors)
+    _validate_graph_edges(edges, node_by_id, registry, errors, warnings)
 
     _validate_acyclic(nodes, edges, errors)
     _validate_reachable(entry, nodes, edges, errors)
@@ -810,6 +773,118 @@ def validate_graph(graph: dict[str, Any], spec: dict[str, Any] | None = None) ->
         _validate_item_requirements(nodes, spec, registry, errors, warnings)
 
     return MiniAppValidation(ok=not errors, errors=errors, warnings=warnings)
+
+
+def _validate_graph_collections(graph: dict[str, Any], errors: list[str]) -> None:
+    for key in ("nodes", "edges"):
+        value = graph.get(key)
+        if not isinstance(value, list):
+            errors.append(f"graph.{key} must be a list")
+            continue
+        for index, item in enumerate(value):
+            if not isinstance(item, dict):
+                errors.append(f"graph.{key}[{index}] must be an object")
+
+
+def _graph_parts(graph: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    raw_nodes = graph.get("nodes")
+    raw_edges = graph.get("edges")
+    nodes = [item for item in raw_nodes if isinstance(item, dict)] if isinstance(raw_nodes, list) else []
+    edges = [item for item in raw_edges if isinstance(item, dict)] if isinstance(raw_edges, list) else []
+    return nodes, edges
+
+
+def _node_by_id(nodes: list[dict[str, Any]]) -> dict[Any, dict[str, Any]]:
+    return {node.get("id"): node for node in nodes}
+
+
+def _validate_graph_entry(
+    entry: Any,
+    node_by_id: dict[Any, dict[str, Any]],
+    errors: list[str],
+) -> None:
+    if not entry or entry not in node_by_id:
+        errors.append("graph.entry must reference an existing node")
+
+
+def _validate_graph_nodes(
+    nodes: list[dict[str, Any]],
+    registry: BlockRegistry,
+    errors: list[str],
+) -> None:
+    seen_ids: set[str] = set()
+    for node in nodes:
+        node_id = str(node.get("id") or "")
+        if not node_id:
+            errors.append("Graph node id cannot be empty")
+        elif node_id in seen_ids:
+            errors.append(f"Duplicate graph node id: {node_id}")
+        seen_ids.add(node_id)
+        _validate_graph_node_params(node, registry, errors)
+
+
+def _validate_graph_node_params(
+    node: dict[str, Any],
+    registry: BlockRegistry,
+    errors: list[str],
+) -> None:
+    block_id = node.get("block")
+    block = registry.get(str(block_id))
+    if block is None:
+        errors.append(f"Unknown block: {block_id}")
+        return
+    params = node.get("params") if isinstance(node.get("params"), dict) else {}
+    for key, expected in (block.get("params_schema") or {}).items():
+        if key not in params:
+            errors.append(f"{node.get('id')}.{key} is required")
+            continue
+        if not _matches_type(params[key], expected):
+            errors.append(f"{node.get('id')}.{key} must be {expected}")
+
+
+def _validate_graph_edges(
+    edges: list[dict[str, Any]],
+    node_by_id: dict[Any, dict[str, Any]],
+    registry: BlockRegistry,
+    errors: list[str],
+    warnings: list[str],
+) -> None:
+    for edge in edges:
+        source = node_by_id.get(edge.get("from"))
+        target = node_by_id.get(edge.get("to"))
+        if source is None or target is None:
+            errors.append(f"Edge references missing node: {edge}")
+            continue
+        _validate_graph_edge_ports(edge, source, target, registry, errors, warnings)
+
+
+def _validate_graph_edge_ports(
+    edge: dict[str, Any],
+    source: dict[str, Any],
+    target: dict[str, Any],
+    registry: BlockRegistry,
+    errors: list[str],
+    warnings: list[str],
+) -> None:
+    source_block = registry.get(str(source.get("block"))) or {}
+    target_block = registry.get(str(target.get("block"))) or {}
+    source_type = (source_block.get("output_ports") or {}).get(edge.get("output"))
+    target_type = (target_block.get("input_ports") or {}).get(edge.get("input"))
+    if source_type is None:
+        errors.append(f"{source.get('id')} has no output port {edge.get('output')}")
+    if target_type is None:
+        errors.append(f"{target.get('id')} has no input port {edge.get('input')}")
+    if not source_type or not target_type or source_type == target_type:
+        return
+    if edge.get("adapter") is None:
+        errors.append(
+            f"Type mismatch: {source.get('id')}.{edge.get('output')} "
+            f"{source_type} -> {target.get('id')}.{edge.get('input')} {target_type}"
+        )
+    else:
+        warnings.append(
+            f"Adapter {edge.get('adapter')} bridges {source_type} -> {target_type}"
+        )
 
 
 def execute_graph_preview(graph: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any]:

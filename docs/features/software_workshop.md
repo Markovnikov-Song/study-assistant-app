@@ -39,6 +39,7 @@
 - 后端提供 Scratch 风格 workflow registry、资源角色类型清单和 `workshop.workflow.v1` 校验器。
 - 后端提供 Mini App version 快照：创建、访谈生成、保存配置、助教改造、资料生成卡片都会形成新版本，run session 会绑定当时的 `app_version_id` 和运行快照。
 - 后端提供 workflow patch 合同：自然语言改造先生成结构化 patch operations，再返回 patched workflow 和校验结果。
+- workflow 和 invisible canvas 校验已拆成更小的节点/边/插槽校验器，非法参数、非法边、非法 graph 结构会给出明确错误。
 - 前端提供积木脚本页，可查看积木分类、参数插槽和资源角色，并能基于示例 workflow 加入积木、删除、上下移动、编辑积木 JSON 参数、复制当前 workflow、调用后端校验。
 
 ## 关键数据

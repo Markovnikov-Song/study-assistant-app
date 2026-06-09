@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from copy import deepcopy
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,24 @@ from .models import MiniAppValidation
 
 WORKFLOW_SCHEMA_VERSION = "workshop.workflow.v1"
 _REF_PATTERN = re.compile(r"^\$[A-Za-z_][A-Za-z0-9_.-]*$")
+
+
+@dataclass(frozen=True)
+class _RegistryIndex:
+    block_defs: dict[str, dict[str, Any]]
+    shape_defs: dict[str, dict[str, Any]]
+    resource_types: set[str]
+    slot_types: dict[str, dict[str, Any]]
+
+
+@dataclass
+class _ParamValidationContext:
+    slot_types: dict[str, dict[str, Any]]
+    scope: set[str]
+    block_defs: dict[str, dict[str, Any]]
+    shape_defs: dict[str, dict[str, Any]]
+    errors: list[str]
+    warnings: list[str]
 
 
 class ResourceRef(BaseModel):
@@ -105,6 +124,31 @@ def list_resource_actor_types() -> dict[str, Any]:
     }
 
 
+def _registry_index(registry: dict[str, Any]) -> _RegistryIndex:
+    return _RegistryIndex(
+        block_defs={
+            str(item["id"]): item
+            for item in registry.get("blocks", [])
+            if isinstance(item, dict) and item.get("id")
+        },
+        shape_defs={
+            str(item["id"]): item
+            for item in registry.get("shapes", [])
+            if isinstance(item, dict) and item.get("id")
+        },
+        resource_types={
+            str(item["id"])
+            for item in registry.get("resource_actor_types", [])
+            if isinstance(item, dict) and item.get("id")
+        },
+        slot_types={
+            str(item["id"]): item
+            for item in registry.get("slot_types", [])
+            if isinstance(item, dict) and item.get("id")
+        },
+    )
+
+
 def validate_workflow_definition(raw: dict[str, Any]) -> WorkflowValidateOut:
     errors: list[str] = []
     warnings: list[str] = []
@@ -116,13 +160,7 @@ def validate_workflow_definition(raw: dict[str, Any]) -> WorkflowValidateOut:
             normalized={},
         )
 
-    registry = get_workflow_registry()
-    block_defs = {str(item["id"]): item for item in registry.get("blocks", []) if isinstance(item, dict) and item.get("id")}
-    shape_defs = {str(item["id"]): item for item in registry.get("shapes", []) if isinstance(item, dict) and item.get("id")}
-    resource_types = {
-        str(item["id"]) for item in registry.get("resource_actor_types", []) if isinstance(item, dict) and item.get("id")
-    }
-    slot_types = {str(item["id"]): item for item in registry.get("slot_types", []) if isinstance(item, dict) and item.get("id")}
+    registry_index = _registry_index(get_workflow_registry())
 
     if workflow.schema_version != WORKFLOW_SCHEMA_VERSION:
         errors.append(f"schema_version must be {WORKFLOW_SCHEMA_VERSION}")
@@ -134,10 +172,10 @@ def validate_workflow_definition(raw: dict[str, Any]) -> WorkflowValidateOut:
         if actor.id in actor_ids:
             errors.append(f"duplicate actor id: {actor.id}")
         actor_ids.add(actor.id)
-        _validate_actor(actor, resource_types, errors, warnings)
+        _validate_actor(actor, registry_index.resource_types, errors, warnings)
 
     for script in workflow.scripts:
-        _validate_script(script, block_defs, shape_defs, slot_types, actor_ids, errors, warnings)
+        _validate_script(script, registry_index, actor_ids, errors, warnings)
 
     normalized = workflow.model_dump(by_alias=True)
     return WorkflowValidateOut(
@@ -351,15 +389,13 @@ def _requested_resource_limit(raw_text: str, normalized_text: str) -> int | None
 
 def _validate_script(
     script: WorkflowScript,
-    block_defs: dict[str, dict[str, Any]],
-    shape_defs: dict[str, dict[str, Any]],
-    slot_types: dict[str, dict[str, Any]],
+    registry_index: _RegistryIndex,
     actor_ids: set[str],
     errors: list[str],
     warnings: list[str],
 ) -> None:
     hat_id = str(script.hat.get("block") or "")
-    hat = block_defs.get(hat_id)
+    hat = registry_index.block_defs.get(hat_id)
     if hat is None:
         errors.append(f"{script.id}.hat uses unknown block: {hat_id}")
     elif str(hat.get("shape")) != "hat":
@@ -371,9 +407,7 @@ def _validate_script(
         _validate_block(
             block,
             f"{script.id}.body[{index}]",
-            block_defs,
-            shape_defs,
-            slot_types,
+            registry_index,
             scope,
             errors,
             warnings,
@@ -383,19 +417,17 @@ def _validate_script(
 def _validate_block(
     block: WorkflowBlock,
     path: str,
-    block_defs: dict[str, dict[str, Any]],
-    shape_defs: dict[str, dict[str, Any]],
-    slot_types: dict[str, dict[str, Any]],
+    registry_index: _RegistryIndex,
     scope: set[str],
     errors: list[str],
     warnings: list[str],
 ) -> None:
-    block_def = block_defs.get(block.block)
+    block_def = registry_index.block_defs.get(block.block)
     if block_def is None:
         errors.append(f"{path} uses unknown block: {block.block}")
         return
     shape_id = str(block_def.get("shape") or "")
-    shape = shape_defs.get(shape_id)
+    shape = registry_index.shape_defs.get(shape_id)
     if shape is None:
         errors.append(f"{path} uses unknown shape: {shape_id}")
     if shape_id in {"hat", "reporter", "boolean"} and path.count(".body") + path.count(".then") + path.count(".else") > 0:
@@ -418,10 +450,8 @@ def _validate_block(
             slot,
             f"{path}.{name}",
             param_def,
-            slot_types,
+            registry_index,
             scope,
-            block_defs,
-            shape_defs,
             errors,
             warnings,
         )
@@ -451,8 +481,8 @@ def _validate_block(
             block.condition,
             "boolean",
             f"{path}.condition",
-            block_defs,
-            shape_defs,
+            registry_index.block_defs,
+            registry_index.shape_defs,
             scope,
             errors,
             warnings,
@@ -469,9 +499,7 @@ def _validate_block(
             _validate_block(
                 child,
                 f"{path}.{child_name}[{index}]",
-                block_defs,
-                shape_defs,
-                slot_types,
+                registry_index,
                 child_scope,
                 errors,
                 warnings,
@@ -498,50 +526,159 @@ def _validate_param_value(
     slot: str,
     path: str,
     param_def: dict[str, Any],
-    slot_types: dict[str, dict[str, Any]],
+    registry_index: _RegistryIndex,
     scope: set[str],
-    block_defs: dict[str, dict[str, Any]],
-    shape_defs: dict[str, dict[str, Any]],
     errors: list[str],
     warnings: list[str],
 ) -> None:
-    if slot not in slot_types:
+    context = _ParamValidationContext(
+        slot_types=registry_index.slot_types,
+        scope=scope,
+        block_defs=registry_index.block_defs,
+        shape_defs=registry_index.shape_defs,
+        errors=errors,
+        warnings=warnings,
+    )
+    if slot not in context.slot_types:
         errors.append(f"{path} uses unknown slot type: {slot}")
         return
-    if slot == "number":
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
-            errors.append(f"{path} must be a number")
-            return
-        if "min" in param_def and value < param_def["min"]:
-            errors.append(f"{path} must be >= {param_def['min']}")
-        if "max" in param_def and value > param_def["max"]:
-            errors.append(f"{path} must be <= {param_def['max']}")
-    elif slot == "text":
-        if not isinstance(value, str):
-            errors.append(f"{path} must be text")
-    elif slot == "enum":
-        options = param_def.get("options") or []
-        if value not in options:
-            errors.append(f"{path} must be one of: {', '.join(map(str, options))}")
-    elif slot == "boolean_expression":
-        _validate_expression_block(value, "boolean", path, block_defs, shape_defs, scope, errors, warnings)
-    elif slot == "reporter_expression":
-        _validate_reporter_value(value, path, scope, block_defs, shape_defs, errors, warnings)
-    elif slot == "resource_ref":
-        _validate_resource_ref_value(value, path, set(param_def.get("accepts") or []), errors, warnings)
-    elif slot in {"resource_query", "resource_set"}:
-        if not isinstance(value, dict):
-            errors.append(f"{path} must be a resource query object")
-        elif not value.get("resource_types") and not value.get("type") and not value.get("subject_id"):
-            warnings.append(f"{path} resource query has no narrowing filter")
-    elif slot == "llm_config":
-        if not isinstance(value, dict):
-            errors.append(f"{path} must be an LLM config object")
-        elif not value.get("model"):
-            errors.append(f"{path}.model is required")
-    elif slot == "write_policy":
-        if not isinstance(value, dict):
-            errors.append(f"{path} must be a write policy object")
+    validator = _SLOT_VALIDATORS.get(slot)
+    if validator is not None:
+        validator(context, value, path, param_def)
+
+
+def _validate_number_slot(
+    context: _ParamValidationContext,
+    value: Any,
+    path: str,
+    param_def: dict[str, Any],
+) -> None:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        context.errors.append(f"{path} must be a number")
+        return
+    if "min" in param_def and value < param_def["min"]:
+        context.errors.append(f"{path} must be >= {param_def['min']}")
+    if "max" in param_def and value > param_def["max"]:
+        context.errors.append(f"{path} must be <= {param_def['max']}")
+
+
+def _validate_text_slot(
+    context: _ParamValidationContext,
+    value: Any,
+    path: str,
+    param_def: dict[str, Any],
+) -> None:
+    if not isinstance(value, str):
+        context.errors.append(f"{path} must be text")
+
+
+def _validate_enum_slot(
+    context: _ParamValidationContext,
+    value: Any,
+    path: str,
+    param_def: dict[str, Any],
+) -> None:
+    options = param_def.get("options") or []
+    if value not in options:
+        context.errors.append(f"{path} must be one of: {', '.join(map(str, options))}")
+
+
+def _validate_boolean_expression_slot(
+    context: _ParamValidationContext,
+    value: Any,
+    path: str,
+    param_def: dict[str, Any],
+) -> None:
+    _validate_expression_block(
+        value,
+        "boolean",
+        path,
+        context.block_defs,
+        context.shape_defs,
+        context.scope,
+        context.errors,
+        context.warnings,
+    )
+
+
+def _validate_reporter_expression_slot(
+    context: _ParamValidationContext,
+    value: Any,
+    path: str,
+    param_def: dict[str, Any],
+) -> None:
+    _validate_reporter_value(
+        value,
+        path,
+        context.scope,
+        context.block_defs,
+        context.shape_defs,
+        context.errors,
+        context.warnings,
+    )
+
+
+def _validate_resource_ref_slot(
+    context: _ParamValidationContext,
+    value: Any,
+    path: str,
+    param_def: dict[str, Any],
+) -> None:
+    _validate_resource_ref_value(
+        value,
+        path,
+        set(param_def.get("accepts") or []),
+        context.errors,
+        context.warnings,
+    )
+
+
+def _validate_resource_query_slot(
+    context: _ParamValidationContext,
+    value: Any,
+    path: str,
+    param_def: dict[str, Any],
+) -> None:
+    if not isinstance(value, dict):
+        context.errors.append(f"{path} must be a resource query object")
+    elif not value.get("resource_types") and not value.get("type") and not value.get("subject_id"):
+        context.warnings.append(f"{path} resource query has no narrowing filter")
+
+
+def _validate_llm_config_slot(
+    context: _ParamValidationContext,
+    value: Any,
+    path: str,
+    param_def: dict[str, Any],
+) -> None:
+    if not isinstance(value, dict):
+        context.errors.append(f"{path} must be an LLM config object")
+    elif not value.get("model"):
+        context.errors.append(f"{path}.model is required")
+
+
+def _validate_write_policy_slot(
+    context: _ParamValidationContext,
+    value: Any,
+    path: str,
+    param_def: dict[str, Any],
+) -> None:
+    if not isinstance(value, dict):
+        context.errors.append(f"{path} must be a write policy object")
+
+
+_SLOT_VALIDATORS = {
+    "number": _validate_number_slot,
+    "text": _validate_text_slot,
+    "enum": _validate_enum_slot,
+    "boolean_expression": _validate_boolean_expression_slot,
+    "reporter_expression": _validate_reporter_expression_slot,
+    "resource_ref": _validate_resource_ref_slot,
+    "resource_query": _validate_resource_query_slot,
+    "resource_set": _validate_resource_query_slot,
+    "llm_config": _validate_llm_config_slot,
+    "write_policy": _validate_write_policy_slot,
+}
 
 
 def _validate_expression_block(

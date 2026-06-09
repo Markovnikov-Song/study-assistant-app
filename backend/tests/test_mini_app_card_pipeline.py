@@ -58,6 +58,57 @@ def test_document_spec_compiles_to_loader_graph():
     assert validation.ok
 
 
+def test_validate_graph_reports_node_and_edge_contract_errors():
+    graph = {
+        "schema_version": "miniapp.graph.v1",
+        "entry": "load_content",
+        "nodes": [
+            {
+                "id": "load_content",
+                "block": "manual_card_loader",
+                "params": {"source": "spec.content.items", "limit": "bad"},
+            },
+            {
+                "id": "select_today",
+                "block": "daily_quota_scheduler",
+                "params": {"new_items_per_day": 10, "max_reviews_per_day": 30},
+            },
+        ],
+        "edges": [
+            {
+                "from": "load_content",
+                "output": "missing",
+                "to": "select_today",
+                "input": "items",
+            }
+        ],
+    }
+
+    validation = validate_graph(graph, _manual_spec())
+
+    assert not validation.ok
+    errors = "\n".join(validation.errors)
+    assert "load_content.limit must be int" in errors
+    assert "load_content has no output port missing" in errors
+
+
+def test_validate_graph_reports_malformed_collections():
+    validation = validate_graph(
+        {
+            "schema_version": "miniapp.graph.v1",
+            "entry": "load_content",
+            "nodes": [{"id": "load_content", "block": "manual_card_loader", "params": {}}, "bad"],
+            "edges": {"from": "load_content"},
+        },
+        _manual_spec(),
+    )
+
+    assert not validation.ok
+    errors = "\n".join(validation.errors)
+    assert "graph.nodes[1] must be an object" in errors
+    assert "graph.edges must be a list" in errors
+
+
 def test_process_chunks_estimates_dynamic_card_count():
     chunks = [
         RawChunk(
@@ -123,3 +174,25 @@ def test_build_spec_uses_document_binding_when_mentioned():
     validation = validate_spec(spec)
     assert validation.ok
     assert any("尚未从资料生成" in warning for warning in validation.warnings)
+
+
+def _manual_spec() -> dict:
+    return {
+        "schema_version": "miniapp.v1",
+        "app": {"type": "memory", "title": "测试", "subject_id": 1},
+        "content": {
+            "source_type": "manual",
+            "items": [
+                {"id": "card_1", "front": "A", "back": "B"},
+                {"id": "card_2", "front": "C", "back": "D"},
+                {"id": "card_3", "front": "E", "back": "F"},
+                {"id": "card_4", "front": "G", "back": "H"},
+                {"id": "card_5", "front": "I", "back": "J"},
+            ],
+        },
+        "screens": ["card_practice"],
+        "scheduler": {"type": "daily_fixed", "new_items_per_day": 10, "max_reviews_per_day": 30},
+        "assessment": {"mastered_threshold": 0.85, "wrong_before_explanation": 2},
+        "practice": {"sequence": ["flashcard"]},
+        "runtime": {"engine": "flashcard_runtime", "safe_blocks": []},
+    }

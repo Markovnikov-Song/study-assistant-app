@@ -28,10 +28,11 @@
     {"id": "REVIEW-NOTE-CONTRACT", "feature": "review.mistakes", "level": "L0", "file": "backend/tests/test_review_note_contracts.py", "status": "passed", "coverage": "判题、错题收录、SM-2 卡片和笔记合同"},
     {"id": "WORKSHOP-P2-ENTRY", "feature": "workshop.mini_apps", "level": "L1", "file": "tests/playwright/p1_shell_flow.spec.ts", "status": "passed", "coverage": "软件工坊入口渲染"},
     {"id": "WORKSHOP-P2-01", "feature": "workshop.mini_apps", "level": "L0", "file": "test/features/workshop/workshop_page_test.dart", "status": "passed", "coverage": "四入口展示、运行最近小工具、从首页改造已有小工具"},
-    {"id": "WORKSHOP-BLOCKS-L0", "feature": "workshop.mini_apps", "level": "L0", "file": "backend/tests/test_workshop_workflow.py", "status": "passed", "coverage": "Scratch 风格积木 registry、资源角色类型、workflow validator、LLM 失败策略和非法积木拒绝"},
+    {"id": "WORKSHOP-BLOCKS-L0", "feature": "workshop.mini_apps", "level": "L0", "file": "backend/tests/test_workshop_workflow.py", "status": "passed", "coverage": "Scratch 风格积木 registry、资源角色类型、workflow validator、插槽错误、LLM 失败策略和非法积木拒绝"},
     {"id": "WORKSHOP-BLOCKS-UI", "feature": "workshop.mini_apps", "level": "L0", "file": "test/features/workshop/workshop_blocks_page_test.dart", "status": "passed", "coverage": "积木脚本页读取 registry、展示分类/资料角色、加入积木、编辑积木 JSON、校验当前 workflow"},
     {"id": "WORKSHOP-VERSION-L0", "feature": "workshop.mini_apps", "level": "L0", "file": "backend/tests/test_mini_app_versions.py", "status": "passed", "coverage": "Mini App 创建和更新生成版本快照，run session 绑定 app_version_id 和运行快照"},
-    {"id": "WORKSHOP-PATCH-L0", "feature": "workshop.mini_apps", "level": "L0", "file": "backend/tests/test_workshop_workflow.py", "status": "passed", "coverage": "自然语言 workflow patch 生成结构化 ops，并复用 validator 校验 patched workflow"}
+    {"id": "WORKSHOP-PATCH-L0", "feature": "workshop.mini_apps", "level": "L0", "file": "backend/tests/test_workshop_workflow.py", "status": "passed", "coverage": "自然语言 workflow patch 生成结构化 ops，并复用 validator 校验 patched workflow"},
+    {"id": "WORKSHOP-GRAPH-L0", "feature": "workshop.mini_apps", "level": "L0", "file": "backend/tests/test_mini_app_card_pipeline.py", "status": "passed", "coverage": "Invisible canvas graph 校验节点参数、边端口和 malformed graph collection 错误"}
   ],
   "known_gaps": [
     "Android/iOS 通知和应用锁需要 L5 真机验收。",
