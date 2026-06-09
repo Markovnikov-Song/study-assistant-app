@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "updated_at": "2026-06-06",
+  "updated_at": "2026-06-09",
   "apis": [
     {"method": "GET", "path": "/api/subjects", "feature": "subjects.resources_rag", "request": "include_archived?", "response": "Subject[]", "tests": ["subject_resource_flow.spec.ts"]},
     {"method": "POST", "path": "/api/subjects", "feature": "subjects.resources_rag", "request": "name, category?, description?, color_index?", "response": "Subject", "tests": ["subject_resource_flow.spec.ts"]},
@@ -28,9 +28,13 @@
     {"method": "POST", "path": "/api/calendar/events", "feature": "calendar.learning_calendar", "request": "title, event_date, start_time, duration_minutes, reminder settings", "response": "CalendarEvent", "tests": ["calendar_flow.spec.ts"]},
     {"method": "POST", "path": "/api/calendar/sessions", "feature": "calendar.pomodoro_focus_guard", "request": "event_id?, duration_minutes, pomodoro_count", "response": "StudySession", "tests": ["calendar_flow.spec.ts"]},
     {"method": "GET", "path": "/api/mini-apps", "feature": "workshop.mini_apps", "request": "user scope", "response": "MiniApp[]", "tests": ["p1_shell_flow.spec.ts"]},
+    {"method": "GET", "path": "/api/mini-apps/{app_id}/versions", "feature": "workshop.mini_apps", "request": "app_id", "response": "MiniAppVersion[] + current_version_id", "tests": ["test_mini_app_versions.py"]},
+    {"method": "GET", "path": "/api/mini-apps/{app_id}/versions/{version_id}", "feature": "workshop.mini_apps", "request": "app_id, version_id", "response": "MiniAppVersion snapshot", "tests": ["test_mini_app_versions.py"]},
+    {"method": "POST", "path": "/api/mini-apps/{app_id}/runs/start", "feature": "workshop.mini_apps", "request": "app_id", "response": "run_id, app_version_id, graph, preview", "tests": ["test_mini_app_versions.py"]},
     {"method": "GET", "path": "/api/mini-apps/workflow/registry", "feature": "workshop.mini_apps", "request": "user scope", "response": "Scratch-style block registry, slot types, resource actor types, example workflow", "tests": ["test_workshop_workflow.py"]},
     {"method": "GET", "path": "/api/mini-apps/workflow/resource-actors", "feature": "workshop.mini_apps", "request": "user scope", "response": "Resource actor type registry", "tests": ["test_workshop_workflow.py"]},
-    {"method": "POST", "path": "/api/mini-apps/workflow/validate", "feature": "workshop.mini_apps", "request": "workflow", "response": "MiniAppValidation + normalized workflow", "tests": ["test_workshop_workflow.py"]}
+    {"method": "POST", "path": "/api/mini-apps/workflow/validate", "feature": "workshop.mini_apps", "request": "workflow", "response": "MiniAppValidation + normalized workflow", "tests": ["test_workshop_workflow.py"]},
+    {"method": "POST", "path": "/api/mini-apps/workflow/patch", "feature": "workshop.mini_apps", "request": "workflow, instruction", "response": "patch ops, patched workflow, validation, changed paths", "tests": ["test_workshop_workflow.py"]}
   ],
   "known_gaps": [
     "尚未为所有 API 补齐错误响应、权限和分页说明。",

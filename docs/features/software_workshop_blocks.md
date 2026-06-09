@@ -598,6 +598,8 @@ AI 助教改造时应采用补丁模型：
 - `MiniApp` 是长期存在的小工具壳。
 - `MiniAppVersion` 是具体可运行版本，包含 workflow、文档、运行配置和积木图。
 - `Run` 必须绑定 `version_id`。
+- 当前后端已落地版本快照：创建、访谈生成、配置保存、助教改造和资料生成卡片会写入 `mini_app_versions.json`，运行记录会保存 `app_version_id`、`app_snapshot` 和 `graph_snapshot`。
+- 当前后端已落地 workflow patch 合同：`POST /api/mini-apps/workflow/patch` 会把自然语言修改转为可审计 patch operations，并复用 workflow validator 校验结果。
 - 版本一旦运行，默认锁定。
 - 修改已运行版本时创建新版本。
 - 未运行草稿可以直接编辑。
@@ -679,11 +681,12 @@ workflow diff 不应只显示 JSON 行差异，还应显示积木语义差异：
 
 ## 落地顺序
 
-1. 定义 `workshop.workflow.v1` schema 和 block registry。
-2. 后端增加 version 层，run 绑定 version。
-3. 增加 workflow 文件树导出和 Git commit 追溯。
-4. 增加 AI patch 模型：自然语言改造生成结构化补丁，而不是直接覆盖 JSON。
-5. 前端先做列表式/脚本式积木编辑器。
-6. 支持最小积木集：事件、控制、变量、资料、LLM、交互、判断、写回。
-7. 支持一个可运行示例：资料库生成题 -> 展示题目 -> 判题 -> 写错题 -> 加入复习队列。
-8. 再升级为真正拖拽画布和调试日志。
+1. 已定义 `workshop.workflow.v1` schema 和 block registry。
+2. 已增加 version 层，run 绑定 version。
+3. 已增加 AI patch 合同：自然语言改造生成结构化补丁，而不是直接覆盖 JSON。
+4. 已有前端列表式/脚本式积木编辑器底座。
+5. 下一步增加 workflow 文件树导出和 Git commit 追溯。
+6. 下一步把 patch 接入前端确认流。
+7. 支持最小积木集：事件、控制、变量、资料、LLM、交互、判断、写回。
+8. 支持一个可运行示例：资料库生成题 -> 展示题目 -> 判题 -> 写错题 -> 加入复习队列。
+9. 再升级为真正拖拽画布和调试日志。

@@ -247,12 +247,43 @@ class WorkshopWorkflowValidationResult {
   }
 }
 
+class WorkshopWorkflowPatchResult {
+  final List<Map<String, dynamic>> patch;
+  final Map<String, dynamic> workflow;
+  final MiniAppValidation validation;
+  final List<String> changed;
+
+  const WorkshopWorkflowPatchResult({
+    required this.patch,
+    required this.workflow,
+    required this.validation,
+    required this.changed,
+  });
+
+  factory WorkshopWorkflowPatchResult.fromJson(Map<String, dynamic> json) {
+    return WorkshopWorkflowPatchResult(
+      patch: ((json['patch'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((item) => item.cast<String, dynamic>())
+          .toList(),
+      workflow: (json['workflow'] as Map?)?.cast<String, dynamic>() ?? const {},
+      validation: MiniAppValidation.fromJson(
+        (json['validation'] as Map?)?.cast<String, dynamic>() ?? const {},
+      ),
+      changed: ((json['changed'] as List?) ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+    );
+  }
+}
+
 class MiniAppSummary {
   final String id;
   final String title;
   final String appType;
   final int? subjectId;
   final String status;
+  final String? currentVersionId;
   final String description;
   final String updatedAt;
   final MiniAppValidation validation;
@@ -263,6 +294,7 @@ class MiniAppSummary {
     required this.appType,
     required this.subjectId,
     required this.status,
+    this.currentVersionId,
     required this.description,
     required this.updatedAt,
     required this.validation,
@@ -275,6 +307,7 @@ class MiniAppSummary {
       appType: json['app_type'] as String? ?? 'memory',
       subjectId: json['subject_id'] as int?,
       status: json['status'] as String? ?? 'draft',
+      currentVersionId: json['current_version_id'] as String?,
       description: json['description'] as String? ?? '',
       updatedAt: json['updated_at'] as String? ?? '',
       validation: MiniAppValidation.fromJson(
@@ -290,6 +323,7 @@ class MiniAppRecord {
   final String appType;
   final int? subjectId;
   final String status;
+  final String? currentVersionId;
   final Map<String, String> documents;
   final Map<String, dynamic> spec;
   final Map<String, dynamic> graph;
@@ -302,6 +336,7 @@ class MiniAppRecord {
     required this.appType,
     required this.subjectId,
     required this.status,
+    this.currentVersionId,
     required this.documents,
     required this.spec,
     required this.graph,
@@ -318,6 +353,7 @@ class MiniAppRecord {
       appType: json['app_type'] as String? ?? 'memory',
       subjectId: json['subject_id'] as int?,
       status: json['status'] as String? ?? 'draft',
+      currentVersionId: json['current_version_id'] as String?,
       documents: rawDocs.map((key, value) => MapEntry(key, value.toString())),
       spec: (json['spec'] as Map?)?.cast<String, dynamic>() ?? const {},
       graph: (json['graph'] as Map?)?.cast<String, dynamic>() ?? const {},
@@ -325,6 +361,78 @@ class MiniAppRecord {
         (json['validation'] as Map?)?.cast<String, dynamic>() ?? const {},
       ),
       updatedAt: json['updated_at'] as String? ?? '',
+    );
+  }
+}
+
+class MiniAppVersion {
+  final String id;
+  final String appId;
+  final String userId;
+  final int sequence;
+  final String? parentVersionId;
+  final String source;
+  final String? instruction;
+  final List<String> changed;
+  final String summary;
+  final Map<String, dynamic> snapshot;
+  final String createdAt;
+
+  const MiniAppVersion({
+    required this.id,
+    required this.appId,
+    required this.userId,
+    required this.sequence,
+    this.parentVersionId,
+    required this.source,
+    this.instruction,
+    required this.changed,
+    required this.summary,
+    required this.snapshot,
+    required this.createdAt,
+  });
+
+  factory MiniAppVersion.fromJson(Map<String, dynamic> json) {
+    return MiniAppVersion(
+      id: json['id'] as String? ?? '',
+      appId: json['app_id'] as String? ?? '',
+      userId: json['user_id'] as String? ?? '',
+      sequence: (json['sequence'] as num?)?.toInt() ?? 0,
+      parentVersionId: json['parent_version_id'] as String?,
+      source: json['source'] as String? ?? '',
+      instruction: json['instruction'] as String?,
+      changed: ((json['changed'] as List?) ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      summary: json['summary'] as String? ?? '',
+      snapshot: (json['snapshot'] as Map?)?.cast<String, dynamic>() ?? const {},
+      createdAt: json['created_at'] as String? ?? '',
+    );
+  }
+}
+
+class MiniAppVersionListResult {
+  final String appId;
+  final String? currentVersionId;
+  final List<MiniAppVersion> versions;
+  final int total;
+
+  const MiniAppVersionListResult({
+    required this.appId,
+    this.currentVersionId,
+    required this.versions,
+    required this.total,
+  });
+
+  factory MiniAppVersionListResult.fromJson(Map<String, dynamic> json) {
+    return MiniAppVersionListResult(
+      appId: json['app_id'] as String? ?? '',
+      currentVersionId: json['current_version_id'] as String?,
+      versions: ((json['versions'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((item) => MiniAppVersion.fromJson(item.cast<String, dynamic>()))
+          .toList(),
+      total: (json['total'] as num?)?.toInt() ?? 0,
     );
   }
 }

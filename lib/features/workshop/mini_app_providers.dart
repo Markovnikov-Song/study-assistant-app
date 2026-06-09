@@ -33,3 +33,8 @@ final miniAppProvider = FutureProvider.family<MiniAppRecord, String>((
 ) async {
   return ref.read(miniAppServiceProvider).getApp(id);
 });
+
+final miniAppVersionsProvider =
+    FutureProvider.family<MiniAppVersionListResult, String>((ref, appId) async {
+      return ref.read(miniAppServiceProvider).listAppVersions(appId);
+    });

@@ -13,6 +13,7 @@ from main import create_app
 from mini_apps.workflow import (
     get_workflow_blocks_registry,
     list_resource_actor_types,
+    patch_workflow_definition,
     validate_workflow_definition,
 )
 
@@ -105,3 +106,35 @@ def test_workflow_registry_and_validate_routes():
     )
     assert validate_response.status_code == 200
     assert validate_response.json()["validation"]["ok"] is True
+
+    patch_response = client.post(
+        "/api/mini-apps/workflow/patch",
+        json={
+            "workflow": registry["example_workflow"],
+            "instruction": "题量减半，改成选择题，资料最多 5 条",
+        },
+    )
+    assert patch_response.status_code == 200
+    patched = patch_response.json()
+    assert patched["validation"]["ok"] is True
+    assert patched["patch"]
+
+
+def test_workflow_patch_creates_auditable_semantic_ops():
+    registry = get_workflow_blocks_registry()
+    workflow = deepcopy(registry["example_workflow"])
+
+    result = patch_workflow_definition(
+        workflow,
+        "题量减半，改成选择题，资料最多 5 条",
+    )
+
+    assert result.validation.ok, result.validation.errors
+    ops = {(item["op"], item["param"]) for item in result.patch}
+    assert ("set_param", "count") in ops
+    assert ("set_param", "question_type") in ops
+    assert ("set_nested_param", "query.limit") in ops
+    body = result.workflow["scripts"][0]["body"]
+    assert body[0]["params"]["query"]["limit"] == 5
+    assert body[1]["params"]["count"] == 5
+    assert body[1]["params"]["question_type"] == "choice"

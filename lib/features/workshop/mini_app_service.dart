@@ -31,6 +31,32 @@ class MiniAppService {
     }
   }
 
+  Future<MiniAppVersionListResult> listAppVersions(String appId) async {
+    try {
+      final res = await _dio.get('/api/mini-apps/$appId/versions');
+      return MiniAppVersionListResult.fromJson(
+        (res.data as Map).cast<String, dynamic>(),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<MiniAppVersion> getAppVersion({
+    required String appId,
+    required String versionId,
+  }) async {
+    try {
+      final res = await _dio.get('/api/mini-apps/$appId/versions/$versionId');
+      final data = (res.data as Map).cast<String, dynamic>();
+      return MiniAppVersion.fromJson(
+        (data['version'] as Map).cast<String, dynamic>(),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<void> deleteApp(String id) async {
     try {
       await _dio.delete('/api/mini-apps/$id');
@@ -130,6 +156,23 @@ class MiniAppService {
         data: {'workflow': workflow},
       );
       return WorkshopWorkflowValidationResult.fromJson(
+        (res.data as Map).cast<String, dynamic>(),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<WorkshopWorkflowPatchResult> patchWorkflow({
+    required Map<String, dynamic> workflow,
+    required String instruction,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '/api/mini-apps/workflow/patch',
+        data: {'workflow': workflow, 'instruction': instruction},
+      );
+      return WorkshopWorkflowPatchResult.fromJson(
         (res.data as Map).cast<String, dynamic>(),
       );
     } on DioException catch (e) {

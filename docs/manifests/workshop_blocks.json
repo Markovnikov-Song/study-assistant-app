@@ -1,8 +1,8 @@
 {
   "schema_version": "0.1.0",
-  "updated_at": "2026-06-05",
+  "updated_at": "2026-06-09",
   "feature": "workshop.mini_apps",
-  "status": "frontend_editor_shell_implemented",
+  "status": "versioned_patch_contract_implemented",
   "design_doc": "docs/features/software_workshop_blocks.md",
   "principles": [
     "Scratch-like categories, shapes, slots, scripts, reporters, predicates, C-blocks, and custom blocks.",

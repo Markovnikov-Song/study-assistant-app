@@ -46,6 +46,8 @@ from mini_apps.models import (
     MiniAppSaveOut,
     MiniAppSummary,
     MiniAppUpdateIn,
+    MiniAppVersionListOut,
+    MiniAppVersionOut,
     ValidateSpecIn,
     ValidateSpecOut,
     ValidateGraphIn,
@@ -54,20 +56,27 @@ from mini_apps.models import (
 from mini_apps.store import (
     append_answer,
     append_run_event,
+    create_app_version,
     create_run,
     create_session,
     delete_app,
+    ensure_app_version,
     get_app,
+    get_app_version,
     get_run,
     get_session,
+    list_app_versions,
     list_apps,
     save_app,
 )
 from mini_apps.workflow import (
     WorkflowValidateIn,
     WorkflowValidateOut,
+    WorkflowPatchIn,
+    WorkflowPatchOut,
     get_workflow_blocks_registry,
     list_resource_actor_types,
+    patch_workflow_definition,
     validate_workflow_definition,
 )
 
@@ -81,6 +90,7 @@ def _summary(app: MiniAppRecord) -> MiniAppSummary:
         app_type=app.app_type,
         subject_id=app.subject_id,
         status=app.status,
+        current_version_id=app.current_version_id,
         description=summary_description(app),
         updated_at=app.updated_at,
         validation=app.validation,
@@ -89,7 +99,7 @@ def _summary(app: MiniAppRecord) -> MiniAppSummary:
 
 @router.get("", response_model=MiniAppListOut)
 def list_mini_apps(user=Depends(get_current_user)):
-    apps = [_summary(app) for app in list_apps(user["id"])]
+    apps = [_summary(ensure_app_version(user["id"], app)) for app in list_apps(user["id"])]
     return MiniAppListOut(apps=apps, total=len(apps))
 
 
@@ -112,6 +122,7 @@ def save_mini_app(body: MiniAppSaveIn, user=Depends(get_current_user)):
         created_at=created,
         updated_at=created,
     )
+    create_app_version(user["id"], app, source="create", summary="创建小工具初始版本")
     return MiniAppSaveOut(app=save_app(user["id"], app))
 
 
@@ -126,6 +137,7 @@ def update_mini_app(app_id: str, body: MiniAppUpdateIn, user=Depends(get_current
     app = get_app(user["id"], app_id)
     if app is None:
         raise HTTPException(404, "Mini app not found")
+    app = ensure_app_version(user["id"], app)
 
     spec = body.spec if body.spec is not None else app.spec
     graph, graph_validation = materialize_graph(spec)
@@ -143,6 +155,7 @@ def update_mini_app(app_id: str, body: MiniAppUpdateIn, user=Depends(get_current
     app.validation = validation
     app.status = body.status or ("validated" if validation.ok else "draft")
     app.updated_at = now_iso()
+    create_app_version(user["id"], app, source="update", changed=_update_changed_fields(body))
     return MiniAppSaveOut(app=save_app(user["id"], app))
 
 
@@ -154,6 +167,7 @@ def revise_mini_app(app_id: str, body: MiniAppReviseIn, user=Depends(get_current
     app = get_app(user["id"], app_id)
     if app is None:
         raise HTTPException(404, "Mini app not found")
+    app = ensure_app_version(user["id"], app)
 
     spec, changed = revise_spec(app.spec, instruction)
     graph, graph_validation = materialize_graph(spec)
@@ -175,6 +189,14 @@ def revise_mini_app(app_id: str, body: MiniAppReviseIn, user=Depends(get_current
     app.validation = validation
     app.status = "validated" if validation.ok else "draft"
     app.updated_at = now_iso()
+    create_app_version(
+        user["id"],
+        app,
+        source="revise",
+        instruction=instruction,
+        changed=changed,
+        summary=f"助教改造：{instruction}",
+    )
     saved = save_app(user["id"], app)
     return MiniAppReviseOut(app=saved, changed=changed)
 
@@ -204,6 +226,14 @@ def list_workshop_resource_actor_types(user=Depends(get_current_user)):
 @router.post("/workflow/validate", response_model=WorkflowValidateOut)
 def validate_workshop_workflow(body: WorkflowValidateIn, user=Depends(get_current_user)):
     return validate_workflow_definition(body.workflow)
+
+
+@router.post("/workflow/patch", response_model=WorkflowPatchOut)
+def patch_workshop_workflow(body: WorkflowPatchIn, user=Depends(get_current_user)):
+    instruction = body.instruction.strip()
+    if not instruction:
+        raise HTTPException(400, "instruction cannot be empty")
+    return patch_workflow_definition(body.workflow, instruction)
 
 
 @router.post("/generate-cards", response_model=GenerateCardsOut)
@@ -253,6 +283,7 @@ def generate_cards_for_app(
     app = get_app(user["id"], app_id)
     if app is None:
         raise HTTPException(404, "Mini app not found")
+    app = ensure_app_version(user["id"], app)
 
     spec = dict(app.spec)
     content = spec.setdefault("content", {})
@@ -314,6 +345,13 @@ def generate_cards_for_app(
     app.validation = validation
     app.documents = documents
     app.updated_at = now_iso()
+    create_app_version(
+        user["id"],
+        app,
+        source="generate_cards",
+        changed=["content.items", "runtime_config.json", "invisible_canvas.json"],
+        summary=f"从资料生成 {len(items)} 张闪卡",
+    )
     saved = save_app(user["id"], app)
     target = int(meta.get("synthesizer", {}).get("target_card_count", len(items)))
     return GenerateCardsForAppOut(
@@ -357,14 +395,22 @@ def start_mini_app_run(app_id: str, user=Depends(get_current_user)):
     app = get_app(user["id"], app_id)
     if app is None:
         raise HTTPException(404, "Mini app not found")
+    app = ensure_app_version(user["id"], app)
     graph = app.graph or materialize_graph(app.spec)[0]
     preview = execute_graph_preview(graph, app.spec)
     if not preview.get("ok"):
         raise HTTPException(400, "Mini app graph is not runnable")
-    run = create_run(user["id"], app.id, graph)
+    run = create_run(
+        user["id"],
+        app.id,
+        graph,
+        app_version_id=app.current_version_id,
+        app_snapshot=_run_app_snapshot(app, graph),
+    )
     return MiniAppRunStartOut(
         run_id=str(run["id"]),
         app_id=app.id,
+        app_version_id=app.current_version_id,
         status=str(run["status"]),
         graph=graph,
         preview=preview,
@@ -445,6 +491,7 @@ def answer_interview(session_id: str, body: InterviewAnswerIn, user=Depends(get_
         )
 
     draft = build_app_from_session(user["id"], session)
+    create_app_version(user["id"], draft, source="interview", summary="访谈生成小工具草稿")
     draft = save_app(user["id"], draft)
     return InterviewTurnOut(
         session_id=session_id,
@@ -460,4 +507,58 @@ def get_mini_app(app_id: str, user=Depends(get_current_user)):
     app = get_app(user["id"], app_id)
     if app is None:
         raise HTTPException(404, "Mini app not found")
-    return app
+    return ensure_app_version(user["id"], app)
+
+
+@router.get("/{app_id}/versions", response_model=MiniAppVersionListOut)
+def list_mini_app_versions(app_id: str, user=Depends(get_current_user)):
+    app = get_app(user["id"], app_id)
+    if app is None:
+        raise HTTPException(404, "Mini app not found")
+    app = ensure_app_version(user["id"], app)
+    versions = list_app_versions(user["id"], app.id)
+    return MiniAppVersionListOut(
+        app_id=app.id,
+        current_version_id=app.current_version_id,
+        versions=versions,
+        total=len(versions),
+    )
+
+
+@router.get("/{app_id}/versions/{version_id}", response_model=MiniAppVersionOut)
+def get_mini_app_version(app_id: str, version_id: str, user=Depends(get_current_user)):
+    app = get_app(user["id"], app_id)
+    if app is None:
+        raise HTTPException(404, "Mini app not found")
+    app = ensure_app_version(user["id"], app)
+    version = get_app_version(user["id"], app.id, version_id)
+    if version is None:
+        raise HTTPException(404, "Mini app version not found")
+    return MiniAppVersionOut(version=version)
+
+
+def _update_changed_fields(body: MiniAppUpdateIn) -> list[str]:
+    changed: list[str] = []
+    if body.title is not None:
+        changed.append("title")
+    if body.documents is not None:
+        changed.extend(f"documents.{key}" for key in body.documents.keys())
+    if body.spec is not None:
+        changed.append("spec")
+    if body.status is not None:
+        changed.append("status")
+    return changed
+
+
+def _run_app_snapshot(app: MiniAppRecord, graph: dict[str, object]) -> dict[str, object]:
+    return {
+        "id": app.id,
+        "title": app.title,
+        "app_type": app.app_type,
+        "subject_id": app.subject_id,
+        "status": app.status,
+        "version_id": app.current_version_id,
+        "spec": app.spec,
+        "graph": graph,
+        "validation": app.validation.model_dump(mode="json"),
+    }

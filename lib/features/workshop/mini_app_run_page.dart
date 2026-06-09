@@ -98,6 +98,10 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
                     completed ? '本轮已完成' : '第 ${_index + 1} / $total 项',
                     style: TextStyle(color: cs.onSurfaceVariant),
                   ),
+                  if (app.currentVersionId != null) ...[
+                    const SizedBox(height: 8),
+                    _ScoreChip(label: '版本 ${app.currentVersionId}'),
+                  ],
                 ],
               ),
             ),
@@ -345,9 +349,9 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('生成失败：$error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('生成失败：$error')));
     } finally {
       if (mounted) setState(() => _generating = false);
     }
@@ -371,7 +375,8 @@ class _EmptyContentView extends StatelessWidget {
     final content =
         (app.spec['content'] as Map?)?.cast<String, dynamic>() ?? {};
     final pipeline = (content['pipeline'] as List?) ?? const [];
-    final usesDocument = content['source_type'] == 'document' ||
+    final usesDocument =
+        content['source_type'] == 'document' ||
         pipeline.map((e) => e.toString()).contains('document_source_loader');
 
     return Center(
@@ -390,7 +395,7 @@ class _EmptyContentView extends StatelessWidget {
             Text(
               usesDocument
                   ? '将走资料导入 → 切块后处理 → 智能出题 三条积木管线。\n'
-                      '卡片数量会根据资料篇幅与章节自动估算，不是固定张数。'
+                        '卡片数量会根据资料篇幅与章节自动估算，不是固定张数。'
                   : '请手动添加学习内容，或绑定学科资料后生成闪卡。',
               textAlign: TextAlign.center,
               style: TextStyle(color: cs.onSurfaceVariant, height: 1.5),

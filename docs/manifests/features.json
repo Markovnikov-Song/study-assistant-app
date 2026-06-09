@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "updated_at": "2026-06-04",
+  "updated_at": "2026-06-09",
   "status_values": ["planned", "prototype", "partial", "implemented", "blocked", "deprecated"],
   "features": [
     {
@@ -115,7 +115,7 @@
       "entry_routes": ["/workshop", "/workshop/builder", "/workshop/blocks", "/workshop/apps/:appId"],
       "user_goal": "让用户用积木和资料生成小学习软件。",
       "platforms": {"android": "partial", "ios": "partial", "web": "partial"},
-      "known_gaps": ["积木页面已能读取 registry、编辑第一个脚本栈并校验当前 workflow；真正拖拽编辑、资源角色实例选择、版本追溯、发布和安全边界仍需实现"]
+      "known_gaps": ["积木页面已能读取 registry、编辑第一个脚本栈并校验当前 workflow；后端已有版本快照、run 绑定版本和 workflow patch 合同；真正拖拽编辑、资源角色实例选择、版本历史 UI、回滚、发布和安全边界仍需实现"]
       }
   ]
 }

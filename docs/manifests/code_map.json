@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "updated_at": "2026-06-04",
+  "updated_at": "2026-06-09",
   "features": {
     "subjects.resources_rag": {
       "frontend_pages": [
@@ -208,21 +208,23 @@
       "services": ["lib/features/workshop/mini_app_service.dart"],
       "models": ["lib/features/workshop/mini_app_models.dart"],
         "backend": [
-          "backend/routers/mini_apps.py",
-          "backend/mini_apps/workflow.py"
+        "backend/routers/mini_apps.py",
+          "backend/mini_apps/workflow.py",
+          "backend/mini_apps/store.py"
         ],
       "tests": [
             "tests/playwright/p1_shell_flow.spec.ts",
             "test/features/workshop/workshop_page_test.dart",
             "test/features/workshop/workshop_blocks_page_test.dart",
-            "backend/tests/test_workshop_workflow.py"
+            "backend/tests/test_workshop_workflow.py",
+            "backend/tests/test_mini_app_versions.py"
       ],
       "docs": [
         "docs/features/software_workshop.md",
         "docs/features/software_workshop_blocks.md",
         "docs/manifests/workshop_blocks.json"
       ],
-        "notes": "四入口 MVP 已有入口和 Widget 覆盖；Scratch 风格积木 registry、资源角色类型、workflow validator 和第一版前端积木脚本编辑页已有底座；真正拖拽编辑、资源角色实例选择、版本追溯和 AI patch 仍待实现。"
+        "notes": "四入口 MVP 已有入口和 Widget 覆盖；Scratch 风格积木 registry、资源角色类型、workflow validator、结构化 patch、版本快照和第一版前端积木脚本编辑页已有底座；真正拖拽编辑、资源角色实例选择、版本历史 UI、回滚和 Git 式 diff 仍待实现。"
       }
   }
 }

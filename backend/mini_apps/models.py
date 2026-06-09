@@ -23,6 +23,7 @@ class MiniAppRecord(BaseModel):
     app_type: str = "memory"
     subject_id: int | None = None
     status: MiniAppStatus = "draft"
+    current_version_id: str | None = None
     documents: dict[str, str] = Field(default_factory=dict)
     spec: dict[str, Any] = Field(default_factory=dict)
     graph: dict[str, Any] = Field(default_factory=dict)
@@ -37,6 +38,7 @@ class MiniAppSummary(BaseModel):
     app_type: str
     subject_id: int | None = None
     status: MiniAppStatus
+    current_version_id: str | None = None
     description: str
     updated_at: str
     validation: MiniAppValidation
@@ -58,6 +60,31 @@ class MiniAppSaveIn(BaseModel):
 
 class MiniAppSaveOut(BaseModel):
     app: MiniAppRecord
+
+
+class MiniAppVersion(BaseModel):
+    id: str
+    app_id: str
+    user_id: str
+    sequence: int
+    parent_version_id: str | None = None
+    source: str
+    instruction: str | None = None
+    changed: list[str] = Field(default_factory=list)
+    summary: str
+    snapshot: dict[str, Any] = Field(default_factory=dict)
+    created_at: str
+
+
+class MiniAppVersionListOut(BaseModel):
+    app_id: str
+    current_version_id: str | None = None
+    versions: list[MiniAppVersion]
+    total: int
+
+
+class MiniAppVersionOut(BaseModel):
+    version: MiniAppVersion
 
 
 class MiniAppUpdateIn(BaseModel):
@@ -111,6 +138,7 @@ class ValidateGraphIn(BaseModel):
 class MiniAppRunStartOut(BaseModel):
     run_id: str
     app_id: str
+    app_version_id: str | None = None
     status: str
     graph: dict[str, Any] = Field(default_factory=dict)
     preview: dict[str, Any] = Field(default_factory=dict)

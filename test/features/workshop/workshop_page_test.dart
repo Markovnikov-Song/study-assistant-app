@@ -129,6 +129,23 @@ class _FakeMiniAppService implements MiniAppService {
   Future<MiniAppRecord> getApp(String id) async => _record;
 
   @override
+  Future<MiniAppVersionListResult> listAppVersions(String appId) async =>
+      const MiniAppVersionListResult(
+        appId: 'workshop_app_1',
+        currentVersionId: 'workshop_app_1_v1',
+        versions: [],
+        total: 0,
+      );
+
+  @override
+  Future<MiniAppVersion> getAppVersion({
+    required String appId,
+    required String versionId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<void> deleteApp(String id) async {}
 
   @override
@@ -166,6 +183,17 @@ class _FakeMiniAppService implements MiniAppService {
   }) async => WorkshopWorkflowValidationResult(
     validation: _validation,
     normalized: workflow,
+  );
+
+  @override
+  Future<WorkshopWorkflowPatchResult> patchWorkflow({
+    required Map<String, dynamic> workflow,
+    required String instruction,
+  }) async => WorkshopWorkflowPatchResult(
+    patch: const [],
+    workflow: workflow,
+    validation: _validation,
+    changed: const [],
   );
 
   @override

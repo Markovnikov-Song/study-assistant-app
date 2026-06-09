@@ -69,6 +69,18 @@ class WorkflowValidateOut(BaseModel):
     normalized: dict[str, Any] = Field(default_factory=dict)
 
 
+class WorkflowPatchIn(BaseModel):
+    workflow: dict[str, Any]
+    instruction: str
+
+
+class WorkflowPatchOut(BaseModel):
+    patch: list[dict[str, Any]] = Field(default_factory=list)
+    workflow: dict[str, Any] = Field(default_factory=dict)
+    validation: MiniAppValidation
+    changed: list[str] = Field(default_factory=list)
+
+
 @lru_cache(maxsize=1)
 def get_workflow_registry() -> dict[str, Any]:
     """Load the Scratch-style workshop registry used by docs and backend validation."""
@@ -134,6 +146,101 @@ def validate_workflow_definition(raw: dict[str, Any]) -> WorkflowValidateOut:
     )
 
 
+def patch_workflow_definition(raw: dict[str, Any], instruction: str) -> WorkflowPatchOut:
+    """Create a deterministic semantic patch for the workflow AST.
+
+    This is the contract that future LLM-based editing should honor: natural
+    language produces auditable patch operations first, then the patched
+    workflow must pass the same validator as manual edits.
+    """
+    workflow = deepcopy(raw)
+    patch: list[dict[str, Any]] = []
+    text = instruction.strip()
+    normalized_text = text.lower()
+
+    half_count = "减半" in text or "一半" in text or "half" in normalized_text
+    count = None if half_count else _requested_count(normalized_text)
+    question_type = _requested_question_type(text, normalized_text)
+    resource_limit = _requested_resource_limit(text, normalized_text)
+
+    for script_index, block_index, block in _iter_top_level_blocks(workflow):
+        block_id = str(block.get("block") or "")
+        if block_id == "llm.generate_quiz":
+            params = _ensure_params(block)
+            if count is not None:
+                _set_param_op(
+                    patch,
+                    params,
+                    count,
+                    script_index,
+                    block_index,
+                    block_id,
+                    "count",
+                    "按指令设置生成题量",
+                )
+            elif half_count and isinstance(params.get("count"), (int, float)):
+                next_count = max(1, int(params["count"] // 2))
+                _set_param_op(
+                    patch,
+                    params,
+                    next_count,
+                    script_index,
+                    block_index,
+                    block_id,
+                    "count",
+                    "题量减半",
+                )
+            if question_type is not None:
+                _set_param_op(
+                    patch,
+                    params,
+                    question_type,
+                    script_index,
+                    block_index,
+                    block_id,
+                    "question_type",
+                    "按指令设置题型",
+                )
+        if block_id == "resource.query" and resource_limit is not None:
+            params = _ensure_params(block)
+            query = params.get("query")
+            if not isinstance(query, dict):
+                query = {}
+                params["query"] = query
+            before = query.get("limit")
+            query["limit"] = resource_limit
+            patch.append(
+                {
+                    "op": "set_nested_param",
+                    "target": _patch_target(script_index, block_index, block_id),
+                    "param": "query.limit",
+                    "before": before,
+                    "after": resource_limit,
+                    "reason": "按指令限制资料查询数量",
+                }
+            )
+
+    result = validate_workflow_definition(workflow)
+    changed = [
+        f"{item['target']['path']}.{item['param']}"
+        for item in patch
+        if item.get("target") and item.get("param")
+    ]
+    warnings = list(result.validation.warnings)
+    if not patch:
+        warnings.append("未从指令中识别到可自动修改的 workflow 字段")
+    return WorkflowPatchOut(
+        patch=patch,
+        workflow=result.normalized or workflow,
+        validation=MiniAppValidation(
+            ok=result.validation.ok,
+            errors=result.validation.errors,
+            warnings=_dedupe(warnings),
+        ),
+        changed=changed,
+    )
+
+
 def _validate_actor(
     actor: ResourceActor,
     resource_types: set[str],
@@ -152,6 +259,94 @@ def _validate_actor(
         errors.append(f"resource actor {actor.id} has unknown ref type: {actor.ref.type}")
     if actor.ref is not None and not actor.ref.snapshot:
         warnings.append(f"resource actor {actor.id} uses live ref without snapshot")
+
+
+def _iter_top_level_blocks(raw: dict[str, Any]):
+    scripts = raw.get("scripts")
+    if not isinstance(scripts, list):
+        return
+    for script_index, script in enumerate(scripts):
+        if not isinstance(script, dict):
+            continue
+        body = script.get("body")
+        if not isinstance(body, list):
+            continue
+        for block_index, block in enumerate(body):
+            if isinstance(block, dict):
+                yield script_index, block_index, block
+
+
+def _ensure_params(block: dict[str, Any]) -> dict[str, Any]:
+    params = block.get("params")
+    if not isinstance(params, dict):
+        params = {}
+        block["params"] = params
+    return params
+
+
+def _set_param_op(
+    patch: list[dict[str, Any]],
+    params: dict[str, Any],
+    value: Any,
+    script_index: int,
+    block_index: int,
+    block_id: str,
+    param: str,
+    reason: str,
+) -> None:
+    before = params.get(param)
+    if before == value:
+        return
+    params[param] = value
+    patch.append(
+        {
+            "op": "set_param",
+            "target": _patch_target(script_index, block_index, block_id),
+            "param": param,
+            "before": before,
+            "after": value,
+            "reason": reason,
+        }
+    )
+
+
+def _patch_target(script_index: int, block_index: int, block_id: str) -> dict[str, str | int]:
+    return {
+        "script_index": script_index,
+        "block_index": block_index,
+        "path": f"scripts[{script_index}].body[{block_index}]",
+        "block": block_id,
+    }
+
+
+def _requested_count(text: str) -> int | None:
+    if not any(token in text for token in ("题", "题量", "数量", "count", "quiz", "生成")):
+        return None
+    match = re.search(r"(\d{1,3})\s*(?:道|题|个|张|cards?|questions?)?", text)
+    if match is None:
+        return None
+    return max(1, min(100, int(match.group(1))))
+
+
+def _requested_question_type(raw_text: str, normalized_text: str) -> str | None:
+    if "选择题" in raw_text or "单选" in raw_text or "choice" in normalized_text:
+        return "choice"
+    if "填空" in raw_text or "blank" in normalized_text:
+        return "blank"
+    if "闪卡" in raw_text or "flashcard" in normalized_text:
+        return "flashcard"
+    if "混合" in raw_text or "mixed" in normalized_text:
+        return "mixed"
+    return None
+
+
+def _requested_resource_limit(raw_text: str, normalized_text: str) -> int | None:
+    if not any(token in raw_text for token in ("资料", "材料", "资源", "查询")) and "resource" not in normalized_text:
+        return None
+    match = re.search(r"(?:限制|最多|前|limit|top)\D{0,8}(\d{1,3})", raw_text + " " + normalized_text)
+    if match is None:
+        return None
+    return max(1, min(100, int(match.group(1))))
 
 
 def _validate_script(

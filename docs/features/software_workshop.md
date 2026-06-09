@@ -5,7 +5,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | 功能 ID | `workshop.mini_apps` |
-| 当前状态 | MVP 已收敛为四个入口；Scratch 风格积木 registry、workflow validator 和前端积木脚本编辑页已有底座 |
+| 当前状态 | MVP 已收敛为四个入口；Scratch 风格积木 registry、workflow validator、版本快照、workflow patch 和前端积木脚本编辑页已有底座 |
 | 主要入口 | `/workshop`、`/workshop/builder`、`/workshop/blocks`、`/workshop/apps/:appId` |
 | 后端前缀 | `/api/mini-apps` |
 | 自动化覆盖 | 入口 smoke：`ENTRY-P1-07`；四入口 Widget：`WORKSHOP-P2-01` |
@@ -37,6 +37,8 @@
 - 运行页支持保存文档、保存运行配置、请求助教改造。
 - 后端提供 Mini App CRUD、访谈、改造、图谱校验、运行记录和资料生成卡片接口。
 - 后端提供 Scratch 风格 workflow registry、资源角色类型清单和 `workshop.workflow.v1` 校验器。
+- 后端提供 Mini App version 快照：创建、访谈生成、保存配置、助教改造、资料生成卡片都会形成新版本，run session 会绑定当时的 `app_version_id` 和运行快照。
+- 后端提供 workflow patch 合同：自然语言改造先生成结构化 patch operations，再返回 patched workflow 和校验结果。
 - 前端提供积木脚本页，可查看积木分类、参数插槽和资源角色，并能基于示例 workflow 加入积木、删除、上下移动、编辑积木 JSON 参数、复制当前 workflow、调用后端校验。
 
 ## 关键数据
@@ -48,8 +50,8 @@
 | `spec` | 前端运行页真正使用的运行配置 |
 | `graph` | 后端生成和校验的隐形积木图谱 |
 | `validation` | 校验结果，用于提示配置是否能安全运行 |
-| run session | 一次运行记录，保存用户在运行页产生的事件 |
-| version history | 小工具版本历史，记录用户、系统或 AI 对积木 workflow 的改动 |
+| run session | 一次运行记录，保存用户在运行页产生的事件，并绑定当时的 `app_version_id`、`spec` 和 `graph` 快照 |
+| version history | 小工具版本历史，记录用户、系统或 AI 对配置、文档、图谱和 workflow 的改动 |
 | workflow diff | 积木语义 diff，用于查看新增、删除、修改了哪些学习动作 |
 | resource actor | 可被积木引用的资料角色，例如导图、错题、笔记、讲义、资料片段 |
 | block params | 积木内部参数，包括字面量、表达式、资源引用、资源查询、LLM 配置和写回策略 |
@@ -62,30 +64,30 @@
 | 构建器 | `lib/features/workshop/workshop_builder_page.dart` | 自然语言访谈和草稿生成 |
 | 积木脚本页 | `lib/features/workshop/workshop_blocks_page.dart` | 查看 registry、资源角色和当前脚本栈；支持加入积木、调整顺序、编辑积木 JSON、复制 workflow、调用 workflow validator |
 | 运行页 | `lib/features/workshop/mini_app_run_page.dart` | Mini App 运行、文档编辑、配置保存、资料生成卡片、运行事件 |
-| Provider | `lib/features/workshop/mini_app_providers.dart` | Mini App 列表、详情和积木注册表状态 |
-| Service | `lib/features/workshop/mini_app_service.dart` | `/api/mini-apps` 前端接口封装 |
-| 模型 | `lib/features/workshop/mini_app_models.dart` | Mini App、访谈 turn、生成卡片结果 |
+| Provider | `lib/features/workshop/mini_app_providers.dart` | Mini App 列表、详情、版本历史和积木注册表状态 |
+| Service | `lib/features/workshop/mini_app_service.dart` | `/api/mini-apps` 前端接口封装，包含版本和 workflow patch |
+| 模型 | `lib/features/workshop/mini_app_models.dart` | Mini App、Mini App version、workflow patch、访谈 turn、生成卡片结果 |
 | 后端路由 | `backend/routers/mini_apps.py` | Mini App API |
-| 后端存储 | `backend/mini_apps/store.py` | Mini App 持久化 |
+| 后端存储 | `backend/mini_apps/store.py` | Mini App、版本快照、访谈 session、run session 持久化 |
 | 后端构建 | `backend/mini_apps/builder.py`、`backend/mini_apps/content_pipeline.py` | 草稿构建、资料到卡片 |
 | 积木图谱 | `backend/mini_apps/canvas.py` | Block registry、图谱编译和校验 |
 | 积木设计 | `docs/features/software_workshop_blocks.md` | Scratch 风格学习智能体积木分类、形状、颗粒度和版本规则 |
 | 积木清单 | `docs/manifests/workshop_blocks.json` | 机器可读的 shape、slot、resource actor、block 和示例 workflow |
-| workflow 底座 | `backend/mini_apps/workflow.py` | registry 加载、资源角色模型、workflow validator |
+| workflow 底座 | `backend/mini_apps/workflow.py` | registry 加载、资源角色模型、workflow validator、结构化 patch |
 
 ## 行为边界
 
 - 当前软件工坊只能生成和运行学习型小工具，不能生成任意桌面软件、浏览器插件或系统级程序。
 - 当前分享是复制小工具说明和入口路径，不是公开发布市场。
-- 当前改造会更新已有小工具，不做多版本分支、回滚和冲突合并。
+- 当前改造会生成新版本快照，但还不做分支、回滚和冲突合并。
 - 当前运行器主要覆盖闪卡/背记式内容，测验、错题训练和资料问答还需要继续扩展 runtime renderer。
-- 当前前端已有第一版积木脚本编辑器，但还不是完整拖拽编辑器；现阶段支持编辑第一个脚本栈和 JSON 参数，资源角色实例选择、嵌套积木可视化编辑、版本追溯和 AI patch 仍需继续实现。
+- 当前前端已有第一版积木脚本编辑器，但还不是完整拖拽编辑器；现阶段支持编辑第一个脚本栈和 JSON 参数，资源角色实例选择、嵌套积木可视化编辑、版本历史页面、回滚和 Git 式 diff 仍需继续实现。
 
 ## 下一步优先级
 
-1. 做版本管理：改造前保存旧版本，运行记录绑定版本快照。
+1. 做版本历史 UI：展示版本号、来源、改动字段、运行绑定版本和 snapshot。
 2. 做 Git 式追溯：workflow 文件树、commit 信息、版本 diff。
-3. 做 AI patch：自然语言改造生成结构化补丁，并通过 schema 校验。
+3. 把 workflow patch 接到前端：自然语言改造先展示 patch，再允许用户应用。
 4. 扩展积木编辑器：从 JSON 参数编辑升级为拖拽、嵌套积木、表达式插槽和资源角色实例选择。
 5. 扩展运行器类型：把选择题、错题训练、资料问答从配置真正渲染成可交互页面。
 6. 做资源库联动：小工具生成的讲义、卡片、错题结果写回资料库分类。

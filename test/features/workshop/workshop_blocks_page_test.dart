@@ -57,9 +57,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('编辑第 2 个积木'), findsOneWidget);
-      await tester.enterText(
-        find.byType(TextField),
-        '''
+      await tester.enterText(find.byType(TextField), '''
 {
   "block": "resource.query",
   "params": {
@@ -71,8 +69,7 @@ void main() {
   },
   "output": "custom_materials"
 }
-''',
-      );
+''');
       await tester.tap(find.text('应用 JSON'));
       await tester.pumpAndSettle();
 
@@ -125,10 +122,38 @@ class _FakeMiniAppService implements MiniAppService {
   }
 
   @override
+  Future<WorkshopWorkflowPatchResult> patchWorkflow({
+    required Map<String, dynamic> workflow,
+    required String instruction,
+  }) async => WorkshopWorkflowPatchResult(
+    patch: const [],
+    workflow: workflow,
+    validation: _validation,
+    changed: const [],
+  );
+
+  @override
   Future<List<MiniAppSummary>> listApps() async => [];
 
   @override
   Future<MiniAppRecord> getApp(String id) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MiniAppVersionListResult> listAppVersions(String appId) async =>
+      const MiniAppVersionListResult(
+        appId: 'workshop_app_1',
+        currentVersionId: 'workshop_app_1_v1',
+        versions: [],
+        total: 0,
+      );
+
+  @override
+  Future<MiniAppVersion> getAppVersion({
+    required String appId,
+    required String versionId,
+  }) {
     throw UnimplementedError();
   }
 
