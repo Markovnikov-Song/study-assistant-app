@@ -686,7 +686,14 @@ workflow diff 不应只显示 JSON 行差异，还应显示积木语义差异：
 3. 已增加 AI patch 合同：自然语言改造生成结构化补丁，而不是直接覆盖 JSON。
 4. 已有前端列表式/脚本式积木编辑器底座。
 5. 下一步增加 workflow 文件树导出和 Git commit 追溯。
-6. 下一步把 patch 接入前端确认流。
+6. 已把 patch 接入前端确认流：自然语言修改先生成结构化 patch operations，用户确认后才应用到当前 workflow。
 7. 支持最小积木集：事件、控制、变量、资料、LLM、交互、判断、写回。
 8. 支持一个可运行示例：资料库生成题 -> 展示题目 -> 判题 -> 写错题 -> 加入复习队列。
 9. 再升级为真正拖拽画布和调试日志。
+## 2026-06-09 落地状态补充
+
+- 后端 `MiniAppVersion` 快照、run 绑定 `app_version_id`、`app_snapshot` 和 `graph_snapshot` 已落地。
+- 运行页已展示版本历史、父版本、改动字段、当前版本和本次运行绑定版本。
+- 后端 `POST /api/mini-apps/workflow/patch` 已提供自然语言到结构化 patch operations 的合同。
+- 积木脚本页已接入 patch 确认流：先预览 patch operations、目标路径、改动字段和校验结果，再由用户点击“应用 patch”替换当前 workflow。
+- 尚未落地：真正的拖拽积木画布、资源实例选择器、版本回滚、Git 式文件树 diff、运行器调试日志。

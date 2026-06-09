@@ -20,7 +20,9 @@ class _WorkshopBlocksPageState extends ConsumerState<WorkshopBlocksPage> {
   Map<String, dynamic>? _workflow;
   int? _editingIndex;
   bool _validating = false;
+  bool _patching = false;
   WorkshopWorkflowValidationResult? _validationResult;
+  WorkshopWorkflowPatchResult? _patchResult;
 
   @override
   Widget build(BuildContext context) {
@@ -93,10 +95,16 @@ class _WorkshopBlocksPageState extends ConsumerState<WorkshopBlocksPage> {
                 selectedBodyIndex: _editingIndex,
                 validationResult: _validationResult,
                 validating: _validating,
+                patchResult: _patchResult,
+                patching: _patching,
                 onAddBlock: selectedBlock == null
                     ? null
                     : () => _addBlockToWorkflow(registry, selectedBlock),
                 onApplyBlockJson: _applyBodyBlockJson,
+                onPreviewPatch: (instruction) =>
+                    _previewWorkflowPatch(workflow, instruction),
+                onApplyPatch: _applyPatchPreview,
+                onClearPatch: () => setState(() => _patchResult = null),
                 onValidate: () => _validateCurrentWorkflow(workflow),
                 onCopy: () => _copyCurrentWorkflow(workflow),
                 onReset: () => _resetWorkflow(registry),
@@ -147,10 +155,16 @@ class _WorkshopBlocksPageState extends ConsumerState<WorkshopBlocksPage> {
                 selectedBodyIndex: _editingIndex,
                 validationResult: _validationResult,
                 validating: _validating,
+                patchResult: _patchResult,
+                patching: _patching,
                 onAddBlock: selectedBlock == null
                     ? null
                     : () => _addBlockToWorkflow(registry, selectedBlock),
                 onApplyBlockJson: _applyBodyBlockJson,
+                onPreviewPatch: (instruction) =>
+                    _previewWorkflowPatch(workflow, instruction),
+                onApplyPatch: _applyPatchPreview,
+                onClearPatch: () => setState(() => _patchResult = null),
                 onValidate: () => _validateCurrentWorkflow(workflow),
                 onCopy: () => _copyCurrentWorkflow(workflow),
                 onReset: () => _resetWorkflow(registry),
@@ -201,6 +215,7 @@ class _WorkshopBlocksPageState extends ConsumerState<WorkshopBlocksPage> {
       _editingIndex = body.length - 1;
       _blockId = block.id;
       _validationResult = null;
+      _patchResult = null;
     });
   }
 
@@ -215,6 +230,7 @@ class _WorkshopBlocksPageState extends ConsumerState<WorkshopBlocksPage> {
         _editingIndex = index.clamp(0, body.length - 1);
       }
       _validationResult = null;
+      _patchResult = null;
     });
   }
 
@@ -228,6 +244,7 @@ class _WorkshopBlocksPageState extends ConsumerState<WorkshopBlocksPage> {
       body.insert(to, block);
       _editingIndex = to;
       _validationResult = null;
+      _patchResult = null;
     });
   }
 
@@ -251,6 +268,7 @@ class _WorkshopBlocksPageState extends ConsumerState<WorkshopBlocksPage> {
         body[index] = block;
         _editingIndex = index;
         _validationResult = null;
+        _patchResult = null;
       });
       _showSnack('已应用积木 JSON');
     } catch (error) {
@@ -275,6 +293,46 @@ class _WorkshopBlocksPageState extends ConsumerState<WorkshopBlocksPage> {
     }
   }
 
+  Future<void> _previewWorkflowPatch(
+    Map<String, dynamic> workflow,
+    String instruction,
+  ) async {
+    final text = instruction.trim();
+    if (text.isEmpty || _patching) return;
+    setState(() => _patching = true);
+    try {
+      final result = await ref
+          .read(miniAppServiceProvider)
+          .patchWorkflow(workflow: _cloneMap(workflow), instruction: text);
+      if (!mounted) return;
+      setState(() => _patchResult = result);
+    } catch (error) {
+      if (!mounted) return;
+      _showSnack('patch 预览失败：$error');
+    } finally {
+      if (mounted) setState(() => _patching = false);
+    }
+  }
+
+  void _applyPatchPreview() {
+    final result = _patchResult;
+    if (result == null) return;
+    if (!result.validation.ok) {
+      _showSnack('patch 校验未通过，先处理问题再应用');
+      return;
+    }
+    setState(() {
+      _workflow = _cloneMap(result.workflow);
+      _editingIndex = null;
+      _validationResult = WorkshopWorkflowValidationResult(
+        validation: result.validation,
+        normalized: _cloneMap(result.workflow),
+      );
+      _patchResult = null;
+    });
+    _showSnack('已应用 patch');
+  }
+
   Future<void> _copyCurrentWorkflow(Map<String, dynamic> workflow) async {
     final text = const JsonEncoder.withIndent('  ').convert(workflow);
     await Clipboard.setData(ClipboardData(text: text));
@@ -287,6 +345,7 @@ class _WorkshopBlocksPageState extends ConsumerState<WorkshopBlocksPage> {
       _workflow = _initialWorkflow(registry);
       _editingIndex = null;
       _validationResult = null;
+      _patchResult = null;
     });
   }
 
@@ -422,7 +481,8 @@ class _WorkshopBlocksPageState extends ConsumerState<WorkshopBlocksPage> {
         'on_failure': 'fallback_to_rule',
       },
       'write_policy' => {
-        'target': block.sideEffects.firstOrNull ?? 'workshop.generated_artifact',
+        'target':
+            block.sideEffects.firstOrNull ?? 'workshop.generated_artifact',
         'idempotency_key': '\$run_id:${_safeOutputName(block.id)}',
         'bind_version': true,
       },
@@ -458,8 +518,9 @@ class _WorkshopBlocksPageState extends ConsumerState<WorkshopBlocksPage> {
       'content.extract_knowledge_points' => 'knowledge_points',
       'llm.generate_quiz' => 'questions',
       'interaction.show_question' => 'answer_event',
-      _ => block.outputs.firstOrNull?.name ??
-          (block.returns == null ? null : _safeOutputName(block.returns!)),
+      _ =>
+        block.outputs.firstOrNull?.name ??
+            (block.returns == null ? null : _safeOutputName(block.returns!)),
     };
     if (base == null || base.isEmpty) return null;
     return _uniqueOutputName(workflow, _safeOutputName(base));
@@ -521,7 +582,9 @@ class _WorkshopBlocksPageState extends ConsumerState<WorkshopBlocksPage> {
 
   void _showSnack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -633,7 +696,9 @@ class _BlockListItem extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: selected ? cs.onPrimaryContainer : cs.onSurface,
+                          color: selected
+                              ? cs.onPrimaryContainer
+                              : cs.onSurface,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -703,7 +768,9 @@ class _WorkflowScriptPanel extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           '先编辑第一个脚本栈：加入积木、调整顺序、改 JSON 参数，然后用后端 validator 校验。',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: 10),
         _StageSummary(registry: registry, actors: actors),
@@ -871,7 +938,8 @@ class _BlockNode extends StatelessWidget {
     final definition = blockById[blockId];
     final children = _childrenOf(block);
     final output = block['output']?.toString();
-    final params = (block['params'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final params =
+        (block['params'] as Map?)?.cast<String, dynamic>() ?? const {};
     final color = _shapeColor(definition?.shape);
 
     return Padding(
@@ -905,7 +973,11 @@ class _BlockNode extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(_shapeIcon(definition?.shape), size: 18, color: color),
+                        Icon(
+                          _shapeIcon(definition?.shape),
+                          size: 18,
+                          color: color,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -1012,8 +1084,13 @@ class _InspectorPanel extends StatelessWidget {
   final int? selectedBodyIndex;
   final WorkshopWorkflowValidationResult? validationResult;
   final bool validating;
+  final WorkshopWorkflowPatchResult? patchResult;
+  final bool patching;
   final VoidCallback? onAddBlock;
   final void Function(int index, String rawJson) onApplyBlockJson;
+  final ValueChanged<String> onPreviewPatch;
+  final VoidCallback onApplyPatch;
+  final VoidCallback onClearPatch;
   final VoidCallback onValidate;
   final VoidCallback onCopy;
   final VoidCallback onReset;
@@ -1025,8 +1102,13 @@ class _InspectorPanel extends StatelessWidget {
     required this.selectedBodyIndex,
     required this.validationResult,
     required this.validating,
+    required this.patchResult,
+    required this.patching,
     required this.onAddBlock,
     required this.onApplyBlockJson,
+    required this.onPreviewPatch,
+    required this.onApplyPatch,
+    required this.onClearPatch,
     required this.onValidate,
     required this.onCopy,
     required this.onReset,
@@ -1058,6 +1140,14 @@ class _InspectorPanel extends StatelessWidget {
             blockById: {for (final block in registry.blocks) block.id: block},
             onApply: (rawJson) => onApplyBlockJson(bodyIndex, rawJson),
           ),
+        const SizedBox(height: 14),
+        _WorkflowPatchPanel(
+          result: patchResult,
+          patching: patching,
+          onPreview: onPreviewPatch,
+          onApply: onApplyPatch,
+          onClear: onClearPatch,
+        ),
         const SizedBox(height: 14),
         _ResourceTypePanel(types: registry.resourceActorTypes),
         const SizedBox(height: 14),
@@ -1092,7 +1182,10 @@ class _SelectedBlockPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(block.label, style: const TextStyle(fontWeight: FontWeight.w900)),
+          Text(
+            block.label,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 6,
@@ -1101,7 +1194,8 @@ class _SelectedBlockPanel extends StatelessWidget {
               _TinyBadge(label: block.id),
               _TinyBadge(label: block.shape),
               _TinyBadge(label: block.category),
-              if (block.returns != null) _TinyBadge(label: '返回 ${block.returns}'),
+              if (block.returns != null)
+                _TinyBadge(label: '返回 ${block.returns}'),
               if (block.outputs.isNotEmpty)
                 _TinyBadge(label: '输出 ${block.outputs.first.name}'),
             ],
@@ -1228,9 +1322,9 @@ class _BodyBlockEditorPanelState extends State<_BodyBlockEditorPanel> {
               IconButton.filledTonal(
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: _controller.text));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('已复制积木 JSON')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('已复制积木 JSON')));
                 },
                 icon: const Icon(Icons.copy_rounded),
                 tooltip: '复制积木 JSON',
@@ -1299,6 +1393,230 @@ class _EditorHintPanel extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _WorkflowPatchPanel extends StatefulWidget {
+  final WorkshopWorkflowPatchResult? result;
+  final bool patching;
+  final ValueChanged<String> onPreview;
+  final VoidCallback onApply;
+  final VoidCallback onClear;
+
+  const _WorkflowPatchPanel({
+    required this.result,
+    required this.patching,
+    required this.onPreview,
+    required this.onApply,
+    required this.onClear,
+  });
+
+  @override
+  State<_WorkflowPatchPanel> createState() => _WorkflowPatchPanelState();
+}
+
+class _WorkflowPatchPanelState extends State<_WorkflowPatchPanel> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: '把资料查询限制到 5 条，并把题目改得更适合复习队列')
+      ..addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final result = widget.result;
+    final canPreview = _controller.text.trim().isNotEmpty && !widget.patching;
+    final canApply =
+        result != null && result.validation.ok && result.patch.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.manage_search_rounded, color: cs.primary),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  '自然语言 patch 预览',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              if (result != null)
+                IconButton.filledTonal(
+                  onPressed: widget.onClear,
+                  icon: const Icon(Icons.close_rounded),
+                  tooltip: '清空预览',
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _controller,
+            minLines: 2,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              labelText: '想怎么改这个积木脚本',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: canPreview
+                      ? () => widget.onPreview(_controller.text)
+                      : null,
+                  icon: widget.patching
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.preview_rounded),
+                  label: Text(widget.patching ? '生成 patch 中' : '预览 patch'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: canApply ? widget.onApply : null,
+                  icon: const Icon(Icons.done_rounded),
+                  label: const Text('应用 patch'),
+                ),
+              ),
+            ],
+          ),
+          if (result != null) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _TinyBadge(label: result.validation.ok ? '校验通过' : '校验未通过'),
+                _TinyBadge(label: '${result.patch.length} 个操作'),
+                for (final changed in result.changed)
+                  _TinyBadge(label: changed),
+              ],
+            ),
+            if (result.patch.isEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                '这次修改没有生成可应用的结构化操作。',
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+            ],
+            const SizedBox(height: 10),
+            for (final op in result.patch.take(8)) _PatchOperationRow(op: op),
+            if (result.patch.length > 8)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '还有 ${result.patch.length - 8} 个操作，应用后会一起写入。',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+                ),
+              ),
+            for (final error in result.validation.errors)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text('错误：$error', style: TextStyle(color: cs.error)),
+              ),
+            for (final warning in result.validation.warnings)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '提示：$warning',
+                  style: TextStyle(color: cs.onSurfaceVariant),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PatchOperationRow extends StatelessWidget {
+  final Map<String, dynamic> op;
+
+  const _PatchOperationRow({required this.op});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final target = (op['target'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final details = _patchDetails(op);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: cs.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _TinyBadge(label: op['op']?.toString() ?? 'patch'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    target['path']?.toString() ?? target.toString(),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            if (details.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(details, style: TextStyle(color: cs.onSurfaceVariant)),
+            ],
+            if ((op['reason']?.toString() ?? '').isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                op['reason'].toString(),
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _patchDetails(Map<String, dynamic> op) {
+    final field = op['field']?.toString();
+    final before = _compactPatchValue(op['before']);
+    final after = _compactPatchValue(op['after']);
+    final parts = <String>[];
+    if (field != null && field.isNotEmpty) parts.add('字段 $field');
+    if (before.isNotEmpty || after.isNotEmpty) {
+      parts.add('$before -> $after');
+    }
+    return parts.join(' · ');
   }
 }
 
@@ -1565,6 +1883,13 @@ String _compactJson(Map<String, dynamic> value) {
   final text = jsonEncode(value);
   if (text.length <= 180) return text;
   return '${text.substring(0, 177)}...';
+}
+
+String _compactPatchValue(dynamic value) {
+  if (value == null) return '';
+  final text = value is String ? value : jsonEncode(value);
+  if (text.length <= 72) return text;
+  return '${text.substring(0, 69)}...';
 }
 
 String _substackLabel(String key) {

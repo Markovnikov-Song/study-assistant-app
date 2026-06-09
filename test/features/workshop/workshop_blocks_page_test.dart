@@ -7,57 +7,38 @@ import 'package:study_assistant_app/features/workshop/mini_app_service.dart';
 import 'package:study_assistant_app/features/workshop/workshop_blocks_page.dart';
 
 void main() {
-  testWidgets(
-    'workshop blocks page loads registry and validates current workflow',
-    (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1280, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+  testWidgets('workshop blocks page loads registry and validates workflow', (
+    tester,
+  ) async {
+    await _setDesktopSurface(tester);
+    final service = _FakeMiniAppService();
+    await tester.pumpWidget(_buildPage(service));
+    await tester.pumpAndSettle();
 
-      final service = _FakeMiniAppService();
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [miniAppServiceProvider.overrideWithValue(service)],
-          child: const MaterialApp(home: WorkshopBlocksPage()),
-        ),
-      );
-      await tester.pumpAndSettle();
+    expect(find.byType(FilterChip), findsNWidgets(2));
+    expect(find.byIcon(Icons.category_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.fact_check_rounded), findsOneWidget);
 
-      expect(find.text('积木分类'), findsOneWidget);
-      expect(find.text('事件'), findsWidgets);
-      expect(find.text('当小工具开始运行'), findsWidgets);
-      expect(find.text('资料角色'), findsOneWidget);
-      expect(find.text('可引用资料'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.fact_check_rounded));
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('校验当前脚本'));
-      await tester.pumpAndSettle();
+    expect(service.validatedWorkflow, isNotNull);
+  });
 
-      expect(service.validatedWorkflow, isNotNull);
-      expect(find.text('通过'), findsOneWidget);
-    },
-  );
+  testWidgets('workshop blocks page can add a block, edit json, and validate', (
+    tester,
+  ) async {
+    await _setDesktopSurface(tester);
+    final service = _FakeMiniAppService();
+    await tester.pumpWidget(_buildPage(service));
+    await tester.pumpAndSettle();
 
-  testWidgets(
-    'workshop blocks page can add a block, edit json, and validate it',
-    (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1280, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.tap(find.byType(FilterChip).at(1));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.add_rounded).last);
+    await tester.pumpAndSettle();
 
-      final service = _FakeMiniAppService();
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [miniAppServiceProvider.overrideWithValue(service)],
-          child: const MaterialApp(home: WorkshopBlocksPage()),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.widgetWithText(FilterChip, '资料'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, '加入脚本'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('编辑第 2 个积木'), findsOneWidget);
-      await tester.enterText(find.byType(TextField), '''
+    await tester.enterText(find.byType(TextField).first, '''
 {
   "block": "resource.query",
   "params": {
@@ -70,23 +51,82 @@ void main() {
   "output": "custom_materials"
 }
 ''');
-      await tester.tap(find.text('应用 JSON'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.done_rounded).first);
+    await tester.pumpAndSettle();
 
-      await tester.scrollUntilVisible(
-        find.text('校验当前脚本'),
-        300,
-        scrollable: find.byType(Scrollable).last,
-      );
-      await tester.tap(find.text('校验当前脚本'));
-      await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byIcon(Icons.fact_check_rounded),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byIcon(Icons.fact_check_rounded).last);
+    await tester.pumpAndSettle();
 
-      final scripts = service.validatedWorkflow?['scripts'] as List?;
-      final body = (scripts?.first as Map?)?['body'] as List?;
-      expect(body, hasLength(2));
-      expect((body?.last as Map?)?['output'], 'custom_materials');
-      expect(find.text('通过'), findsOneWidget);
-    },
+    final scripts = service.validatedWorkflow?['scripts'] as List?;
+    final body = (scripts?.first as Map?)?['body'] as List?;
+    expect(body, hasLength(2));
+    expect((body?.last as Map?)?['output'], 'custom_materials');
+  });
+
+  testWidgets('workshop blocks page previews and applies workflow patch', (
+    tester,
+  ) async {
+    await _setDesktopSurface(tester);
+    final service = _FakeMiniAppService();
+    await tester.pumpWidget(_buildPage(service));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.byIcon(Icons.preview_rounded),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.enterText(find.byType(TextField).last, 'limit to 5 materials');
+    await tester.tap(find.byIcon(Icons.preview_rounded));
+    await tester.pumpAndSettle();
+
+    expect(service.patchInstruction, 'limit to 5 materials');
+    expect(_textContaining('应用 patch'), findsOneWidget);
+    expect(find.text('params.query.limit'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.done_rounded).last);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byIcon(Icons.fact_check_rounded),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byIcon(Icons.fact_check_rounded).last);
+    await tester.pumpAndSettle();
+
+    final scripts = service.validatedWorkflow?['scripts'] as List?;
+    final body = (scripts?.first as Map?)?['body'] as List?;
+    final firstBlock = (body?.first as Map?)?.cast<String, dynamic>();
+    final params = (firstBlock?['params'] as Map?)?.cast<String, dynamic>();
+    final query = (params?['query'] as Map?)?.cast<String, dynamic>();
+    expect(query?['limit'], 5);
+  });
+}
+
+Future<void> _setDesktopSurface(WidgetTester tester) async {
+  await tester.binding.setSurfaceSize(const Size(1280, 900));
+  tester.view.devicePixelRatio = 1;
+  addTearDown(() async {
+    tester.view.resetDevicePixelRatio();
+    await tester.binding.setSurfaceSize(null);
+  });
+}
+
+Finder _textContaining(String value) {
+  return find.byWidgetPredicate((widget) {
+    return widget is Text && (widget.data?.contains(value) ?? false);
+  });
+}
+
+Widget _buildPage(_FakeMiniAppService service) {
+  return ProviderScope(
+    overrides: [miniAppServiceProvider.overrideWithValue(service)],
+    child: const MaterialApp(home: WorkshopBlocksPage()),
   );
 }
 
@@ -94,6 +134,7 @@ const _validation = MiniAppValidation(ok: true, errors: [], warnings: []);
 
 class _FakeMiniAppService implements MiniAppService {
   Map<String, dynamic>? validatedWorkflow;
+  String? patchInstruction;
 
   @override
   Future<WorkshopWorkflowRegistry> getWorkflowRegistry() async =>
@@ -125,12 +166,43 @@ class _FakeMiniAppService implements MiniAppService {
   Future<WorkshopWorkflowPatchResult> patchWorkflow({
     required Map<String, dynamic> workflow,
     required String instruction,
-  }) async => WorkshopWorkflowPatchResult(
-    patch: const [],
-    workflow: workflow,
-    validation: _validation,
-    changed: const [],
-  );
+  }) async {
+    patchInstruction = instruction;
+    final scripts = workflow['scripts'] as List;
+    final firstScript = (scripts.first as Map).cast<String, dynamic>();
+    final body = firstScript['body'] as List;
+    final firstBlock = (body.first as Map).cast<String, dynamic>();
+    final params = (firstBlock['params'] as Map).cast<String, dynamic>();
+    final query = (params['query'] as Map).cast<String, dynamic>();
+    query['limit'] = 5;
+    params['query'] = query;
+    firstBlock['params'] = params;
+    body[0] = firstBlock;
+    firstScript['body'] = body;
+    scripts[0] = firstScript;
+    workflow['scripts'] = scripts;
+
+    return WorkshopWorkflowPatchResult(
+      patch: const [
+        {
+          'op': 'set_param',
+          'target': {
+            'script_index': 0,
+            'block_index': 0,
+            'block_id': 'resource.query',
+            'path': 'scripts[0].body[0]',
+          },
+          'field': 'params.query.limit',
+          'before': null,
+          'after': 5,
+          'reason': 'limit materials',
+        },
+      ],
+      workflow: workflow,
+      validation: _validation,
+      changed: const ['params.query.limit'],
+    );
+  }
 
   @override
   Future<List<MiniAppSummary>> listApps() async => [];

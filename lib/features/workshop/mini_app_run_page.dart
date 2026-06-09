@@ -24,6 +24,7 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
   bool _generating = false;
   bool _startingRun = false;
   String? _runId;
+  String? _runVersionId;
 
   void _mark(bool known, int total, Map<String, dynamic> item) {
     setState(() {
@@ -54,6 +55,7 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
   Widget _buildApp(BuildContext context, MiniAppRecord app) {
     final cs = Theme.of(context).colorScheme;
     final blockRegistry = ref.watch(miniAppBlockRegistryProvider).valueOrNull;
+    final versionsAsync = ref.watch(miniAppVersionsProvider(app.id));
     _ensureRun(app.id);
     final content =
         (app.spec['content'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -65,12 +67,24 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
     final total = items.length;
 
     if (total == 0) {
-      return _EmptyContentView(
-        app: app,
-        generating: _generating,
-        onGenerate: _canGenerateFromDocuments(app)
-            ? () => _generateFromDocuments(app)
-            : null,
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 120),
+        children: [
+          _EmptyContentView(
+            app: app,
+            generating: _generating,
+            onGenerate: _canGenerateFromDocuments(app)
+                ? () => _generateFromDocuments(app)
+                : null,
+          ),
+          const SizedBox(height: 22),
+          _VersionHistoryCard(
+            app: app,
+            versionsAsync: versionsAsync,
+            runVersionId: _runVersionId,
+            startingRun: _startingRun,
+          ),
+        ],
       );
     }
 
@@ -102,6 +116,13 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
                     const SizedBox(height: 8),
                     _ScoreChip(label: '版本 ${app.currentVersionId}'),
                   ],
+                  if (_runVersionId != null || _startingRun) ...[
+                    const SizedBox(height: 8),
+                    if (_runVersionId != null)
+                      _ScoreChip(label: '本次运行 $_runVersionId')
+                    else
+                      const _ScoreChip(label: '本次运行绑定中'),
+                  ],
                 ],
               ),
             ),
@@ -132,6 +153,13 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
           onSaveDocument: (name, text) => _saveDocument(app, name, text),
           onRevise: (instruction) => _reviseWithAssistant(app, instruction),
         ),
+        const SizedBox(height: 22),
+        _VersionHistoryCard(
+          app: app,
+          versionsAsync: versionsAsync,
+          runVersionId: _runVersionId,
+          startingRun: _startingRun,
+        ),
       ],
     );
   }
@@ -145,6 +173,7 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
         if (!mounted) return;
         setState(() {
           _runId = run['run_id'] as String?;
+          _runVersionId = run['app_version_id'] as String?;
           _startingRun = false;
         });
       } catch (_) {
@@ -217,6 +246,7 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
           .updateApp(id: app.id, spec: spec, documents: docs);
       ref.invalidate(miniAppProvider(app.id));
       ref.invalidate(miniAppsProvider);
+      ref.invalidate(miniAppVersionsProvider(app.id));
       _resetRunState();
       if (!mounted) return;
       final message = updated.validation.ok
@@ -248,6 +278,8 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
           .updateApp(id: app.id, documents: docs);
       ref.invalidate(miniAppProvider(app.id));
       ref.invalidate(miniAppsProvider);
+      ref.invalidate(miniAppVersionsProvider(app.id));
+      _resetRunState();
       if (!mounted) return;
       final message = updated.validation.ok
           ? '文档已保存'
@@ -278,6 +310,7 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
           .reviseApp(id: app.id, instruction: text);
       ref.invalidate(miniAppProvider(app.id));
       ref.invalidate(miniAppsProvider);
+      ref.invalidate(miniAppVersionsProvider(app.id));
       _resetRunState();
       if (!mounted) return;
       final message = updated.validation.ok
@@ -297,11 +330,15 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
   }
 
   void _resetRunState() {
+    if (!mounted) return;
     setState(() {
       _index = 0;
       _known = 0;
       _unknown = 0;
       _showAnswer = false;
+      _runId = null;
+      _runVersionId = null;
+      _startingRun = false;
     });
   }
 
@@ -337,6 +374,7 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
           .generateCardsForApp(appId: app.id);
       ref.invalidate(miniAppProvider(app.id));
       ref.invalidate(miniAppsProvider);
+      ref.invalidate(miniAppVersionsProvider(app.id));
       _resetRunState();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -468,7 +506,7 @@ class _PracticeCard extends StatelessWidget {
             front,
             style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
           ),
-          const Spacer(),
+          const SizedBox(height: 28),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 180),
             child: showAnswer
@@ -568,6 +606,215 @@ class _SummaryCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _VersionHistoryCard extends StatelessWidget {
+  final MiniAppRecord app;
+  final AsyncValue<MiniAppVersionListResult> versionsAsync;
+  final String? runVersionId;
+  final bool startingRun;
+
+  const _VersionHistoryCard({
+    required this.app,
+    required this.versionsAsync,
+    required this.runVersionId,
+    required this.startingRun,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.history_rounded, color: cs.primary),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  '版本历史',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (app.currentVersionId != null)
+                _VersionPill(label: '当前版本', value: app.currentVersionId!),
+              if (runVersionId != null)
+                _VersionPill(label: '运行绑定版本', value: runVersionId!)
+              else if (startingRun)
+                const _VersionPill(label: '运行绑定版本', value: '创建中'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          versionsAsync.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (error, _) =>
+                Text('版本历史加载失败：$error', style: TextStyle(color: cs.error)),
+            data: (result) {
+              if (result.versions.isEmpty) {
+                return Text(
+                  '还没有版本记录。保存、AI 改造或生成内容后会写入第一条版本。',
+                  style: TextStyle(color: cs.onSurfaceVariant),
+                );
+              }
+              return Column(
+                children: [
+                  for (final version in result.versions.take(8))
+                    _VersionTile(
+                      version: version,
+                      isCurrent: version.id == result.currentVersionId,
+                      isRunBound: version.id == runVersionId,
+                    ),
+                  if (result.versions.length > 8)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        '还有 ${result.versions.length - 8} 个旧版本，后续会接入完整分页。',
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VersionTile extends StatelessWidget {
+  final MiniAppVersion version;
+  final bool isCurrent;
+  final bool isRunBound;
+
+  const _VersionTile({
+    required this.version,
+    required this.isCurrent,
+    required this.isRunBound,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isRunBound
+              ? cs.primaryContainer
+              : isCurrent
+              ? cs.secondaryContainer
+              : cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isRunBound
+                ? cs.primary
+                : isCurrent
+                ? cs.secondary
+                : cs.outlineVariant,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '#${version.sequence} · ${_versionSourceLabel(version.source)}',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                if (isCurrent) const _VersionPill(label: '标记', value: '当前'),
+                if (isRunBound) const _VersionPill(label: '标记', value: '运行'),
+              ],
+            ),
+            const SizedBox(height: 6),
+            SelectableText(
+              version.id,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '父版本：${version.parentVersionId ?? '无'}',
+              style: TextStyle(color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '改动字段：${version.changed.isEmpty ? '未记录' : version.changed.join(' / ')}',
+              style: TextStyle(color: cs.onSurfaceVariant),
+            ),
+            if (version.instruction != null &&
+                version.instruction!.trim().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                '指令：${version.instruction}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+            ],
+            if (version.summary.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(version.summary),
+            ],
+            const SizedBox(height: 6),
+            Text(
+              version.createdAt,
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VersionPill extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _VersionPill({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$label：$value',
+        style: TextStyle(
+          color: cs.primary,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
@@ -893,4 +1140,15 @@ class _ScoreChip extends StatelessWidget {
       child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
     );
   }
+}
+
+String _versionSourceLabel(String source) {
+  return switch (source) {
+    'create' => '创建',
+    'update' => '保存配置',
+    'revise' => 'AI 改造',
+    'interview' => '访谈生成',
+    'generate_cards' => '资料生成内容',
+    _ => source.isEmpty ? '未知来源' : source,
+  };
 }
