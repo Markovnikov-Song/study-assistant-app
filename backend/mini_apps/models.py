@@ -87,6 +87,32 @@ class MiniAppVersionOut(BaseModel):
     version: MiniAppVersion
 
 
+class MiniAppVersionDiffItem(BaseModel):
+    path: str
+    change_type: Literal["added", "removed", "changed"]
+    before: Any = None
+    after: Any = None
+
+
+class MiniAppVersionDiffOut(BaseModel):
+    app_id: str
+    base_version_id: str | None = None
+    target_version_id: str
+    items: list[MiniAppVersionDiffItem] = Field(default_factory=list)
+    changed: list[str] = Field(default_factory=list)
+    total: int
+
+
+class MiniAppRollbackIn(BaseModel):
+    reason: str | None = None
+
+
+class MiniAppRollbackOut(BaseModel):
+    app: MiniAppRecord
+    version: MiniAppVersion
+    diff: MiniAppVersionDiffOut
+
+
 class MiniAppUpdateIn(BaseModel):
     title: str | None = None
     documents: dict[str, str] | None = None

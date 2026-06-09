@@ -230,6 +230,23 @@ class _FakeMiniAppService implements MiniAppService {
   }
 
   @override
+  Future<MiniAppVersionDiffResult> diffAppVersion({
+    required String appId,
+    required String versionId,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<MiniAppRollbackResult> rollbackAppVersion({
+    required String appId,
+    required String versionId,
+    String? reason,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<void> deleteApp(String id) async {}
 
   @override

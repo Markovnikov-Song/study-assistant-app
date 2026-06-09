@@ -33,6 +33,7 @@
 - 运行页支持从资料生成卡片，并回写到小工具运行配置。
 - 运行页支持保存文档、保存运行配置、请求助教改造。
 - 运行页展示版本历史：版本号、来源、父版本、改动字段、摘要、当前版本标记和本次运行绑定版本。
+- 运行页支持查看版本 diff，并能确认回滚到历史版本；回滚不会删除历史，而是创建新的 `rollback` 版本。
 - 修改配置、AI 改造、访谈生成、资料生成卡片都会创建 Mini App version 快照。
 - run session 会绑定当时的 `app_version_id`，并保存 `app_snapshot` 和 `graph_snapshot`，避免旧运行被新版本污染。
 - 后端提供 Scratch 风格 workflow registry、资源角色类型、`workshop.workflow.v1` validator 和 workflow patch 接口。
@@ -61,7 +62,7 @@
 | 工坊首页 | `lib/features/workshop/workshop_page.dart` | 四入口、Mini App 列表、卡片动作、复制分享、首页改造弹窗 |
 | 构建器 | `lib/features/workshop/workshop_builder_page.dart` | 自然语言访谈和草稿生成 |
 | 积木脚本页 | `lib/features/workshop/workshop_blocks_page.dart` | 积木 registry、脚本栈编辑、JSON 参数编辑、validator、patch 预览确认 |
-| 运行页 | `lib/features/workshop/mini_app_run_page.dart` | 小工具运行、文档编辑、配置保存、资料生成卡片、运行事件、版本历史 |
+| 运行页 | `lib/features/workshop/mini_app_run_page.dart` | 小工具运行、文档编辑、配置保存、资料生成卡片、运行事件、版本历史、diff 查看、回滚确认 |
 | Provider | `lib/features/workshop/mini_app_providers.dart` | Mini App 列表、详情、版本历史、积木注册表状态 |
 | Service | `lib/features/workshop/mini_app_service.dart` | `/api/mini-apps` 前端接口封装，包含版本和 workflow patch |
 | 模型 | `lib/features/workshop/mini_app_models.dart` | Mini App、version、workflow patch、访谈 turn、生成卡片结果 |
@@ -74,7 +75,7 @@
 
 - 当前只能生成和运行学习型小工具，不能生成任意桌面软件、浏览器插件或系统级程序。
 - 当前分享是复制说明和入口路径，不是公开市场发布。
-- 当前版本历史支持查看和运行绑定标记；分支、回滚、冲突合并和 Git 式 diff 仍未实现。
+- 当前版本历史支持查看、运行绑定标记、路径级 diff 和回滚确认；分支、冲突合并和 Git 文件树式 diff 仍未实现。
 - 当前运行器主要覆盖闪卡背记式内容，选择题、错题训练、资料问答等 renderer 需要继续扩展。
 - 当前积木编辑器是第一版：支持脚本栈、JSON 参数和 patch 确认，但还不是完整拖拽积木画布。
 - 资源角色目前以类型和默认参数展示为主，尚未做真实资源实例选择器。
@@ -85,14 +86,14 @@
 | --- | --- |
 | `test/features/workshop/workshop_page_test.dart` | 四入口展示、运行最近小工具、从首页改造已有小工具 |
 | `test/features/workshop/workshop_blocks_page_test.dart` | registry 加载、加积木、编辑 JSON、校验 workflow、自然语言 patch 预览并应用 |
-| `test/features/workshop/mini_app_run_page_test.dart` | 运行页版本历史、父版本、改动字段、本次运行绑定版本 |
+| `test/features/workshop/mini_app_run_page_test.dart` | 运行页版本历史、父版本、改动字段、本次运行绑定版本、diff 弹窗、回滚确认 |
 | `backend/tests/test_workshop_workflow.py` | workflow registry、validator、插槽错误、LLM 失败策略、patch 合同 |
-| `backend/tests/test_mini_app_versions.py` | Mini App 版本快照和 run session 绑定版本 |
+| `backend/tests/test_mini_app_versions.py` | Mini App 版本快照、run session 绑定版本、版本 diff、rollback 新版本 |
 | `backend/tests/test_mini_app_card_pipeline.py` | invisible canvas graph 校验和资料生成卡片管线 |
 
 ## 下一步优先级
 
-1. 做真正的 Git 式追溯：workflow 文件树、commit 信息、版本 diff、回滚、冲突提示。
+1. 做真正的 Git 文件树追溯：workflow 文件树、commit 信息、语义 diff、冲突提示。
 2. 把积木编辑器从“列表 + JSON 参数”升级为拖拽画布：嵌套积木、表达式插槽、资源实例选择器。
 3. 扩展运行器类型：选择题、错题训练、资料问答、讲义生成和复习队列动作都要能由配置驱动。
 4. 做资源库联动：小工具生成的讲义、卡片、错题结果写回资源库分类，并保留来源指针。
@@ -118,7 +119,7 @@
 2. 点击改造，输入“每轮题量减半，答错后先给提示，再给完整解释”。
 3. 提交后打开运行页。
 4. 小工具配置已更新，并产生新版本。
-5. 版本历史显示父版本、改动字段和本次运行绑定版本。
+5. 版本历史显示父版本、改动字段和本次运行绑定版本，并支持查看 diff 或回滚到历史版本。
 
 `WORKSHOP-BLOCKS-01`：自然语言改积木必须先确认 patch。
 

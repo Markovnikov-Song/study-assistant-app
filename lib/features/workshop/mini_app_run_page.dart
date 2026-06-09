@@ -25,6 +25,7 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
   bool _startingRun = false;
   String? _runId;
   String? _runVersionId;
+  String? _versionActionId;
 
   void _mark(bool known, int total, Map<String, dynamic> item) {
     setState(() {
@@ -83,6 +84,9 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
             versionsAsync: versionsAsync,
             runVersionId: _runVersionId,
             startingRun: _startingRun,
+            actionVersionId: _versionActionId,
+            onInspectVersion: (version) => _showVersionDiff(app, version),
+            onRollbackVersion: (version) => _rollbackToVersion(app, version),
           ),
         ],
       );
@@ -159,6 +163,9 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
           versionsAsync: versionsAsync,
           runVersionId: _runVersionId,
           startingRun: _startingRun,
+          actionVersionId: _versionActionId,
+          onInspectVersion: (version) => _showVersionDiff(app, version),
+          onRollbackVersion: (version) => _rollbackToVersion(app, version),
         ),
       ],
     );
@@ -394,6 +401,121 @@ class _MiniAppRunPageState extends ConsumerState<MiniAppRunPage> {
       if (mounted) setState(() => _generating = false);
     }
   }
+
+  Future<void> _showVersionDiff(
+    MiniAppRecord app,
+    MiniAppVersion version,
+  ) async {
+    if (_versionActionId != null) return;
+    setState(() => _versionActionId = version.id);
+    try {
+      final diff = await ref
+          .read(miniAppServiceProvider)
+          .diffAppVersion(appId: app.id, versionId: version.id);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => _VersionDiffDialog(version: version, diff: diff),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('版本 diff 加载失败：$error')));
+    } finally {
+      if (mounted) setState(() => _versionActionId = null);
+    }
+  }
+
+  Future<void> _rollbackToVersion(
+    MiniAppRecord app,
+    MiniAppVersion version,
+  ) async {
+    if (_versionActionId != null || version.id == app.currentVersionId) return;
+    setState(() => _versionActionId = version.id);
+    try {
+      final diff = await ref
+          .read(miniAppServiceProvider)
+          .diffAppVersion(appId: app.id, versionId: version.id);
+      if (!mounted) return;
+      final reason = await _showRollbackConfirmDialog(version, diff);
+      if (reason == null) return;
+      final result = await ref
+          .read(miniAppServiceProvider)
+          .rollbackAppVersion(
+            appId: app.id,
+            versionId: version.id,
+            reason: reason,
+          );
+      ref.invalidate(miniAppProvider(app.id));
+      ref.invalidate(miniAppsProvider);
+      ref.invalidate(miniAppVersionsProvider(app.id));
+      _resetRunState();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已回滚并创建新版本 ${result.version.id}')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('版本回滚失败：$error')));
+    } finally {
+      if (mounted) setState(() => _versionActionId = null);
+    }
+  }
+
+  Future<String?> _showRollbackConfirmDialog(
+    MiniAppVersion version,
+    MiniAppVersionDiffResult diff,
+  ) async {
+    final controller = TextEditingController(text: '回滚到 ${version.id}');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('回滚到 ${version.id}'),
+          content: SizedBox(
+            width: 760,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('会基于该快照创建一个新的 rollback 版本，不会删除历史记录。'),
+                  const SizedBox(height: 12),
+                  _VersionDiffPreview(diff: diff),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: '回滚原因',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              icon: const Icon(Icons.restore_rounded),
+              label: const Text('确认回滚'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    return result;
+  }
 }
 
 class _EmptyContentView extends StatelessWidget {
@@ -616,12 +738,18 @@ class _VersionHistoryCard extends StatelessWidget {
   final AsyncValue<MiniAppVersionListResult> versionsAsync;
   final String? runVersionId;
   final bool startingRun;
+  final String? actionVersionId;
+  final ValueChanged<MiniAppVersion> onInspectVersion;
+  final ValueChanged<MiniAppVersion> onRollbackVersion;
 
   const _VersionHistoryCard({
     required this.app,
     required this.versionsAsync,
     required this.runVersionId,
     required this.startingRun,
+    required this.actionVersionId,
+    required this.onInspectVersion,
+    required this.onRollbackVersion,
   });
 
   @override
@@ -681,6 +809,11 @@ class _VersionHistoryCard extends StatelessWidget {
                       version: version,
                       isCurrent: version.id == result.currentVersionId,
                       isRunBound: version.id == runVersionId,
+                      busy: actionVersionId == version.id,
+                      onInspect: () => onInspectVersion(version),
+                      onRollback: version.id == result.currentVersionId
+                          ? null
+                          : () => onRollbackVersion(version),
                     ),
                   if (result.versions.length > 8)
                     Padding(
@@ -707,11 +840,17 @@ class _VersionTile extends StatelessWidget {
   final MiniAppVersion version;
   final bool isCurrent;
   final bool isRunBound;
+  final bool busy;
+  final VoidCallback onInspect;
+  final VoidCallback? onRollback;
 
   const _VersionTile({
     required this.version,
     required this.isCurrent,
     required this.isRunBound,
+    required this.busy,
+    required this.onInspect,
+    required this.onRollback,
   });
 
   @override
@@ -786,8 +925,150 @@ class _VersionTile extends StatelessWidget {
               version.createdAt,
               style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
             ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: busy ? null : onInspect,
+                    icon: busy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.difference_rounded),
+                    label: const Text('查看 diff'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: busy ? null : onRollback,
+                    icon: const Icon(Icons.restore_rounded),
+                    label: const Text('回滚到此版本'),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _VersionDiffDialog extends StatelessWidget {
+  final MiniAppVersion version;
+  final MiniAppVersionDiffResult diff;
+
+  const _VersionDiffDialog({required this.version, required this.diff});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('版本 diff：${version.id}'),
+      content: SizedBox(width: 760, child: _VersionDiffPreview(diff: diff)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
+        ),
+      ],
+    );
+  }
+}
+
+class _VersionDiffPreview extends StatelessWidget {
+  final MiniAppVersionDiffResult diff;
+
+  const _VersionDiffPreview({required this.diff});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _VersionPill(label: '当前', value: diff.baseVersionId ?? '无'),
+            _VersionPill(label: '目标', value: diff.targetVersionId),
+            _VersionPill(label: '差异', value: '${diff.total}'),
+            for (final changed in diff.changed.take(6))
+              _VersionPill(label: '字段', value: changed),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (diff.items.isEmpty)
+          Text('当前版本和目标版本没有差异。', style: TextStyle(color: cs.onSurfaceVariant))
+        else
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 420),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: diff.items.length > 40 ? 40 : diff.items.length,
+              itemBuilder: (context, index) {
+                return _VersionDiffRow(item: diff.items[index]);
+              },
+            ),
+          ),
+        if (diff.items.length > 40)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              '还有 ${diff.items.length - 40} 条差异未显示。',
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _VersionDiffRow extends StatelessWidget {
+  final MiniAppVersionDiffItem item;
+
+  const _VersionDiffRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _VersionPill(label: 'op', value: item.changeType),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SelectableText(
+                  item.path,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${_compactDiffValue(item.before)} -> ${_compactDiffValue(item.after)}',
+            style: TextStyle(color: cs.onSurfaceVariant),
+          ),
+        ],
       ),
     );
   }
@@ -1149,6 +1430,14 @@ String _versionSourceLabel(String source) {
     'revise' => 'AI 改造',
     'interview' => '访谈生成',
     'generate_cards' => '资料生成内容',
+    'rollback' => '版本回滚',
     _ => source.isEmpty ? '未知来源' : source,
   };
+}
+
+String _compactDiffValue(dynamic value) {
+  if (value == null) return 'null';
+  final text = value is String ? value : jsonEncode(value);
+  if (text.length <= 96) return text;
+  return '${text.substring(0, 93)}...';
 }

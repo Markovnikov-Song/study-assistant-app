@@ -36,6 +36,22 @@ void main() {
     expect(find.textContaining('父版本：app_v1'), findsOneWidget);
     expect(find.textContaining('改动字段：spec / documents'), findsOneWidget);
     expect(find.textContaining('把题量调成 10 题'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.difference_rounded).last);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('spec.scheduler.new_items_per_day'), findsOneWidget);
+    await tester.tap(find.byType(TextButton).last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.restore_rounded).last);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('spec.scheduler.new_items_per_day'), findsOneWidget);
+    await tester.tap(
+      find.widgetWithIcon(FilledButton, Icons.restore_rounded).last,
+    );
+    await tester.pumpAndSettle();
+
+    expect(service.rollbackVersionId, 'app_v1');
+    expect(service.rollbackReason, contains('app_v1'));
   });
 }
 
@@ -97,6 +113,8 @@ const _versions = MiniAppVersionListResult(
 
 class _FakeMiniAppService implements MiniAppService {
   String? startedAppId;
+  String? rollbackVersionId;
+  String? rollbackReason;
 
   @override
   Future<List<MiniAppSummary>> listApps() async => [];
@@ -114,6 +132,53 @@ class _FakeMiniAppService implements MiniAppService {
     required String versionId,
   }) async {
     return _versions.versions.firstWhere((version) => version.id == versionId);
+  }
+
+  @override
+  Future<MiniAppVersionDiffResult> diffAppVersion({
+    required String appId,
+    required String versionId,
+  }) async => const MiniAppVersionDiffResult(
+    appId: 'workshop_app_1',
+    baseVersionId: 'app_v2',
+    targetVersionId: 'app_v1',
+    changed: ['spec'],
+    total: 1,
+    items: [
+      MiniAppVersionDiffItem(
+        path: 'spec.scheduler.new_items_per_day',
+        changeType: 'changed',
+        before: 12,
+        after: 10,
+      ),
+    ],
+  );
+
+  @override
+  Future<MiniAppRollbackResult> rollbackAppVersion({
+    required String appId,
+    required String versionId,
+    String? reason,
+  }) async {
+    rollbackVersionId = versionId;
+    rollbackReason = reason;
+    return MiniAppRollbackResult(
+      app: _record,
+      version: const MiniAppVersion(
+        id: 'app_v3',
+        appId: 'workshop_app_1',
+        userId: 'user_1',
+        sequence: 3,
+        parentVersionId: 'app_v2',
+        source: 'rollback',
+        instruction: 'rollback to app_v1',
+        changed: ['spec'],
+        summary: 'rollback',
+        snapshot: {},
+        createdAt: '2026-06-05T12:00:00',
+      ),
+      diff: await diffAppVersion(appId: appId, versionId: versionId),
+    );
   }
 
   @override

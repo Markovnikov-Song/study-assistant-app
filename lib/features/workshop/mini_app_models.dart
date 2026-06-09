@@ -437,6 +437,90 @@ class MiniAppVersionListResult {
   }
 }
 
+class MiniAppVersionDiffItem {
+  final String path;
+  final String changeType;
+  final dynamic before;
+  final dynamic after;
+
+  const MiniAppVersionDiffItem({
+    required this.path,
+    required this.changeType,
+    this.before,
+    this.after,
+  });
+
+  factory MiniAppVersionDiffItem.fromJson(Map<String, dynamic> json) {
+    return MiniAppVersionDiffItem(
+      path: json['path'] as String? ?? '',
+      changeType: json['change_type'] as String? ?? 'changed',
+      before: json['before'],
+      after: json['after'],
+    );
+  }
+}
+
+class MiniAppVersionDiffResult {
+  final String appId;
+  final String? baseVersionId;
+  final String targetVersionId;
+  final List<MiniAppVersionDiffItem> items;
+  final List<String> changed;
+  final int total;
+
+  const MiniAppVersionDiffResult({
+    required this.appId,
+    this.baseVersionId,
+    required this.targetVersionId,
+    required this.items,
+    required this.changed,
+    required this.total,
+  });
+
+  factory MiniAppVersionDiffResult.fromJson(Map<String, dynamic> json) {
+    return MiniAppVersionDiffResult(
+      appId: json['app_id'] as String? ?? '',
+      baseVersionId: json['base_version_id'] as String?,
+      targetVersionId: json['target_version_id'] as String? ?? '',
+      items: ((json['items'] as List?) ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) =>
+                MiniAppVersionDiffItem.fromJson(item.cast<String, dynamic>()),
+          )
+          .toList(),
+      changed: ((json['changed'] as List?) ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      total: (json['total'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class MiniAppRollbackResult {
+  final MiniAppRecord app;
+  final MiniAppVersion version;
+  final MiniAppVersionDiffResult diff;
+
+  const MiniAppRollbackResult({
+    required this.app,
+    required this.version,
+    required this.diff,
+  });
+
+  factory MiniAppRollbackResult.fromJson(Map<String, dynamic> json) {
+    return MiniAppRollbackResult(
+      app: MiniAppRecord.fromJson((json['app'] as Map).cast<String, dynamic>()),
+      version: MiniAppVersion.fromJson(
+        (json['version'] as Map).cast<String, dynamic>(),
+      ),
+      diff: MiniAppVersionDiffResult.fromJson(
+        (json['diff'] as Map).cast<String, dynamic>(),
+      ),
+    );
+  }
+}
+
 class GenerateCardsResult {
   final MiniAppRecord app;
   final int targetCardCount;

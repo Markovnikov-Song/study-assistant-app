@@ -40,11 +40,16 @@ from mini_apps.models import (
     MiniAppRunEventOut,
     MiniAppRunOut,
     MiniAppRunStartOut,
+    MiniAppRollbackIn,
+    MiniAppRollbackOut,
     MiniAppReviseIn,
     MiniAppReviseOut,
     MiniAppSaveIn,
     MiniAppSaveOut,
     MiniAppSummary,
+    MiniAppVersion,
+    MiniAppVersionDiffItem,
+    MiniAppVersionDiffOut,
     MiniAppUpdateIn,
     MiniAppVersionListOut,
     MiniAppVersionOut,
@@ -537,6 +542,57 @@ def get_mini_app_version(app_id: str, version_id: str, user=Depends(get_current_
     return MiniAppVersionOut(version=version)
 
 
+@router.get(
+    "/{app_id}/versions/{version_id}/diff",
+    response_model=MiniAppVersionDiffOut,
+)
+def diff_mini_app_version(
+    app_id: str,
+    version_id: str,
+    user=Depends(get_current_user),
+):
+    app = get_app(user["id"], app_id)
+    if app is None:
+        raise HTTPException(404, "Mini app not found")
+    app = ensure_app_version(user["id"], app)
+    target = get_app_version(user["id"], app.id, version_id)
+    if target is None:
+        raise HTTPException(404, "Mini app version not found")
+    return _version_diff(app, target)
+
+
+@router.post(
+    "/{app_id}/versions/{version_id}/rollback",
+    response_model=MiniAppRollbackOut,
+)
+def rollback_mini_app_version(
+    app_id: str,
+    version_id: str,
+    body: MiniAppRollbackIn,
+    user=Depends(get_current_user),
+):
+    app = get_app(user["id"], app_id)
+    if app is None:
+        raise HTTPException(404, "Mini app not found")
+    app = ensure_app_version(user["id"], app)
+    target = get_app_version(user["id"], app.id, version_id)
+    if target is None:
+        raise HTTPException(404, "Mini app version not found")
+
+    diff = _version_diff(app, target)
+    restored = _restore_app_from_version(app, target)
+    version = create_app_version(
+        user["id"],
+        restored,
+        source="rollback",
+        instruction=(body.reason or "").strip() or f"rollback to {target.id}",
+        changed=diff.changed,
+        summary=f"回滚到版本 {target.id}",
+    )
+    saved = save_app(user["id"], restored)
+    return MiniAppRollbackOut(app=saved, version=version, diff=diff)
+
+
 def _update_changed_fields(body: MiniAppUpdateIn) -> list[str]:
     changed: list[str] = []
     if body.title is not None:
@@ -548,6 +604,122 @@ def _update_changed_fields(body: MiniAppUpdateIn) -> list[str]:
     if body.status is not None:
         changed.append("status")
     return changed
+
+
+def _version_diff(
+    app: MiniAppRecord,
+    target: MiniAppVersion,
+) -> MiniAppVersionDiffOut:
+    current_snapshot = app.model_dump(mode="json")
+    items = _diff_values("", current_snapshot, target.snapshot)
+    changed = sorted({_top_level_path(item.path) for item in items if item.path})
+    return MiniAppVersionDiffOut(
+        app_id=app.id,
+        base_version_id=app.current_version_id,
+        target_version_id=target.id,
+        items=items,
+        changed=changed,
+        total=len(items),
+    )
+
+
+def _restore_app_from_version(
+    app: MiniAppRecord,
+    target: MiniAppVersion,
+) -> MiniAppRecord:
+    snapshot = target.snapshot
+    spec = dict(snapshot.get("spec") or {})
+    graph, graph_validation = materialize_graph(spec)
+    validation = merge_validations(validate_spec(spec), graph_validation)
+    app.title = str(snapshot.get("title") or app.title)
+    app.app_type = str(snapshot.get("app_type") or app.app_type)
+    app.subject_id = snapshot.get("subject_id")
+    app.status = "validated" if validation.ok else "draft"
+    app.documents = dict(snapshot.get("documents") or {})
+    app.spec = spec
+    app.graph = graph
+    app.validation = validation
+    app.updated_at = now_iso()
+    return app
+
+
+def _diff_values(path: str, before, after) -> list[MiniAppVersionDiffItem]:
+    if before == after:
+        return []
+    if isinstance(before, dict) and isinstance(after, dict):
+        return _diff_dicts(path, before, after)
+    if isinstance(before, list) and isinstance(after, list):
+        return _diff_lists(path, before, after)
+    return [
+        MiniAppVersionDiffItem(
+            path=path or "$",
+            change_type="changed",
+            before=before,
+            after=after,
+        )
+    ]
+
+
+def _diff_dicts(
+    path: str,
+    before: dict,
+    after: dict,
+) -> list[MiniAppVersionDiffItem]:
+    items: list[MiniAppVersionDiffItem] = []
+    keys = sorted(set(before.keys()) | set(after.keys()))
+    for key in keys:
+        next_path = f"{path}.{key}" if path else str(key)
+        if key not in before:
+            items.append(
+                MiniAppVersionDiffItem(
+                    path=next_path,
+                    change_type="added",
+                    after=after[key],
+                )
+            )
+        elif key not in after:
+            items.append(
+                MiniAppVersionDiffItem(
+                    path=next_path,
+                    change_type="removed",
+                    before=before[key],
+                )
+            )
+        else:
+            items.extend(_diff_values(next_path, before[key], after[key]))
+    return items
+
+
+def _diff_lists(
+    path: str,
+    before: list,
+    after: list,
+) -> list[MiniAppVersionDiffItem]:
+    items: list[MiniAppVersionDiffItem] = []
+    shared = min(len(before), len(after))
+    for index in range(shared):
+        items.extend(_diff_values(f"{path}[{index}]", before[index], after[index]))
+    for index in range(shared, len(before)):
+        items.append(
+            MiniAppVersionDiffItem(
+                path=f"{path}[{index}]",
+                change_type="removed",
+                before=before[index],
+            )
+        )
+    for index in range(shared, len(after)):
+        items.append(
+            MiniAppVersionDiffItem(
+                path=f"{path}[{index}]",
+                change_type="added",
+                after=after[index],
+            )
+        )
+    return items
+
+
+def _top_level_path(path: str) -> str:
+    return path.split(".", 1)[0].split("[", 1)[0]
 
 
 def _run_app_snapshot(app: MiniAppRecord, graph: dict[str, object]) -> dict[str, object]:

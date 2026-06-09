@@ -693,7 +693,7 @@ workflow diff 不应只显示 JSON 行差异，还应显示积木语义差异：
 ## 2026-06-09 落地状态补充
 
 - 后端 `MiniAppVersion` 快照、run 绑定 `app_version_id`、`app_snapshot` 和 `graph_snapshot` 已落地。
-- 运行页已展示版本历史、父版本、改动字段、当前版本和本次运行绑定版本。
+- 运行页已展示版本历史、父版本、改动字段、当前版本和本次运行绑定版本，并支持路径级 diff 弹窗和回滚确认。
 - 后端 `POST /api/mini-apps/workflow/patch` 已提供自然语言到结构化 patch operations 的合同。
 - 积木脚本页已接入 patch 确认流：先预览 patch operations、目标路径、改动字段和校验结果，再由用户点击“应用 patch”替换当前 workflow。
-- 尚未落地：真正的拖拽积木画布、资源实例选择器、版本回滚、Git 式文件树 diff、运行器调试日志。
+- 尚未落地：真正的拖拽积木画布、资源实例选择器、Git 式文件树 diff、运行器调试日志。

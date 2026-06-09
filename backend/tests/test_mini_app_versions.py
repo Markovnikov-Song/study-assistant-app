@@ -79,6 +79,38 @@ def test_mini_app_versions_are_snapshotted_and_runs_bind_version(tmp_path, monke
     assert second_run_response.status_code == 200
     assert second_run_response.json()["app_version_id"] == second_version
 
+    diff_response = client.get(f"/api/mini-apps/{app_id}/versions/{first_version}/diff")
+    assert diff_response.status_code == 200, diff_response.text
+    diff = diff_response.json()
+    assert diff["base_version_id"] == second_version
+    assert diff["target_version_id"] == first_version
+    assert any(
+        item["path"] == "spec.scheduler.new_items_per_day"
+        and item["before"] == 12
+        and item["after"] == 10
+        for item in diff["items"]
+    )
+
+    rollback_response = client.post(
+        f"/api/mini-apps/{app_id}/versions/{first_version}/rollback",
+        json={"reason": "restore first flashcard plan"},
+    )
+    assert rollback_response.status_code == 200, rollback_response.text
+    rollback = rollback_response.json()
+    rolled_app = rollback["app"]
+    rollback_version = rollback["version"]
+    assert rolled_app["spec"]["scheduler"]["new_items_per_day"] == 10
+    assert rollback_version["source"] == "rollback"
+    assert rollback_version["parent_version_id"] == second_version
+    assert rollback_version["id"].endswith("_v3")
+    assert rollback["diff"]["target_version_id"] == first_version
+
+    final_versions_response = client.get(f"/api/mini-apps/{app_id}/versions")
+    assert final_versions_response.status_code == 200
+    final_versions = final_versions_response.json()
+    assert final_versions["current_version_id"] == rollback_version["id"]
+    assert final_versions["total"] == 3
+
 
 def _sample_spec() -> dict:
     return deepcopy(

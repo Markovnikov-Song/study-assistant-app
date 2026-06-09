@@ -57,6 +57,40 @@ class MiniAppService {
     }
   }
 
+  Future<MiniAppVersionDiffResult> diffAppVersion({
+    required String appId,
+    required String versionId,
+  }) async {
+    try {
+      final res = await _dio.get(
+        '/api/mini-apps/$appId/versions/$versionId/diff',
+      );
+      return MiniAppVersionDiffResult.fromJson(
+        (res.data as Map).cast<String, dynamic>(),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<MiniAppRollbackResult> rollbackAppVersion({
+    required String appId,
+    required String versionId,
+    String? reason,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '/api/mini-apps/$appId/versions/$versionId/rollback',
+        data: {'reason': reason},
+      );
+      return MiniAppRollbackResult.fromJson(
+        (res.data as Map).cast<String, dynamic>(),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<void> deleteApp(String id) async {
     try {
       await _dio.delete('/api/mini-apps/$id');
