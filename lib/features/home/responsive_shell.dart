@@ -11,12 +11,10 @@ import '../../core/theme/styles/export.dart';
 import '../../providers/hint_provider.dart';
 import '../../providers/subject_provider.dart';
 import '../../routes/app_routes.dart';
-import '../../services/update_service.dart';
 import '../chat/responsive_chat_page.dart';
 import '../onboarding/onboarding_demo_service.dart';
 import '../profile/profile_page.dart';
 import '../toolkit/toolkit_page.dart';
-import '../update/update_dialog.dart';
 
 const _tabs = [
   (Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, '答疑室'),
@@ -51,7 +49,6 @@ class _ResponsiveShellState extends ConsumerState<ResponsiveShell> {
     _pageCtrl = PageController(initialPage: _currentIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshHints();
-      _checkForUpdate();
       _runPendingOnboardingDemo();
     });
   }
@@ -60,12 +57,6 @@ class _ResponsiveShellState extends ConsumerState<ResponsiveShell> {
   void dispose() {
     _pageCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _checkForUpdate() async {
-    final result = await UpdateService.instance.checkForUpdate();
-    if (!result.hasUpdate || !mounted) return;
-    await showUpdateDialog(context, result.info!, isForced: result.isForced);
   }
 
   Future<void> _runPendingOnboardingDemo() async {

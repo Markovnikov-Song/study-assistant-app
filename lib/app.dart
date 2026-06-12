@@ -4,6 +4,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/styles/export.dart';
+import 'features/update/update_gate.dart';
 import 'routes/app_router.dart';
 import 'widgets/incident_feedback_fab.dart';
 
@@ -35,22 +36,24 @@ class App extends ConsumerWidget {
           data: MediaQuery.of(
             context,
           ).copyWith(textScaler: TextScaler.noScaling),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              RepaintBoundary(
-                key: IncidentCapture.boundaryKey,
-                child: child ?? const SizedBox(),
-              ),
-              ValueListenableBuilder<RouteInformation>(
-                valueListenable: router.routeInformationProvider,
-                builder: (context, routeInfo, _) {
-                  final uri = routeInfo.uri;
-                  final route = uri.hasQuery ? uri.toString() : uri.path;
-                  return IncidentFeedbackFab(currentRoute: route);
-                },
-              ),
-            ],
+          child: UpdateGate(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                RepaintBoundary(
+                  key: IncidentCapture.boundaryKey,
+                  child: child ?? const SizedBox(),
+                ),
+                ValueListenableBuilder<RouteInformation>(
+                  valueListenable: router.routeInformationProvider,
+                  builder: (context, routeInfo, _) {
+                    final uri = routeInfo.uri;
+                    final route = uri.hasQuery ? uri.toString() : uri.path;
+                    return IncidentFeedbackFab(currentRoute: route);
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },
